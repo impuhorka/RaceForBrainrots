@@ -1,0 +1,3 @@
+local Brainrots = {}
+
+return Brainrots

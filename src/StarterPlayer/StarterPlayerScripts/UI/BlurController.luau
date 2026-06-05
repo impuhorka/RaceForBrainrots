@@ -2,8 +2,8 @@ local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 
 local BLUR_SIZE = 20
-local BLUR_IN_TIME = 1.5 * 0.65
-local BLUR_OUT_TIME = BLUR_IN_TIME * 0.65
+local BLUR_IN_TIME = 0.12
+local BLUR_OUT_TIME = 1.5 * 0.65 * 0.65
 local BLUR_IN_INFO = TweenInfo.new(BLUR_IN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local BLUR_OUT_INFO = TweenInfo.new(BLUR_OUT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 

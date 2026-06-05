@@ -8,6 +8,8 @@ local TAG_ANIMATIONS = {
 
 local active: { [Instance]: any } = {}
 
+local teardown
+
 local function setup(instance: Instance)
 	if not instance:IsA("ImageButton") then
 		return
@@ -29,7 +31,7 @@ local function setup(instance: Instance)
 	end
 end
 
-local function teardown(instance: Instance)
+teardown = function(instance: Instance)
 	local animation = active[instance]
 	if not animation then
 		return

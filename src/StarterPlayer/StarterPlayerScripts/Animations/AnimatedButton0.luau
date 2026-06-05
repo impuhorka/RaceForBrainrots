@@ -5,11 +5,12 @@ local ClickRipple = require(script.Parent.ClickRipple)
 
 local TWEEN_INFO = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
-local AnimatedButton0 = setmetatable({}, { __index = AnimationBase })
+local AnimatedButton0 = {}
 AnimatedButton0.__index = AnimatedButton0
+setmetatable(AnimatedButton0, { __index = AnimationBase })
 
 function AnimatedButton0.new(instance: ImageButton)
-	local self = setmetatable(AnimationBase.new(instance), AnimatedButton0)
+	local self = AnimationBase.new(instance)
 
 	local uiScale = instance:FindFirstChildOfClass("UIScale")
 	if not uiScale then
@@ -21,6 +22,16 @@ function AnimatedButton0.new(instance: ImageButton)
 	self._uiScale = uiScale
 	self._originalScale = uiScale.Scale
 	self._tween = nil
+
+	setmetatable(self, {
+		__index = function(_, key)
+			local method = AnimatedButton0[key]
+			if method ~= nil then
+				return method
+			end
+			return AnimationBase[key]
+		end,
+	})
 
 	return self
 end

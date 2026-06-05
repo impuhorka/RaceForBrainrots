@@ -266,6 +266,7 @@ function FrameController.open(frame: GuiObject)
 	end
 
 	currentOpen = frame
+	notifyBlurChanged()
 
 	cancelTween(frame)
 
@@ -353,7 +354,41 @@ function FrameController.isOpenForBlur(frame: GuiObject): boolean
 	if closingBlurFrames[frame] then
 		return false
 	end
+	if currentOpen == frame then
+		return true
+	end
 	return frame.Visible
+end
+
+function FrameController.closeAllInstant()
+	if not framesFolder then
+		return
+	end
+
+	for _, child in framesFolder:GetChildren() do
+		if not child:IsA("GuiObject") then
+			continue
+		end
+
+		cancelTween(child)
+
+		local origin = origins[child]
+		if origin then
+			child.Position = origin
+		end
+
+		child.Visible = false
+	end
+
+	table.clear(closingBlurFrames)
+	currentOpen = nil
+
+	if inventoryOpen then
+		inventoryOpen = false
+		notifyInventoryChanged(false)
+	end
+
+	notifyBlurChanged()
 end
 
 function FrameController.init(frames: Folder)
@@ -363,8 +398,13 @@ function FrameController.init(frames: Folder)
 		FrameController.register(child :: GuiObject)
 	end
 
+	FrameController.closeAllInstant()
+
 	frames.ChildAdded:Connect(function(child)
 		FrameController.register(child :: GuiObject)
+		if child:IsA("GuiObject") and child.Visible then
+			FrameController.closeAllInstant()
+		end
 	end)
 end
 

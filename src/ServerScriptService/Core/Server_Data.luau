@@ -64,6 +64,9 @@ local DataTemplate = {
 	TutorialCompleted = false,
 }
 
+local USE_TEST_INVENTORY = false
+local USE_MOCK_DATASTORE_IN_STUDIO = false
+
 local Module = {}
 Module.Profiles = {}
 Module.Replicas = {}
@@ -72,7 +75,7 @@ local PlayerStore = ProfileStore.New("RunForBrainrots_v1", DataTemplate)
 local ReplicaClassToken = ReplicaService.NewClassToken("PlayerData")
 
 local function getStore()
-	if RunService:IsStudio() then
+	if RunService:IsStudio() and USE_MOCK_DATASTORE_IN_STUDIO then
 		return PlayerStore.Mock
 	end
 	return PlayerStore
@@ -174,6 +177,93 @@ function Module:SubValue(player, path, amount)
 	self:SetValue(player, path, math.max(0, current - amount))
 end
 
+function Module:RemoveInventoryAt(player: Player, index: number): any?
+	local data = self:GetData(player)
+	if not data then
+		return nil
+	end
+
+	local inventory = data.Inventory
+	if type(inventory) ~= "table" or not inventory[index] then
+		return nil
+	end
+
+	local item = inventory[index]
+	table.remove(inventory, index)
+
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValue({ "Inventory" }, inventory)
+	end
+
+	return item
+end
+
+function Module:SetPlotSlot(player: Player, slotId: number, slotData: any)
+	local data = self:GetData(player)
+	if not data then
+		return false
+	end
+
+	if type(data.Plot) ~= "table" then
+		data.Plot = {}
+	end
+
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValues({ "Plot" }, { [tostring(slotId)] = slotData })
+	else
+		data.Plot[tostring(slotId)] = slotData
+	end
+
+	return true
+end
+
+function Module:RemovePlotSlot(player: Player, slotId: number): boolean
+	local data = self:GetData(player)
+	if not data or type(data.Plot) ~= "table" then
+		return false
+	end
+
+	data.Plot[tostring(slotId)] = nil
+
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValue({ "Plot", tostring(slotId) }, nil)
+	end
+
+	return true
+end
+
+function Module:AddInventoryItem(player: Player, item: any): number?
+	local data = self:GetData(player)
+	if not data then
+		return nil
+	end
+
+	if type(data.Inventory) ~= "table" then
+		data.Inventory = {}
+	end
+
+	table.insert(data.Inventory, item)
+	local newIndex = #data.Inventory
+
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValue({ "Inventory" }, data.Inventory)
+	end
+
+	return newIndex
+end
+
+function Module:GetPlotSlot(player: Player, slotId: number): any?
+	local data = self:GetData(player)
+	if not data or type(data.Plot) ~= "table" then
+		return nil
+	end
+	return data.Plot[tostring(slotId)]
+end
+
 local function createLeaderstats(player, profile)
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
@@ -218,6 +308,25 @@ local function onPlayerAdded(player)
 
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+
+	if USE_TEST_INVENTORY then
+		local plot = profile.Data.Plot or {}
+		local inventory = profile.Data.Inventory or {}
+		if next(plot) == nil and #inventory == 0 then
+			profile.Data.Inventory = {
+				{
+					ItemType = "Brainrot",
+					ConfigName = "FluriFlura",
+					Data = { Level = 1, Modifier = "Normal" },
+				},
+				{
+					ItemType = "Brainrot",
+					ConfigName = "ChillinChili",
+					Data = { Level = 1, Modifier = "Normal" },
+				},
+			}
+		end
+	end
 
 	profile.OnSessionEnd:Connect(function()
 		Module.Profiles[player] = nil

@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 
 local BlurController = require(script.Parent.BlurController)
 local FrameController = require(script.Parent.FrameController)
+local Client_FOV = require(script.Parent.Parent.Client.Client_FOV)
 
 local FrameRegistry = {}
 
@@ -18,7 +19,9 @@ local function isAnyOpen(frames: Folder): boolean
 end
 
 local function update(frames: Folder)
-	BlurController.setOpen(isAnyOpen(frames))
+	local anyOpen = isAnyOpen(frames)
+	BlurController.setOpen(anyOpen)
+	Client_FOV.setFrameZoomActive(anyOpen)
 end
 
 local function hookFrame(frame: GuiObject, frames: Folder)

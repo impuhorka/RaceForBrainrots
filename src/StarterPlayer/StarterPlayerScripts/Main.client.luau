@@ -5,6 +5,18 @@ local Player = Players.LocalPlayer
 
 local ReplicaController = require(ReplicatedStorage.Modules.Dependencies.ReplicaController)
 local Client_Data = require(script.Parent.Client.Client_Data)
+local Client_FOV = require(script.Parent.Client.Client_FOV)
+local Client_Messaging = require(script.Parent.Client.Client_Messaging)
+local Client_PlotBillboards = require(script.Parent.Client.Client_PlotBillboards)
+
+Client_Messaging.Init()
+
+Client_PlotBillboards:Init()
+
+local Client_PlotSlotSurfaces = require(script.Parent.Client.Client_PlotSlotSurfaces)
+Client_PlotSlotSurfaces.Init()
+
+Client_FOV.init()
 
 ReplicaController.RequestData()
 
@@ -57,6 +69,30 @@ if not playerReplica then
 end
 
 Client_Data:Init()
+
+local Client_Visuals = require(script.Parent.Client.Client_Visuals)
+Client_Visuals.Init()
+
+local Client_Hotbar = require(script.Parent.Client.Client_Hotbar)
+Client_Hotbar.Init()
+
+local Client_Inventory = require(script.Parent.Client.Client_Inventory)
+Client_Inventory.Init()
+
+local Client_EquipHold = require(script.Parent.Client.Client_EquipHold)
+Client_EquipHold.Init()
+
+local Client_PlotSlotPlace = require(script.Parent.Client.Client_PlotSlotPlace)
+Client_PlotSlotPlace.Init()
+
+local Client_PlotBrainrotAnimations = require(script.Parent.Client.Client_PlotBrainrotAnimations)
+Client_PlotBrainrotAnimations.Init()
+
+local Client_PlotUpgradeVfx = require(script.Parent.Client.Client_PlotUpgradeVfx)
+Client_PlotUpgradeVfx.Init()
+
+local Client_PlotCashCollect = require(script.Parent.Client.Client_PlotCashCollect)
+Client_PlotCashCollect.Init()
 
 require(script.Parent.Animations)
 require(script.Parent.UI)

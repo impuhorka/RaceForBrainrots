@@ -7,6 +7,7 @@ local Plot = require(script.Parent.Plot)
 local PlotConfig = require(script.Parent.PlotConfig)
 local PlotCash = require(script.Parent.PlotCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
+local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
 
 local function getPlayerSlotCount(player: Player): number
@@ -66,25 +67,6 @@ function PlotService:AttachPlayer(player: Player)
 		return
 	end
 
-	local plot = self:GetAvailablePlot()
-	if not plot then
-		warn(("No free plots for %s"):format(player.Name))
-		return
-	end
-
-	plot:Assign(player, getPlayerSlotCount(player))
-	self.PlayerToPlot[player] = plot
-
-	task.spawn(function()
-		while not Server_Data:GetProfile(player) do
-			if player.Parent ~= Players then
-				return
-			end
-			task.wait(0.1)
-		end
-		PlotPlacement.LoadPlotData(plot, Server_Data:GetValue(player, "Plot") or {})
-	end)
-
 	player.CharacterAdded:Connect(function(character)
 		local currentPlot = self:GetPlotByPlayer(player)
 		if not currentPlot then
@@ -95,7 +77,30 @@ function PlotService:AttachPlayer(player: Player)
 		end)
 	end)
 
-	self:TeleportPlayerToPlot(player)
+	task.spawn(function()
+		while not Server_Data:GetProfile(player) do
+			if player.Parent ~= Players then
+				return
+			end
+			task.wait(0.1)
+		end
+
+		if self.PlayerToPlot[player] then
+			return
+		end
+
+		local plot = self:GetAvailablePlot()
+		if not plot then
+			warn(("No free plots for %s"):format(player.Name))
+			return
+		end
+
+		plot:Assign(player, getPlayerSlotCount(player))
+		self.PlayerToPlot[player] = plot
+
+		PlotPlacement.LoadPlotData(plot, Server_Data:GetValue(player, "Plot") or {})
+		self:TeleportPlayerToPlot(player)
+	end)
 end
 
 function PlotService:DetachPlayer(player: Player)
@@ -165,6 +170,12 @@ function PlotService:Init()
 
 			local plot = self:GetPlotByPlayer(player)
 			PlotPlacement.UpgradeBrainrot(player, plot, slotId)
+			return
+		end
+
+		if action == "BuySlot" then
+			local plot = self:GetPlotByPlayer(player)
+			PlotSlotPurchase.TryPurchase(player, plot)
 		end
 	end)
 

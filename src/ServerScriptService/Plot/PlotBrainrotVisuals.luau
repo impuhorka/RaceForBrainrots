@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
 
 local PlotBrainrotVisuals = {}
 
@@ -97,18 +98,9 @@ function PlotBrainrotVisuals.SetupPickupPrompt(
 		attachment.Parent = primary
 	end
 
-	local existingPrompt = attachment:FindFirstChild("PickUpPrompt")
-	if existingPrompt then
-		existingPrompt:Destroy()
-	end
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "PickUpPrompt"
-	prompt.Parent = attachment
-	prompt.RequiresLineOfSight = false
-	prompt.ActionText = "Pick Up"
-	prompt.HoldDuration = 0.5
-	prompt.MaxActivationDistance = 10
+	local prompt = Shared_ProximityPrompt.Create(attachment, {
+		Preset = "PickUp",
+	})
 
 	prompt.Triggered:Connect(onPickup)
 end

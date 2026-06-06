@@ -8,8 +8,10 @@ local Client_Data = require(script.Parent.Client.Client_Data)
 local Client_FOV = require(script.Parent.Client.Client_FOV)
 local Client_Messaging = require(script.Parent.Client.Client_Messaging)
 local Client_PlotBillboards = require(script.Parent.Client.Client_PlotBillboards)
+local Client_ProximityPrompts = require(script.Parent.Client.Client_ProximityPrompts)
 
 Client_Messaging.Init()
+Client_ProximityPrompts.Init()
 
 Client_PlotBillboards:Init()
 
@@ -93,6 +95,9 @@ Client_PlotUpgradeVfx.Init()
 
 local Client_PlotCashCollect = require(script.Parent.Client.Client_PlotCashCollect)
 Client_PlotCashCollect.Init()
+
+local Client_PlotUpgradeSign = require(script.Parent.Client.Client_PlotUpgradeSign)
+Client_PlotUpgradeSign.Init()
 
 require(script.Parent.Animations)
 require(script.Parent.UI)

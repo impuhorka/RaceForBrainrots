@@ -115,6 +115,84 @@ local function hookSlotOccupiedState(slotModel: Model)
 	end)
 end
 
+local function getUpgradeSign(plotModel: Model): Instance?
+	return plotModel:FindFirstChild("UpgradeSign", true)
+end
+
+local function getUpgradeSignMainPart(upgradeSign: Instance): BasePart?
+	local main = upgradeSign:FindFirstChild("main", true)
+	if main and main:IsA("BasePart") then
+		return main
+	end
+	return nil
+end
+
+local function storeUpgradeSignDefaults(upgradeSign: Instance)
+	for _, descendant in upgradeSign:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			if descendant:GetAttribute("OriginalTransparency") == nil then
+				descendant:SetAttribute("OriginalTransparency", descendant.Transparency)
+			end
+			if descendant:GetAttribute("OriginalCanCollide") == nil then
+				descendant:SetAttribute("OriginalCanCollide", descendant.CanCollide)
+			end
+		elseif descendant:IsA("SurfaceGui") then
+			if descendant:GetAttribute("OriginalSurfaceGuiEnabled") == nil then
+				descendant:SetAttribute("OriginalSurfaceGuiEnabled", descendant.Enabled)
+			end
+		end
+	end
+end
+
+local function setUpgradeSignRegistered(upgradeSign: Instance, registered: boolean)
+	storeUpgradeSignDefaults(upgradeSign)
+
+	for _, descendant in upgradeSign:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			if registered then
+				local transparency = descendant:GetAttribute("OriginalTransparency")
+				if transparency ~= nil then
+					descendant.Transparency = transparency
+				end
+				local canCollide = descendant:GetAttribute("OriginalCanCollide")
+				if canCollide ~= nil then
+					descendant.CanCollide = canCollide
+				end
+			else
+				descendant.Transparency = 1
+				descendant.CanCollide = false
+			end
+		elseif descendant:IsA("SurfaceGui") then
+			if registered then
+				local enabled = descendant:GetAttribute("OriginalSurfaceGuiEnabled")
+				if enabled ~= nil then
+					descendant.Enabled = enabled
+				end
+			else
+				descendant.Enabled = false
+			end
+		end
+	end
+end
+
+local function disableUpgradeSignSurfaceTemplate(plotModel: Model)
+	local upgradeSign = getUpgradeSign(plotModel)
+	if not upgradeSign then
+		return
+	end
+
+	local mainPart = getUpgradeSignMainPart(upgradeSign)
+	if not mainPart then
+		return
+	end
+
+	for _, child in mainPart:GetChildren() do
+		if child:IsA("SurfaceGui") then
+			child.Enabled = false
+		end
+	end
+end
+
 function Plot.new(model: Model)
 	local teleportPart = model:FindFirstChild("TeleportPart", true)
 	assert(teleportPart and teleportPart:IsA("BasePart"), ("Missing TeleportPart in %s"):format(model:GetFullName()))
@@ -140,6 +218,11 @@ function Plot.new(model: Model)
 	self.Floors = {}
 	self.TotalSlots = 0
 	self.Billboard.Enabled = false
+
+	local upgradeSign = getUpgradeSign(model)
+	if upgradeSign then
+		setUpgradeSignRegistered(upgradeSign, false)
+	end
 
 	return self
 end
@@ -376,6 +459,13 @@ function Plot:Assign(player: Player, totalSlots: number)
 	self.Model:SetAttribute("OwnerUserId", player.UserId)
 	self.Model:SetAttribute("OwnerName", player.Name)
 	self.Billboard.Enabled = true
+
+	local upgradeSign = getUpgradeSign(self.Model)
+	if upgradeSign then
+		setUpgradeSignRegistered(upgradeSign, true)
+		disableUpgradeSignSurfaceTemplate(self.Model)
+	end
+
 	self:Build(totalSlots)
 	self:RefreshBillboard()
 end
@@ -385,6 +475,12 @@ function Plot:Release()
 	self.Owner = nil
 	self.Model:SetAttribute("OwnerUserId", 0)
 	self.Model:SetAttribute("OwnerName", "")
+
+	local upgradeSign = getUpgradeSign(self.Model)
+	if upgradeSign then
+		setUpgradeSignRegistered(upgradeSign, false)
+	end
+
 	self.Billboard.Enabled = false
 	self:RefreshBillboard()
 end

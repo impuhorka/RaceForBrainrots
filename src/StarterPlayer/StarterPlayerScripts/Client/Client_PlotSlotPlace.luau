@@ -2,6 +2,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
+
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
@@ -86,14 +88,10 @@ local function setupPlacePrompt(slotModel: Model)
 		attachment.Parent = standingPart
 	end
 
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "PlaceBrainrotPrompt"
-	prompt.Parent = attachment
-	prompt.RequiresLineOfSight = false
-	prompt.ActionText = "Place Here"
-	prompt.HoldDuration = 0.5
-	prompt.MaxActivationDistance = 10
-	prompt.Enabled = false
+	local prompt = Shared_ProximityPrompt.Create(attachment, {
+		Preset = "Place",
+		Enabled = false,
+	})
 
 	placePrompts[slotModel] = prompt
 

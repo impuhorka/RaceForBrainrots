@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_ItemDisplay = require(script.Parent.Client_ItemDisplay)
+local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 
 local HOTBAR_MAX = 9
 
@@ -36,7 +37,7 @@ local function renderSlot(slotIndex: number)
 		playAnimation = require(script.Parent.Client_Equip).IsEquipped(inventoryIndex)
 	end
 
-	Client_ItemDisplay.renderSlotButton(slotButton, item, playAnimation)
+	Client_ItemDisplay.renderSlotButton(slotButton, item, playAnimation, inventoryIndex)
 end
 
 local function preloadInventoryAnimations()
@@ -264,6 +265,11 @@ function Client_Hotbar.Init()
 		renderHotbar()
 		notifyChanged()
 		task.spawn(preloadInventoryAnimations)
+	end)
+
+	Client_LuckyBlockRevealState.OnChanged(function()
+		renderHotbar()
+		notifyChanged()
 	end)
 end
 

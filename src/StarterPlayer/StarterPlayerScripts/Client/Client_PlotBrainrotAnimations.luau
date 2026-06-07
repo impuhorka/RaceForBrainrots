@@ -1,4 +1,5 @@
 local Workspace = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
 
 local Shared_BrainrotAnimations = require(game:GetService("ReplicatedStorage").Modules.Shared_BrainrotAnimations)
 
@@ -7,14 +8,54 @@ local Client_PlotBrainrotAnimations = {}
 local hookedSlots: { [Model]: boolean } = {}
 local hookedPlots: { [Model]: boolean } = {}
 local hookedSlotsFolders: { [Folder]: boolean } = {}
+local hookedTaggedModels: { [Model]: boolean } = {}
+local ANIMATED_BRAINROT_TAG = "AnimatedBrainrot"
 
-local function playPlacedBrainrot(brainrotModel: Model)
-	local configName = brainrotModel:GetAttribute("ConfigName")
-	if type(configName) ~= "string" or configName == "" then
-		return
+local function resolveConfigName(brainrotModel: Model): string?
+	if CollectionService:HasTag(brainrotModel, ANIMATED_BRAINROT_TAG) then
+		if brainrotModel.Name ~= "" then
+			return brainrotModel.Name
+		end
 	end
 
+	local configName = brainrotModel:GetAttribute("ConfigName")
+	if type(configName) == "string" and configName ~= "" then
+		return configName
+	end
+
+	return nil
+end
+
+local function playPlacedBrainrot(brainrotModel: Model)
+	local configName = resolveConfigName(brainrotModel)
+	if not configName then
+		return
+	end
 	Shared_BrainrotAnimations.PlayIdle(brainrotModel, configName)
+end
+
+local function hookTaggedBrainrotModel(model: Model)
+	if hookedTaggedModels[model] then
+		return
+	end
+	hookedTaggedModels[model] = true
+
+	if model:IsDescendantOf(Workspace) then
+		playPlacedBrainrot(model)
+	end
+
+	model.AncestryChanged:Connect(function(_, newParent)
+		if newParent and model:IsDescendantOf(Workspace) then
+			playPlacedBrainrot(model)
+		else
+			Shared_BrainrotAnimations.StopIdle(model)
+		end
+	end)
+
+	model.Destroying:Connect(function()
+		hookedTaggedModels[model] = nil
+		Shared_BrainrotAnimations.StopIdle(model)
+	end)
 end
 
 local function hookSlot(slotModel: Model)
@@ -102,6 +143,24 @@ function Client_PlotBrainrotAnimations.Init()
 	plotsFolder.ChildAdded:Connect(function(plotModel)
 		if plotModel:IsA("Model") then
 			hookPlot(plotModel)
+		end
+	end)
+
+	for _, tagged in CollectionService:GetTagged(ANIMATED_BRAINROT_TAG) do
+		if tagged:IsA("Model") then
+			hookTaggedBrainrotModel(tagged)
+		end
+	end
+
+	CollectionService:GetInstanceAddedSignal(ANIMATED_BRAINROT_TAG):Connect(function(instance)
+		if instance:IsA("Model") then
+			hookTaggedBrainrotModel(instance)
+		end
+	end)
+
+	CollectionService:GetInstanceRemovedSignal(ANIMATED_BRAINROT_TAG):Connect(function(instance)
+		if instance:IsA("Model") then
+			Shared_BrainrotAnimations.StopIdle(instance)
 		end
 	end)
 end

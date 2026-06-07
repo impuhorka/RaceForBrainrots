@@ -6,6 +6,10 @@ local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_Proximit
 
 local PlotBrainrotVisuals = {}
 
+local function getBillboardAttachmentYOffset(primaryPart: BasePart): number
+	return primaryPart.Size.Y * 0.5 + 0.5
+end
+
 local function getBrainrotTemplate(configName: string, modifier: string): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local brainrots = assets and assets:FindFirstChild("Brainrots")
@@ -41,11 +45,26 @@ local function updateBillboardAttachment(brainrotModel: Model)
 
 	local attachment = primaryPart:FindFirstChild("BillboardAttachment")
 	if attachment and attachment:IsA("Attachment") then
-		attachment.Position = Vector3.new(0, primaryPart.Size.Y * 0.5 + 0.5, 0)
+		attachment.Position = Vector3.new(0, getBillboardAttachmentYOffset(primaryPart), 0)
 	end
 end
 
 function PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel: Model, slotModel: Model, level: number)
+	local detachedBillboard: BillboardGui? = nil
+	local billboardAttachment: Attachment? = nil
+
+	if brainrotModel.PrimaryPart then
+		local attachmentCandidate = brainrotModel.PrimaryPart:FindFirstChild("BillboardAttachment")
+		if attachmentCandidate and attachmentCandidate:IsA("Attachment") then
+			billboardAttachment = attachmentCandidate
+			local billboardCandidate = attachmentCandidate:FindFirstChildWhichIsA("BillboardGui")
+			if billboardCandidate then
+				detachedBillboard = billboardCandidate
+				detachedBillboard.Parent = nil
+			end
+		end
+	end
+
 	local scale = Shared_Brainrots.GetScaleForLevel(level)
 	brainrotModel:ScaleTo(scale)
 
@@ -55,6 +74,10 @@ function PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel: Model, slotMod
 	end
 
 	updateBillboardAttachment(brainrotModel)
+
+	if detachedBillboard and billboardAttachment and billboardAttachment.Parent then
+		detachedBillboard.Parent = billboardAttachment
+	end
 end
 
 function PlotBrainrotVisuals.SetupBillboard(

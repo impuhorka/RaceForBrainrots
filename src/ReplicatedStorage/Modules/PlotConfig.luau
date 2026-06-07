@@ -4,8 +4,13 @@ PlotConfig.SlotsPerFloor = 10
 PlotConfig.DefaultPlotSlots = 10
 PlotConfig.MaxPlotSlots = 25
 
+local function roundToCoolThousands(value: number): number
+	return math.max(1000, math.floor(value / 1000 + 0.5) * 1000)
+end
+
 function PlotConfig.getNextSlotCost(currentSlotCount: number): number
-	return math.floor(1000 * (currentSlotCount + 1) ^ 1.25)
+	local rawCost = 1000 * (currentSlotCount + 1) ^ 1.25
+	return roundToCoolThousands(rawCost)
 end
 
 PlotConfig.SlotFirstFloorY = 18.27

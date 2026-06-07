@@ -1,9 +1,14 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GuiService = game:GetService("GuiService")
 
 local UserInputService = game:GetService("UserInputService")
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
+local Client_LuckyBlockOpening = require(script.Parent.Client_LuckyBlockOpening)
+local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
+local Client_Messaging = require(script.Parent.Client_Messaging)
 
 local SLOT_KEY_CODES = {
 	Enum.KeyCode.One,
@@ -18,6 +23,8 @@ local SLOT_KEY_CODES = {
 }
 
 local Client_Equip = {}
+local luckyBlockOpenCooldownUntil = 0
+local LUCKYBLOCK_OPEN_COOLDOWN = 0.35
 
 local equippedInventoryIndex: number? = nil
 local strokeTemplate: UIStroke?
@@ -152,6 +159,10 @@ function Client_Equip.ToggleHotbarSlot(slotIndex: number)
 		return
 	end
 
+	if Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex) then
+		return
+	end
+
 	Client_Equip.Toggle(inventoryIndex)
 
 	if refreshAll then
@@ -165,6 +176,10 @@ end
 
 function Client_Equip.Toggle(inventoryIndex: number?)
 	if not inventoryIndex then
+		return
+	end
+
+	if Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex) then
 		return
 	end
 
@@ -210,7 +225,82 @@ end
 function Client_Equip.Init()
 	getStrokeTemplate()
 
+	local function getPointerPosition(input: InputObject): Vector2
+		if input.UserInputType == Enum.UserInputType.Touch then
+			return Vector2.new(input.Position.X, input.Position.Y)
+		end
+		return UserInputService:GetMouseLocation()
+	end
+
+	local function isClickOverAnyUi(input: InputObject): boolean
+		local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		if not playerGui then
+			return false
+		end
+
+		local pointer = getPointerPosition(input)
+		local inset = GuiService:GetGuiInset()
+		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+
+		local rawObjects = playerGui:GetGuiObjectsAtPosition(pointer.X, pointer.Y)
+		if #rawObjects > 0 then
+			return true
+		end
+
+		local insetObjects = playerGui:GetGuiObjectsAtPosition(guiPointer.X, guiPointer.Y)
+		return #insetObjects > 0
+	end
+
+	local function tryOpenEquippedLuckyBlock(input: InputObject, gameProcessed: boolean)
+		if gameProcessed then
+			return
+		end
+
+		local inputType = input.UserInputType
+		if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		if tick() < luckyBlockOpenCooldownUntil then
+			return
+		end
+
+		if Client_LuckyBlockOpening.IsOpeningBusy() then
+			Client_Messaging.Show("Lucky block is already opening.", "red")
+			return
+		end
+
+		if isClickOverAnyUi(input) then
+			return
+		end
+
+		local equippedIndex = equippedInventoryIndex
+		if not equippedIndex then
+			return
+		end
+
+		local inventory = Client_Data:GetValue("Inventory") or {}
+		local item = inventory[equippedIndex]
+		if not item or item.ItemType ~= "LuckyBlock" then
+			return
+		end
+
+		local events = ReplicatedStorage:FindFirstChild("Events")
+		local plotHandler = events and events:FindFirstChild("PlotHandler")
+		if not plotHandler or not plotHandler:IsA("RemoteEvent") then
+			return
+		end
+
+		-- Remove held lucky block visual immediately when opening starts.
+		Client_Equip.Unequip()
+
+		luckyBlockOpenCooldownUntil = tick() + LUCKYBLOCK_OPEN_COOLDOWN
+		plotHandler:FireServer("OpenLuckyBlock", equippedIndex)
+	end
+
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		tryOpenEquippedLuckyBlock(input, gameProcessed)
+
 		if gameProcessed then
 			return
 		end

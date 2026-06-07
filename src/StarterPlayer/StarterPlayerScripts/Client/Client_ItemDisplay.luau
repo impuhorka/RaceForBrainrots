@@ -4,6 +4,7 @@ local Shared_BrainrotAnimations = require(ReplicatedStorage.Modules.Shared_Brain
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Rarities = require(ReplicatedStorage.Modules.Utilities.Shared_Rarities)
+local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 
 local Client_ItemDisplay = {}
 
@@ -11,6 +12,8 @@ local VIEWPORT_MODEL_Y_ROTATION = math.rad(-15)
 local VIEWPORT_MODEL_SIZE = 0.7225
 local VIEWPORT_MODEL_RETRY_COUNT = 8
 local VIEWPORT_MODEL_RETRY_DELAY = 0.1
+local VIEWPORT_NORMAL_AMBIENT = Color3.fromRGB(200, 200, 200)
+local VIEWPORT_NORMAL_LIGHT_COLOR = Color3.fromRGB(255, 255, 255)
 
 function Client_ItemDisplay.preloadBrainrotAnimations(inventory: { any })
 	Shared_BrainrotAnimations.PreloadInventoryBrainrots(inventory)
@@ -141,6 +144,8 @@ function Client_ItemDisplay.setupViewport(
 	playAnimation: boolean?
 )
 	viewportFrame:ClearAllChildren()
+	viewportFrame.Ambient = VIEWPORT_NORMAL_AMBIENT
+	viewportFrame.LightColor = VIEWPORT_NORMAL_LIGHT_COLOR
 
 	local model = getBrainrotModel(configName, modifier)
 	if not model then
@@ -194,6 +199,16 @@ function Client_ItemDisplay.setupViewport(
 	viewportFrame.Visible = true
 end
 
+local function setViewportMysteryLighting(viewportFrame: ViewportFrame, enabled: boolean)
+	if enabled then
+		viewportFrame.Ambient = Color3.new(0, 0, 0)
+		viewportFrame.LightColor = Color3.new(0, 0, 0)
+	else
+		viewportFrame.Ambient = VIEWPORT_NORMAL_AMBIENT
+		viewportFrame.LightColor = VIEWPORT_NORMAL_LIGHT_COLOR
+	end
+end
+
 function Client_ItemDisplay.setViewportIdlePlaying(viewportFrame: ViewportFrame, configName: string, playing: boolean)
 	local worldModel = viewportFrame:FindFirstChildOfClass("WorldModel")
 	if not worldModel then
@@ -212,11 +227,29 @@ function Client_ItemDisplay.setViewportIdlePlaying(viewportFrame: ViewportFrame,
 	end
 end
 
+local function blackOutViewportModel(viewportFrame: ViewportFrame)
+	local worldModel = viewportFrame:FindFirstChildOfClass("WorldModel")
+	if not worldModel then
+		return
+	end
+
+	for _, descendant in worldModel:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Color = Color3.new(0, 0, 0)
+			descendant.Material = Enum.Material.SmoothPlastic
+			descendant.Reflectance = 0
+		elseif descendant:IsA("Decal") or descendant:IsA("Texture") then
+			descendant.Transparency = 1
+		end
+	end
+end
+
 function Client_ItemDisplay.clearSlotButton(slotButton: ImageButton)
 	local viewportFrame = Client_ItemDisplay.getViewportFrame(slotButton)
 	if viewportFrame and viewportFrame:IsA("ViewportFrame") then
 		viewportFrame:ClearAllChildren()
 		viewportFrame.Visible = false
+		setViewportMysteryLighting(viewportFrame, false)
 	end
 
 	local itemImage = Client_ItemDisplay.getSlotImageLabel(slotButton)
@@ -233,12 +266,13 @@ function Client_ItemDisplay.clearSlotButton(slotButton: ImageButton)
 	setItemNameRarityGradient(itemName :: TextLabel?, nil)
 end
 
-function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any, playAnimation: boolean?)
+function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any, playAnimation: boolean?, inventoryIndex: number?)
 	if not item then
 		Client_ItemDisplay.clearSlotButton(slotButton)
 		return
 	end
 
+	local isMysteryReward = item.ItemType == "Brainrot" and Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex)
 	local itemName = slotButton:FindFirstChild("ItemName")
 	if itemName and itemName:IsA("TextLabel") then
 		itemName.Visible = true
@@ -249,7 +283,6 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 
 	if item.ItemType == "LuckyBlock" then
 		local cfg = Shared_LuckyBlocks.Data[item.ConfigName]
-		local rarity = cfg and cfg.Rarity
 
 		if viewportFrame then
 			viewportFrame:ClearAllChildren()
@@ -262,8 +295,28 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 		end
 
 		if itemName and itemName:IsA("TextLabel") then
-			itemName.Text = if type(rarity) == "string" and rarity ~= "" then rarity else "Lucky"
-			setItemNameRarityGradient(itemName, rarity)
+			itemName.Text = ""
+			setItemNameRarityGradient(itemName, nil)
+		end
+		return
+	end
+
+	if isMysteryReward then
+		if itemName and itemName:IsA("TextLabel") then
+			itemName.Text = "???"
+		end
+		setItemNameRarityGradient(itemName :: TextLabel?, nil)
+
+		if itemImage then
+			itemImage.Image = ""
+			itemImage.Visible = false
+		end
+
+		if viewportFrame then
+			local modifier = item.Data and item.Data.Modifier or "Normal"
+			Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, false)
+			setViewportMysteryLighting(viewportFrame, true)
+			blackOutViewportModel(viewportFrame)
 		end
 		return
 	end
@@ -283,6 +336,7 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 		local renderToken = ((slotButton:GetAttribute("_ViewportRenderToken") :: number?) or 0) + 1
 		slotButton:SetAttribute("_ViewportRenderToken", renderToken)
 		Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, playAnimation)
+		setViewportMysteryLighting(viewportFrame, false)
 
 		if not viewportFrame.Visible then
 			task.spawn(function()

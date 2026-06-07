@@ -14,6 +14,7 @@ local RENDER_STEP_NAME = "ClientPlotBrainrotJump"
 type JumpOptions = {
 	flipY: boolean?,
 	baseHeight: number?,
+	skipIfAnimating: boolean?,
 }
 
 type JumpState = {
@@ -106,6 +107,7 @@ function Client_PlotBrainrotJump.Play(brainrotModel: Model, slotModel: Model, op
 	local jumpOptions = options or {}
 	local flipY = jumpOptions.flipY == true
 	local baseHeight = jumpOptions.baseHeight or UPGRADE_JUMP_BASE_HEIGHT
+	local skipIfAnimating = jumpOptions.skipIfAnimating == true
 
 	local pivot = getStandingPivot(slotModel, brainrotModel)
 	if not pivot then
@@ -117,6 +119,9 @@ function Client_PlotBrainrotJump.Play(brainrotModel: Model, slotModel: Model, op
 	local token = 1
 
 	if previousState then
+		if skipIfAnimating then
+			return
+		end
 		token = previousState.token + 1
 		overdrive = math.min((previousState.overdrive or 1) + 1, JUMP_MAX_OVERDRIVE)
 		stopJumpState(brainrotModel, previousState)
@@ -189,6 +194,7 @@ function Client_PlotBrainrotJump.PlayUpgrade(brainrotModel: Model, slotModel: Mo
 	Client_PlotBrainrotJump.Play(brainrotModel, slotModel, {
 		flipY = true,
 		baseHeight = UPGRADE_JUMP_BASE_HEIGHT,
+		skipIfAnimating = true,
 	})
 end
 

@@ -1,10 +1,12 @@
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local localPlayer = Players.LocalPlayer
+local FrameController = require(script.Parent.Parent.UI.FrameController)
 
 local Client_ProximityPrompts = {}
 local progressGradientFuzz = 0.01
@@ -35,6 +37,57 @@ type PromptElements = {
 }
 
 local activePrompts: { [ProximityPrompt]: PromptEntry } = {}
+local promptsSuppressed = false
+local suppressionHeartbeat: RBXScriptConnection? = nil
+
+local function applyPromptVisibility(entry: PromptEntry)
+	if entry.gui then
+		entry.gui.Enabled = not promptsSuppressed
+	end
+end
+
+local function refreshAllPromptVisibility()
+	for _, entry in activePrompts do
+		applyPromptVisibility(entry)
+	end
+end
+
+local function isAnyNonInventoryFrameOpen(): boolean
+	local playerGui = localPlayer:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return false
+	end
+
+	local main = playerGui:FindFirstChild("Main")
+	if not main then
+		return false
+	end
+
+	local frames = main:FindFirstChild("Frames")
+	if not frames or not frames:IsA("Folder") then
+		return false
+	end
+
+	for _, child in frames:GetChildren() do
+		if child:IsA("GuiObject") and FrameController.isOpenForBlur(child) then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function setPromptSuppressed(suppressed: boolean)
+	if promptsSuppressed == suppressed then
+		return
+	end
+	promptsSuppressed = suppressed
+	refreshAllPromptVisibility()
+end
+
+local function refreshSuppressionNow()
+	setPromptSuppressed(isAnyNonInventoryFrameOpen())
+end
 
 local function getPromptTemplate(): BillboardGui
 	if promptTemplate and promptTemplate.Parent then
@@ -248,15 +301,49 @@ local function applyBorderProgress(elements: PromptElements, value: number)
 	local right = elements.borderRight
 	local bottom = elements.borderBottom
 	local left = elements.borderLeft
-	if not top or not right or not bottom or not left then
+	local card = elements.card
+	if not top or not right or not bottom or not left or not card then
 		return
 	end
 
 	local clamped = math.clamp(value, 0, 1)
-	local topFill = math.clamp(clamped * 4, 0, 1)
-	local rightFill = math.clamp(clamped * 4 - 1, 0, 1)
-	local bottomFill = math.clamp(clamped * 4 - 2, 0, 1)
-	local leftFill = math.clamp(clamped * 4 - 3, 0, 1)
+	-- Use stable card dimensions instead of live border segment sizes.
+	-- This avoids feedback/jitter while the segment sizes themselves animate.
+	local topLength = math.max(card.AbsoluteSize.X, 0)
+	local rightLength = math.max(card.AbsoluteSize.Y, 0)
+	local bottomLength = topLength
+	local leftLength = rightLength
+
+	local totalLength = topLength + rightLength + bottomLength + leftLength
+
+	local topFill = 0
+	local rightFill = 0
+	local bottomFill = 0
+	local leftFill = 0
+
+	if totalLength <= 0 then
+		-- Fallback for first frame before UI has AbsoluteSize values.
+		topFill = math.clamp(clamped * 4, 0, 1)
+		rightFill = math.clamp(clamped * 4 - 1, 0, 1)
+		bottomFill = math.clamp(clamped * 4 - 2, 0, 1)
+		leftFill = math.clamp(clamped * 4 - 3, 0, 1)
+	else
+		local travelled = clamped * totalLength
+
+		local function consume(segmentLength: number): number
+			if segmentLength <= 0 then
+				return 1
+			end
+			local fill = math.clamp(travelled / segmentLength, 0, 1)
+			travelled -= segmentLength
+			return fill
+		end
+
+		topFill = consume(topLength)
+		rightFill = consume(rightLength)
+		bottomFill = consume(bottomLength)
+		leftFill = consume(leftLength)
+	end
 
 	top.Visible = topFill > 0
 	right.Visible = rightFill > 0
@@ -498,17 +585,46 @@ end
 function Client_ProximityPrompts.Init()
 	getPromptTemplate()
 
+	task.spawn(function()
+		local playerGui = localPlayer:WaitForChild("PlayerGui")
+		local main = playerGui:WaitForChild("Main")
+		local frames = main:WaitForChild("Frames")
+
+		FrameController.onBlurChanged(refreshSuppressionNow)
+		frames.ChildAdded:Connect(refreshSuppressionNow)
+		frames.ChildRemoved:Connect(refreshSuppressionNow)
+		refreshSuppressionNow()
+
+		-- Self-heal in case rapid UI spam/race misses a blur event.
+		if suppressionHeartbeat then
+			suppressionHeartbeat:Disconnect()
+		end
+		local elapsed = 0
+		suppressionHeartbeat = RunService.Heartbeat:Connect(function(dt)
+			elapsed += dt
+			if elapsed < 0.2 then
+				return
+			end
+			elapsed = 0
+			refreshSuppressionNow()
+		end)
+	end)
+
 	ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType)
 		if prompt.Style ~= Enum.ProximityPromptStyle.Custom then
 			return
 		end
 
+		refreshSuppressionNow()
 		cleanupPrompt(prompt)
-		activePrompts[prompt] = buildPromptGui(prompt, inputType)
+		local entry = buildPromptGui(prompt, inputType)
+		activePrompts[prompt] = entry
+		applyPromptVisibility(entry)
 	end)
 
 	ProximityPromptService.PromptHidden:Connect(function(prompt: ProximityPrompt)
 		cleanupPrompt(prompt)
+		refreshSuppressionNow()
 	end)
 end
 

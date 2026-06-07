@@ -99,5 +99,11 @@ Client_PlotCashCollect.Init()
 local Client_PlotUpgradeSign = require(script.Parent.Client.Client_PlotUpgradeSign)
 Client_PlotUpgradeSign.Init()
 
+local Client_InteractStorePrompts = require(script.Parent.Client.Client_InteractStorePrompts)
+Client_InteractStorePrompts.Init()
+
+local Client_LuckyBlockOpening = require(script.Parent.Client.Client_LuckyBlockOpening)
+Client_LuckyBlockOpening.Init()
+
 require(script.Parent.Animations)
 require(script.Parent.UI)

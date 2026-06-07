@@ -7,6 +7,10 @@ local Shared_Rarities = require(script.Parent.Utilities.Shared_Rarities)
 
 local Shared_BrainrotBillboard = {}
 
+local function getBillboardAttachmentYOffset(primaryPart: BasePart): number
+	return primaryPart.Size.Y * 0.5 + 0.5
+end
+
 local function setFrameTextLabel(billboard: Instance, frameName: string, text: string)
 	local frame = billboard:FindFirstChild(frameName, true)
 	if not frame then
@@ -70,7 +74,7 @@ function Shared_BrainrotBillboard.Setup(
 
 	local billboardAttachment = Instance.new("Attachment")
 	billboardAttachment.Name = "BillboardAttachment"
-	billboardAttachment.Position = Vector3.new(0, primaryPart.Size.Y * 0.5 + 0.5, 0)
+	billboardAttachment.Position = Vector3.new(0, getBillboardAttachmentYOffset(primaryPart), 0)
 	billboardAttachment.Parent = primaryPart
 
 	local billboard = billboardTemplate:Clone()

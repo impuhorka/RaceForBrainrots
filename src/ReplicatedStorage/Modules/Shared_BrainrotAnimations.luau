@@ -1,12 +1,42 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContentProvider = game:GetService("ContentProvider")
+local CollectionService = game:GetService("CollectionService")
 
 local Shared_BrainrotAnimations = {}
 
 local idleTracks: { [Model]: AnimationTrack } = {}
 local preloadedConfigNames: { [string]: boolean } = {}
+local taggedAnimatedConfigNames: { [string]: boolean } = {}
+local TAG_NAME = "AnimatedBrainrot"
+
+local function rebuildAnimatedConfigNameCache()
+	table.clear(taggedAnimatedConfigNames)
+	for _, tagged in CollectionService:GetTagged(TAG_NAME) do
+		if tagged:IsA("Model") then
+			taggedAnimatedConfigNames[tagged.Name] = true
+		end
+	end
+end
+
+function Shared_BrainrotAnimations.IsAnimatedConfigName(configName: string): boolean
+	if type(configName) ~= "string" or configName == "" then
+		return false
+	end
+
+	if taggedAnimatedConfigNames[configName] then
+		return true
+	end
+
+	-- Refresh lazily so newly added/streamed tagged models are picked up.
+	rebuildAnimatedConfigNameCache()
+	return taggedAnimatedConfigNames[configName] == true
+end
 
 function Shared_BrainrotAnimations.GetIdleAnimation(configName: string): Animation?
+	if not Shared_BrainrotAnimations.IsAnimatedConfigName(configName) then
+		return nil
+	end
+
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local animFolder = assets and assets:FindFirstChild("Animations")
 	local configAnimFolder = animFolder and animFolder:FindFirstChild(configName)

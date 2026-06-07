@@ -7,9 +7,11 @@ local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
 local Client_ItemDisplay = require(script.Parent.Client_ItemDisplay)
+local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 local FrameController = require(script.Parent.Parent.UI.FrameController)
 
 local HOLD_DRAG_TIME = 0.75
+local DRAG_FAILSAFE_TIMEOUT = 6
 
 local Client_Inventory = {}
 
@@ -123,25 +125,37 @@ local function createDragClone(original: ImageButton, item: any, playAnimation: 
 	setSlotIdVisible(clone, false)
 
 	if item then
-		local viewportFrame = Client_ItemDisplay.getViewportFrame(clone)
-		if viewportFrame then
-			local modifier = item.Data and item.Data.Modifier or "Normal"
-			local playIdle = playAnimation == true
-			Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, playIdle)
-
-			if playIdle then
-				task.defer(function()
-					if clone.Parent then
-						Client_ItemDisplay.setViewportIdlePlaying(viewportFrame, item.ConfigName, true)
-					end
-				end)
-			end
-		end
-
 		local itemName = clone:FindFirstChild("ItemName")
-		if itemName and itemName:IsA("TextLabel") then
-			itemName.Visible = true
-			itemName.Text = Client_ItemDisplay.getDisplayName(item.ConfigName, item.ItemType)
+		if item.ItemType == "Brainrot" then
+			local viewportFrame = Client_ItemDisplay.getViewportFrame(clone)
+			if viewportFrame then
+				local modifier = item.Data and item.Data.Modifier or "Normal"
+				local playIdle = playAnimation == true
+				Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, playIdle)
+
+				if playIdle then
+					task.defer(function()
+						if clone.Parent then
+							Client_ItemDisplay.setViewportIdlePlaying(viewportFrame, item.ConfigName, true)
+						end
+					end)
+				end
+			end
+
+			if itemName and itemName:IsA("TextLabel") then
+				itemName.Visible = true
+				itemName.Text = Client_ItemDisplay.getDisplayName(item.ConfigName, item.ItemType)
+			end
+		elseif item.ItemType == "LuckyBlock" then
+			local viewportFrame = Client_ItemDisplay.getViewportFrame(clone)
+			if viewportFrame then
+				viewportFrame:ClearAllChildren()
+				viewportFrame.Visible = false
+			end
+			if itemName and itemName:IsA("TextLabel") then
+				itemName.Visible = true
+				itemName.Text = ""
+			end
 		end
 	end
 
@@ -207,6 +221,10 @@ local function runSlotInteraction(
 			return
 		end
 
+		if Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex) then
+			return
+		end
+
 		local fromInventory = inventorySlot ~= nil
 		local dragBounds: GuiObject = if fromInventory
 			then (inventorySlot or getInventorySlotRoot(sourceButton))
@@ -219,6 +237,11 @@ local function runSlotInteraction(
 		local didDrag = false
 		local canCheckDrag = false
 		local dragClone: ImageButton? = nil
+		local pollConn: RBXScriptConnection?
+		local moveConn: RBXScriptConnection?
+		local endConn: RBXScriptConnection?
+		local dragFailSafeConn: RBXScriptConnection?
+		local finished = false
 
 		task.defer(function()
 			canCheckDrag = true
@@ -268,7 +291,62 @@ local function runSlotInteraction(
 			end
 		end
 
-		local pollConn = RunService.Heartbeat:Connect(function()
+		local function finishDrag(dropRawPos: Vector2?)
+			if finished then
+				return
+			end
+			finished = true
+			dragging = false
+
+			if pollConn then
+				pollConn:Disconnect()
+				pollConn = nil
+			end
+			if moveConn then
+				moveConn:Disconnect()
+				moveConn = nil
+			end
+			if endConn then
+				endConn:Disconnect()
+				endConn = nil
+			end
+			if dragFailSafeConn then
+				dragFailSafeConn:Disconnect()
+				dragFailSafeConn = nil
+			end
+
+			if dragClone then
+				dragClone:Destroy()
+				dragClone = nil
+			end
+
+			if didDrag then
+				local rawPos = dropRawPos or lastPos
+				local guiPos = toGuiPos(rawPos)
+				local restoreSource = onDrop(guiPos, rawPos, true)
+
+				if restoreSource then
+					if fromInventory then
+						Client_Inventory.Render()
+					elseif item then
+						Client_ItemDisplay.renderSlotButton(
+							sourceButton,
+							item,
+							Client_Equip.IsEquipped(inventoryIndex),
+							inventoryIndex
+						)
+					end
+				end
+
+				Client_Equip.Refresh(scrollingFrame, itemTemplate)
+				return
+			end
+
+			Client_Equip.Toggle(inventoryIndex)
+			Client_Equip.Refresh(scrollingFrame, itemTemplate)
+		end
+
+		pollConn = RunService.Heartbeat:Connect(function()
 			if not dragging or didDrag or not canCheckDrag then
 				return
 			end
@@ -285,7 +363,25 @@ local function runSlotInteraction(
 			end
 		end)
 
-		local moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+		-- Fail-safe timeout only: if drag somehow never receives InputEnded,
+		-- force cleanup after a long timeout to avoid ghost clones.
+		dragFailSafeConn = RunService.Heartbeat:Connect(function()
+			if not dragging or not didDrag then
+				return
+			end
+
+			if tick() - startTime < DRAG_FAILSAFE_TIMEOUT then
+				return
+			end
+
+			local fallbackPos = lastPos
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				fallbackPos = UserInputService:GetMouseLocation()
+			end
+			finishDrag(toVector2(fallbackPos))
+		end)
+
+		moveConn = UserInputService.InputChanged:Connect(function(moveInput)
 			if not dragging or not canCheckDrag then
 				return
 			end
@@ -296,43 +392,11 @@ local function runSlotInteraction(
 			end
 		end)
 
-		local endConn
 		endConn = UserInputService.InputEnded:Connect(function(endInput)
 			if endInput.UserInputType ~= input.UserInputType then
 				return
 			end
-
-			dragging = false
-			pollConn:Disconnect()
-			moveConn:Disconnect()
-			endConn:Disconnect()
-
-			if dragClone then
-				dragClone:Destroy()
-			end
-
-			if didDrag then
-				local guiPos, rawPos = getDropPositions(endInput)
-				local restoreSource = onDrop(guiPos, rawPos, true)
-
-				if restoreSource then
-					if fromInventory then
-						Client_Inventory.Render()
-					elseif item then
-						Client_ItemDisplay.renderSlotButton(
-							sourceButton,
-							item,
-							Client_Equip.IsEquipped(inventoryIndex)
-						)
-					end
-				end
-
-				Client_Equip.Refresh(scrollingFrame, itemTemplate)
-				return
-			end
-
-			Client_Equip.Toggle(inventoryIndex)
-			Client_Equip.Refresh(scrollingFrame, itemTemplate)
+			finishDrag(toVector2(endInput.Position))
 		end)
 	end
 
@@ -514,7 +578,8 @@ function Client_Inventory.Render()
 			Client_ItemDisplay.renderSlotButton(
 				slotButton,
 				item,
-				Client_Equip.IsEquipped(inventoryIndex)
+				Client_Equip.IsEquipped(inventoryIndex),
+				inventoryIndex
 			)
 			slot.Parent = scrollingFrame
 			setupInventorySlot(inventoryIndex, slot, slotButton)
@@ -566,6 +631,10 @@ function Client_Inventory.Init()
 	end)
 
 	FrameController.onInventoryChanged(function()
+		Client_Inventory.Render()
+	end)
+
+	Client_LuckyBlockRevealState.OnChanged(function()
 		Client_Inventory.Render()
 	end)
 end

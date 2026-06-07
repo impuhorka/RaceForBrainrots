@@ -36,6 +36,7 @@ local messagingFrame: Frame?
 local messageTemplates: Folder?
 local activeMessages: { ActiveMessage } = {}
 local messagesByKey: { [string]: ActiveMessage } = {}
+local adminFeedbackConnected = false
 
 local function getMessageKey(color: string, text: string): string
 	return color .. "\0" .. text
@@ -333,6 +334,17 @@ function Client_Messaging.Init()
 	local assets = ReplicatedStorage:WaitForChild("Assets")
 	local ui = assets:WaitForChild("UI")
 	messageTemplates = ui:WaitForChild("Messages") :: Folder
+
+	if not adminFeedbackConnected then
+		adminFeedbackConnected = true
+		local events = ReplicatedStorage:WaitForChild("Events")
+		local adminFeedback = events:WaitForChild("AdminFeedback")
+		if adminFeedback and adminFeedback:IsA("RemoteEvent") then
+			adminFeedback.OnClientEvent:Connect(function(message: string, isError: boolean)
+				Client_Messaging.Show(message, isError and "red" or "green")
+			end)
+		end
+	end
 end
 
 return Client_Messaging

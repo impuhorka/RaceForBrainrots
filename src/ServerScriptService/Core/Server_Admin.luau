@@ -9,14 +9,28 @@ local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 
 local Server_Admin = {}
 local plotServiceRef = nil
+local adminFeedbackEvent: RemoteEvent? = nil
 
 local COMMAND_PREFIX = "/"
+local GROUP_ADMIN_MIN_RANK = 254
 
 local function isAdmin(player: Player): boolean
-	if RunService:IsStudio() then
-		return true
+	if game.CreatorType == Enum.CreatorType.Group then
+		local ok, rank = pcall(function()
+			return player:GetRankInGroup(game.CreatorId)
+		end)
+		if ok and type(rank) == "number" then
+			return rank >= GROUP_ADMIN_MIN_RANK
+		end
+		return false
 	end
 	return player.UserId == game.CreatorId
+end
+
+local function sendAdminFeedback(player: Player, message: string, isError: boolean?)
+	if adminFeedbackEvent then
+		adminFeedbackEvent:FireClient(player, message, isError == true)
+	end
 end
 
 local function splitWords(text: string): { string }
@@ -56,7 +70,8 @@ local function resolveTargetPlayer(actor: Player, rawTarget: string?): (Player?,
 		return nil, "Missing target player"
 	end
 
-	if string.lower(rawTarget) == "me" then
+	local normalizedTarget = normalizeLookupName(rawTarget)
+	if normalizedTarget == "me" then
 		return actor, nil
 	end
 
@@ -65,15 +80,22 @@ local function resolveTargetPlayer(actor: Player, rawTarget: string?): (Player?,
 		return exact, nil
 	end
 
-	local lowered = string.lower(rawTarget)
 	for _, player in Players:GetPlayers() do
-		if string.lower(player.Name) == lowered then
+		if normalizeLookupName(player.Name) == normalizedTarget then
+			return player, nil
+		end
+		if normalizeLookupName(player.DisplayName) == normalizedTarget then
 			return player, nil
 		end
 	end
 
 	for _, player in Players:GetPlayers() do
-		if string.find(string.lower(player.Name), lowered, 1, true) then
+		local normalizedName = normalizeLookupName(player.Name)
+		local normalizedDisplay = normalizeLookupName(player.DisplayName)
+		if string.find(normalizedName, normalizedTarget, 1, true) then
+			return player, nil
+		end
+		if string.find(normalizedDisplay, normalizedTarget, 1, true) then
 			return player, nil
 		end
 	end
@@ -307,7 +329,13 @@ local function handleCommand(player: Player, message: string)
 	end
 
 	if result then
-		print(("[Admin][%s] %s"):format(player.Name, result))
+		local lowered = string.lower(result)
+		local isError = string.find(lowered, "usage:", 1, true)
+			or string.find(lowered, "failed", 1, true)
+			or string.find(lowered, "unknown", 1, true)
+			or string.find(lowered, "not found", 1, true)
+			or string.find(lowered, "missing", 1, true)
+		sendAdminFeedback(player, result, isError ~= nil)
 	end
 end
 
@@ -347,6 +375,16 @@ end
 
 function Server_Admin:Init(plotService)
 	plotServiceRef = plotService
+	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
+	local existingEvent = eventsFolder:FindFirstChild("AdminFeedback")
+	if existingEvent and existingEvent:IsA("RemoteEvent") then
+		adminFeedbackEvent = existingEvent
+	else
+		local remote = Instance.new("RemoteEvent")
+		remote.Name = "AdminFeedback"
+		remote.Parent = eventsFolder
+		adminFeedbackEvent = remote
+	end
 	initTextChatCommands()
 end
 

@@ -62,6 +62,19 @@ function PlotService:TeleportPlayerToPlot(player: Player)
 	plot:TeleportPlayer(player)
 end
 
+function PlotService:ResetPlayerPlotFromData(player: Player): boolean
+	local plot = self:GetPlotByPlayer(player)
+	if not plot then
+		return false
+	end
+
+	local totalSlots = getPlayerSlotCount(player)
+	plot:Build(totalSlots)
+	PlotPlacement.LoadPlotData(plot, Server_Data:GetValue(player, "Plot") or {})
+	self:TeleportPlayerToPlot(player)
+	return true
+end
+
 function PlotService:AttachPlayer(player: Player)
 	if self.PlayerToPlot[player] then
 		return

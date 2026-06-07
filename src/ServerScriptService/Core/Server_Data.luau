@@ -115,6 +115,18 @@ local function setValueByPath(data, path, value)
 	current[parts[#parts]] = value
 end
 
+local function deepCopy(value)
+	if type(value) ~= "table" then
+		return value
+	end
+
+	local copy = {}
+	for key, nestedValue in value do
+		copy[key] = deepCopy(nestedValue)
+	end
+	return copy
+end
+
 function Module:GetProfile(player)
 	return self.Profiles[player]
 end
@@ -262,6 +274,43 @@ function Module:GetPlotSlot(player: Player, slotId: number): any?
 		return nil
 	end
 	return data.Plot[tostring(slotId)]
+end
+
+function Module:ResetPlayerData(player: Player): boolean
+	local profile = self:GetProfile(player)
+	if not profile then
+		return false
+	end
+
+	local data = profile.Data
+	local oldKeys: { [string]: boolean } = {}
+	for key in data do
+		if type(key) == "string" then
+			oldKeys[key] = true
+		end
+	end
+
+	table.clear(data)
+	for key, templateValue in DataTemplate do
+		data[key] = deepCopy(templateValue)
+		oldKeys[key] = nil
+	end
+
+	local replica = self:GetReplica(player)
+	if replica then
+		for key in oldKeys do
+			replica:SetValue({ key }, nil)
+		end
+
+		for key, value in data do
+			replica:SetValue({ key }, value)
+		end
+	end
+
+	self:SetValue(player, "Cash", data.Cash or 0)
+	self:SetValue(player, "Rebirths", data.Rebirths or 0)
+
+	return true
 end
 
 local function createLeaderstats(player, profile)

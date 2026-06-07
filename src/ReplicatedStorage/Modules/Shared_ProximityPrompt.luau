@@ -27,7 +27,7 @@ local PRESETS: { [PresetName]: { [string]: any } } = {
 		Name = "PickUpPrompt",
 		ActionText = "Pick Up",
 		RequiresLineOfSight = false,
-		HoldDuration = 0.5,
+		HoldDuration = 2,
 		MaxActivationDistance = 10,
 		UIOffset = Vector2.new(0, -10),
 	},

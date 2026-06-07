@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -7,14 +8,44 @@ local localPlayer = Players.LocalPlayer
 
 local Client_ProximityPrompts = {}
 local progressGradientFuzz = 0.01
+local ENABLE_KEYBADGE_PROGRESS_RING = false
 local promptGuiRoot: ScreenGui?
+local promptTemplate: BillboardGui
 
 type PromptEntry = {
 	gui: BillboardGui,
 	connections: { RBXScriptConnection },
 }
 
+type PromptElements = {
+	card: GuiObject?,
+	objectLabel: TextLabel?,
+	actionLabel: TextLabel?,
+	keyButton: TextButton?,
+	cursorIcon: ImageLabel?,
+	borderTop: Frame?,
+	borderRight: Frame?,
+	borderBottom: Frame?,
+	borderLeft: Frame?,
+	leftFrame: Frame?,
+	rightFrame: Frame?,
+	leftGradient: UIGradient?,
+	rightGradient: UIGradient?,
+	holdProgress: NumberValue?,
+}
+
 local activePrompts: { [ProximityPrompt]: PromptEntry } = {}
+
+local function getPromptTemplate(): BillboardGui
+	if promptTemplate and promptTemplate.Parent then
+		return promptTemplate
+	end
+
+	local assets = ReplicatedStorage:WaitForChild("Assets")
+	local billboards = assets:WaitForChild("Billboards")
+	promptTemplate = billboards:WaitForChild("ProximityPrompt") :: BillboardGui
+	return promptTemplate
+end
 
 local function getPromptGuiRoot(): ScreenGui
 	if promptGuiRoot and promptGuiRoot.Parent then
@@ -39,10 +70,6 @@ local function getPromptGuiRoot(): ScreenGui
 end
 
 local function getInputLabel(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType): string
-	if inputType == Enum.ProximityPromptInputType.Touch then
-		return "Tap"
-	end
-
 	if inputType == Enum.ProximityPromptInputType.Gamepad then
 		local gamepadMap = {
 			[Enum.KeyCode.ButtonA] = "A",
@@ -58,6 +85,225 @@ local function getInputLabel(prompt: ProximityPrompt, inputType: Enum.ProximityP
 		return "E"
 	end
 	return keyboardKey.Name
+end
+
+local function mapUserInputToPromptInputType(userInputType: Enum.UserInputType): Enum.ProximityPromptInputType
+	if userInputType == Enum.UserInputType.Touch then
+		return Enum.ProximityPromptInputType.Touch
+	end
+
+	if tostring(userInputType):match("^Gamepad") then
+		return Enum.ProximityPromptInputType.Gamepad
+	end
+
+	return Enum.ProximityPromptInputType.Keyboard
+end
+
+local function updateInputDisplay(
+	prompt: ProximityPrompt,
+	elements: PromptElements,
+	inputType: Enum.ProximityPromptInputType
+)
+	local isTouch = inputType == Enum.ProximityPromptInputType.Touch
+
+	if elements.cursorIcon then
+		elements.cursorIcon.Visible = isTouch
+	end
+
+	if elements.keyButton then
+		if isTouch then
+			elements.keyButton.Text = ""
+		else
+			elements.keyButton.Text = getInputLabel(prompt, inputType)
+		end
+	end
+end
+
+local function getPromptElements(billboard: BillboardGui): PromptElements
+	local card = billboard:WaitForChild("Card")
+	local keyBadge = card:FindFirstChild("KeyBadge")
+	local progressRing = keyBadge and keyBadge:FindFirstChild("ProgressRing")
+	local cursorIcon: Instance? = nil
+	if keyBadge then
+		cursorIcon = keyBadge:FindFirstChild("CursorIcon")
+		if not cursorIcon then
+			cursorIcon = keyBadge:FindFirstChildWhichIsA("ImageLabel")
+		end
+	end
+	if not cursorIcon then
+		cursorIcon = card:FindFirstChild("CursorIcon")
+	end
+
+	local leftFrame = progressRing and progressRing:FindFirstChild("LeftHalf")
+	local rightFrame = progressRing and progressRing:FindFirstChild("RightHalf")
+	local progressBorder = card:FindFirstChild("ProgressBorder")
+	local borderTop = progressBorder and progressBorder:FindFirstChild("Top")
+	local borderRight = progressBorder and progressBorder:FindFirstChild("Right")
+	local borderBottom = progressBorder and progressBorder:FindFirstChild("Bottom")
+	local borderLeft = progressBorder and progressBorder:FindFirstChild("Left")
+
+	local leftImage = leftFrame and leftFrame:FindFirstChildWhichIsA("ImageLabel")
+	local rightImage = rightFrame and rightFrame:FindFirstChildWhichIsA("ImageLabel")
+
+	local leftFrameTyped: Frame? = nil
+	if leftFrame and leftFrame:IsA("Frame") then
+		leftFrameTyped = leftFrame
+	end
+
+	local rightFrameTyped: Frame? = nil
+	if rightFrame and rightFrame:IsA("Frame") then
+		rightFrameTyped = rightFrame
+	end
+
+	local cardTyped: GuiObject? = nil
+	if card:IsA("GuiObject") then
+		cardTyped = card
+	end
+
+	local cursorIconTyped: ImageLabel? = nil
+	if cursorIcon and cursorIcon:IsA("ImageLabel") then
+		cursorIconTyped = cursorIcon
+	end
+
+	local objectLabel: TextLabel? = nil
+	local objectLabelRaw = card:FindFirstChild("ObjectText")
+	if objectLabelRaw and objectLabelRaw:IsA("TextLabel") then
+		objectLabel = objectLabelRaw
+	end
+
+	local actionLabel: TextLabel? = nil
+	local actionLabelRaw = card:FindFirstChild("ActionText")
+	if actionLabelRaw and actionLabelRaw:IsA("TextLabel") then
+		actionLabel = actionLabelRaw
+	end
+
+	local keyButton: TextButton? = nil
+	if keyBadge then
+		local keyButtonRaw = keyBadge:FindFirstChild("KeyButton")
+		if keyButtonRaw and keyButtonRaw:IsA("TextButton") then
+			keyButton = keyButtonRaw
+		end
+	end
+
+	local leftGradient: UIGradient? = nil
+	local leftGradientRaw = leftImage and leftImage:FindFirstChildWhichIsA("UIGradient")
+	if leftGradientRaw and leftGradientRaw:IsA("UIGradient") then
+		leftGradient = leftGradientRaw
+	end
+
+	local rightGradient: UIGradient? = nil
+	local rightGradientRaw = rightImage and rightImage:FindFirstChildWhichIsA("UIGradient")
+	if rightGradientRaw and rightGradientRaw:IsA("UIGradient") then
+		rightGradient = rightGradientRaw
+	end
+
+	local holdProgress: NumberValue? = nil
+	if progressRing then
+		local holdProgressRaw = progressRing:FindFirstChild("HoldProgress")
+		if holdProgressRaw and holdProgressRaw:IsA("NumberValue") then
+			holdProgress = holdProgressRaw
+		end
+	end
+
+	local borderTopTyped: Frame? = nil
+	if borderTop and borderTop:IsA("Frame") then
+		borderTopTyped = borderTop
+	end
+
+	local borderRightTyped: Frame? = nil
+	if borderRight and borderRight:IsA("Frame") then
+		borderRightTyped = borderRight
+	end
+
+	local borderBottomTyped: Frame? = nil
+	if borderBottom and borderBottom:IsA("Frame") then
+		borderBottomTyped = borderBottom
+	end
+
+	local borderLeftTyped: Frame? = nil
+	if borderLeft and borderLeft:IsA("Frame") then
+		borderLeftTyped = borderLeft
+	end
+
+	return {
+		card = cardTyped,
+		objectLabel = objectLabel,
+		actionLabel = actionLabel,
+		keyButton = keyButton,
+		cursorIcon = cursorIconTyped,
+		borderTop = borderTopTyped,
+		borderRight = borderRightTyped,
+		borderBottom = borderBottomTyped,
+		borderLeft = borderLeftTyped,
+		leftFrame = leftFrameTyped,
+		rightFrame = rightFrameTyped,
+		leftGradient = leftGradient,
+		rightGradient = rightGradient,
+		holdProgress = holdProgress,
+	}
+end
+
+local function applyBorderProgress(elements: PromptElements, value: number)
+	local top = elements.borderTop
+	local right = elements.borderRight
+	local bottom = elements.borderBottom
+	local left = elements.borderLeft
+	if not top or not right or not bottom or not left then
+		return
+	end
+
+	local clamped = math.clamp(value, 0, 1)
+	local topFill = math.clamp(clamped * 4, 0, 1)
+	local rightFill = math.clamp(clamped * 4 - 1, 0, 1)
+	local bottomFill = math.clamp(clamped * 4 - 2, 0, 1)
+	local leftFill = math.clamp(clamped * 4 - 3, 0, 1)
+
+	top.Visible = topFill > 0
+	right.Visible = rightFill > 0
+	bottom.Visible = bottomFill > 0
+	left.Visible = leftFill > 0
+
+	top.Size = UDim2.fromScale(topFill, top.Size.Y.Scale)
+	right.Size = UDim2.fromScale(right.Size.X.Scale, rightFill)
+	bottom.Size = UDim2.fromScale(bottomFill, bottom.Size.Y.Scale)
+	left.Size = UDim2.fromScale(left.Size.X.Scale, leftFill)
+end
+
+local function applyRadialProgress(elements: PromptElements, value: number)
+	applyBorderProgress(elements, value)
+
+	if not ENABLE_KEYBADGE_PROGRESS_RING then
+		if elements.rightFrame then
+			elements.rightFrame.Visible = false
+		end
+		if elements.leftFrame then
+			elements.leftFrame.Visible = false
+		end
+		return
+	end
+
+	if not elements.leftFrame or not elements.rightFrame or not elements.leftGradient or not elements.rightGradient then
+		return
+	end
+
+	local clamped = math.clamp(value, 0, 1)
+	local angle = clamped * 360
+
+	elements.rightFrame.Visible = clamped > 0
+	elements.leftFrame.Visible = clamped > 0.5 + progressGradientFuzz
+	elements.rightGradient.Rotation = math.clamp(angle, 0, 180)
+	elements.leftGradient.Rotation = math.clamp(angle, 180, 360)
+end
+
+local function updatePromptLabels(prompt: ProximityPrompt, elements: PromptElements)
+	if elements.objectLabel then
+		elements.objectLabel.Text = prompt.ObjectText
+		elements.objectLabel.Visible = prompt.ObjectText ~= ""
+	end
+
+	if elements.actionLabel then
+		elements.actionLabel.Text = prompt.ActionText
+	end
 end
 
 local function cleanupPrompt(prompt: ProximityPrompt)
@@ -78,172 +324,44 @@ local function cleanupPrompt(prompt: ProximityPrompt)
 end
 
 local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType): PromptEntry
-	local billboard = Instance.new("BillboardGui")
+	local billboard = getPromptTemplate():Clone()
 	billboard.Name = "CustomPrompt_" .. prompt.Name
-	billboard.Size = UDim2.fromOffset(220, 64)
-	billboard.AlwaysOnTop = true
-	billboard.Active = true
-	billboard.LightInfluence = 0
-	billboard.DistanceLowerLimit = 12
-	billboard.DistanceUpperLimit = 12
-	billboard.ResetOnSpawn = false
 	billboard.Adornee = prompt.Parent
 	billboard.Parent = getPromptGuiRoot()
+	billboard.StudsOffset = Vector3.new(0, prompt.UIOffset.Y * 0.01, 0)
 
-	local yOffset = prompt.UIOffset.Y
-	billboard.StudsOffset = Vector3.new(0, yOffset * 0.01, 0)
-
-	local card = Instance.new("Frame")
-	card.Name = "Card"
-	card.Size = UDim2.fromScale(1, 1)
-	card.Active = true
-	card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	card.BackgroundTransparency = 0.65
-	card.Parent = billboard
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 2)
-	corner.Parent = card
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(0, 0, 0)
-	stroke.StrokeSizingMode = Enum.StrokeSizingMode.ScaledSize
-	stroke.Thickness = 0.06
-	stroke.Transparency = 0
-	stroke.Parent = card
-
-	local objectLabel = Instance.new("TextLabel")
-	objectLabel.Name = "ObjectText"
-	objectLabel.BackgroundTransparency = 1
-	objectLabel.Position = UDim2.fromOffset(12, 8)
-	objectLabel.Size = UDim2.fromOffset(160, 20)
-	objectLabel.Font = Enum.Font.GothamSemibold
-	objectLabel.TextSize = 13
-	objectLabel.TextXAlignment = Enum.TextXAlignment.Left
-	objectLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
-	objectLabel.Text = prompt.ObjectText
-	objectLabel.Visible = prompt.ObjectText ~= ""
-	objectLabel.Parent = card
-
-	local actionLabel = Instance.new("TextLabel")
-	actionLabel.Name = "ActionText"
-	actionLabel.BackgroundTransparency = 1
-	actionLabel.Position = UDim2.fromOffset(12, if objectLabel.Visible then 28 else 20)
-	actionLabel.Size = UDim2.fromOffset(145, 24)
-	actionLabel.Font = Enum.Font.GothamBold
-	actionLabel.TextSize = 19
-	actionLabel.TextXAlignment = Enum.TextXAlignment.Left
-	actionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	actionLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	actionLabel.TextStrokeTransparency = 0
-	actionLabel.Text = prompt.ActionText
-	actionLabel.Parent = card
-
-	local keyBadge = Instance.new("TextLabel")
-	keyBadge.Name = "KeyBadge"
-	keyBadge.AnchorPoint = Vector2.new(1, 0.5)
-	keyBadge.Position = UDim2.fromScale(0.89, 0.5)
-	keyBadge.Size = UDim2.fromOffset(47, 47)
-	keyBadge.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	keyBadge.BackgroundTransparency = 0.25
-	keyBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
-	keyBadge.Font = Enum.Font.GothamBold
-	keyBadge.TextSize = 18
-	keyBadge.Text = getInputLabel(prompt, inputType)
-	keyBadge.ZIndex = 3
-	keyBadge.Active = true
-	keyBadge.Parent = card
-
-	local keyButton = Instance.new("TextButton")
-	keyButton.Name = "KeyButton"
-	keyButton.Size = UDim2.fromScale(1, 1)
-	keyButton.BackgroundTransparency = 1
-	keyButton.Text = ""
-	keyButton.AutoButtonColor = false
-	keyButton.Active = true
-	keyButton.ZIndex = 6
-	keyButton.Parent = keyBadge
-
-	local keyCorner = Instance.new("UICorner")
-	keyCorner.CornerRadius = UDim.new(1, 0)
-	keyCorner.Parent = keyBadge
-
-	local keyStroke = Instance.new("UIStroke")
-	keyStroke.Color = Color3.fromRGB(255, 255, 255)
-	keyStroke.Transparency = 0.2
-	keyStroke.Thickness = 1
-	keyStroke.Parent = keyBadge
-
-	local progressContainer = Instance.new("Frame")
-	progressContainer.Name = "ProgressRing"
-	progressContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-	progressContainer.Position = UDim2.fromScale(0.5, 0.5)
-	progressContainer.Size = UDim2.fromOffset(53, 53)
-	progressContainer.BackgroundTransparency = 1
-	progressContainer.ZIndex = 4
-	progressContainer.Parent = keyBadge
-
-	local function createProgressBarGradient(leftSide: boolean): (UIGradient, Frame)
-		local frame = Instance.new("Frame")
-		frame.Size = UDim2.fromScale(0.5, 1)
-		frame.Position = UDim2.fromScale(leftSide and 0 or 0.5, 0)
-		frame.BackgroundTransparency = 1
-		frame.ClipsDescendants = true
-		frame.Visible = false
-		frame.Parent = progressContainer
-
-		local image = Instance.new("ImageLabel")
-		image.BackgroundTransparency = 1
-		image.Size = UDim2.fromScale(2, 1)
-		image.Position = UDim2.fromScale(leftSide and 0 or -1, 0)
-		image.Image = "rbxasset://textures/ui/Controls/RadialFill.png"
-		image.ImageColor3 = Color3.fromRGB(255, 255, 255)
-		image.Parent = frame
-
-		local gradient = Instance.new("UIGradient")
-		gradient.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0),
-			NumberSequenceKeypoint.new(0.5, 0),
-			NumberSequenceKeypoint.new(0.5 + progressGradientFuzz, 1),
-			NumberSequenceKeypoint.new(1, 1),
-		})
-		gradient.Rotation = leftSide and 180 or 0
-		gradient.Parent = image
-
-		return gradient, frame
+	local elements = getPromptElements(billboard)
+	updatePromptLabels(prompt, elements)
+	local currentInputType = mapUserInputToPromptInputType(UserInputService:GetLastInputType())
+	if currentInputType ~= Enum.ProximityPromptInputType.Touch then
+		currentInputType = inputType
 	end
 
-	local leftGradient, leftFrame = createProgressBarGradient(true)
-	local rightGradient, rightFrame = createProgressBarGradient(false)
-	local holdProgress = Instance.new("NumberValue")
-	holdProgress.Value = 0
-	holdProgress.Parent = progressContainer
+	if elements.card then
+		elements.card.Active = true
+	end
+
+	updateInputDisplay(prompt, elements, currentInputType)
+
+	if elements.holdProgress then
+		elements.holdProgress.Value = 0
+	end
+
+	applyRadialProgress(elements, 0)
 
 	local connections: { RBXScriptConnection } = {}
 	local holdTween: Tween?
 	local buttonHolding = false
-
-	local function setProgress(value: number)
-		local clamped = math.clamp(value, 0, 1)
-		local angle = clamped * 360
-		rightFrame.Visible = clamped > 0
-		leftFrame.Visible = clamped > 0.5 + progressGradientFuzz
-		rightGradient.Rotation = math.clamp(angle, 0, 180)
-		leftGradient.Rotation = math.clamp(angle, 180, 360)
-	end
-
-	setProgress(0)
-
-	table.insert(connections, holdProgress:GetPropertyChangedSignal("Value"):Connect(function()
-		setProgress(holdProgress.Value)
-	end))
 
 	local function resetHoldProgress()
 		if holdTween then
 			holdTween:Cancel()
 			holdTween = nil
 		end
-		holdProgress.Value = 0
+		if elements.holdProgress then
+			elements.holdProgress.Value = 0
+		end
+		applyRadialProgress(elements, 0)
 	end
 
 	local function beginPromptHold()
@@ -262,59 +380,74 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 		prompt:InputHoldEnd()
 	end
 
+	if elements.holdProgress then
+		local holdProgress = elements.holdProgress
+		table.insert(connections, holdProgress:GetPropertyChangedSignal("Value"):Connect(function()
+			applyRadialProgress(elements, holdProgress.Value)
+		end))
+	end
+
 	table.insert(connections, prompt:GetPropertyChangedSignal("ObjectText"):Connect(function()
-		objectLabel.Text = prompt.ObjectText
-		objectLabel.Visible = prompt.ObjectText ~= ""
-		actionLabel.Position = UDim2.fromOffset(12, if objectLabel.Visible then 28 else 20)
+		updatePromptLabels(prompt, elements)
 	end))
 
 	table.insert(connections, prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
-		actionLabel.Text = prompt.ActionText
+		updatePromptLabels(prompt, elements)
 	end))
 
-	table.insert(connections, prompt:GetPropertyChangedSignal("KeyboardKeyCode"):Connect(function()
-		keyBadge.Text = getInputLabel(prompt, inputType)
+	if elements.keyButton then
+		table.insert(connections, prompt:GetPropertyChangedSignal("KeyboardKeyCode"):Connect(function()
+			updateInputDisplay(prompt, elements, currentInputType)
+		end))
+
+		table.insert(connections, prompt:GetPropertyChangedSignal("GamepadKeyCode"):Connect(function()
+			updateInputDisplay(prompt, elements, currentInputType)
+		end))
+
+		table.insert(connections, elements.keyButton.MouseButton1Down:Connect(beginPromptHold))
+		table.insert(connections, elements.keyButton.MouseButton1Up:Connect(endPromptHold))
+		table.insert(connections, elements.keyButton.MouseLeave:Connect(endPromptHold))
+
+		table.insert(connections, elements.keyButton.InputBegan:Connect(function(inputObject: InputObject)
+			if inputObject.UserInputType == Enum.UserInputType.Touch then
+				beginPromptHold()
+			end
+		end))
+
+		table.insert(connections, elements.keyButton.InputEnded:Connect(function(inputObject: InputObject)
+			if inputObject.UserInputType == Enum.UserInputType.Touch then
+				endPromptHold()
+			end
+		end))
+	end
+
+	table.insert(connections, UserInputService.LastInputTypeChanged:Connect(function(lastInputType: Enum.UserInputType)
+		currentInputType = mapUserInputToPromptInputType(lastInputType)
+		updateInputDisplay(prompt, elements, currentInputType)
 	end))
 
-	table.insert(connections, prompt:GetPropertyChangedSignal("GamepadKeyCode"):Connect(function()
-		keyBadge.Text = getInputLabel(prompt, inputType)
-	end))
+	if elements.card then
+		table.insert(connections, elements.card.InputBegan:Connect(function(inputObject: InputObject)
+			local inputTypeLocal = inputObject.UserInputType
+			if inputTypeLocal == Enum.UserInputType.MouseButton1 or inputTypeLocal == Enum.UserInputType.Touch then
+				beginPromptHold()
+			end
+		end))
+
+		table.insert(connections, elements.card.InputEnded:Connect(function(inputObject: InputObject)
+			local inputTypeLocal = inputObject.UserInputType
+			if inputTypeLocal == Enum.UserInputType.MouseButton1 or inputTypeLocal == Enum.UserInputType.Touch then
+				endPromptHold()
+			end
+		end))
+
+		table.insert(connections, elements.card.MouseLeave:Connect(function()
+			endPromptHold()
+		end))
+	end
 
 	table.insert(connections, prompt:GetPropertyChangedSignal("UIOffset"):Connect(function()
 		billboard.StudsOffset = Vector3.new(0, prompt.UIOffset.Y * 0.01, 0)
-	end))
-
-	table.insert(connections, keyButton.MouseButton1Down:Connect(function()
-		beginPromptHold()
-	end))
-
-	table.insert(connections, keyButton.MouseButton1Up:Connect(function()
-		endPromptHold()
-	end))
-
-	table.insert(connections, keyButton.MouseLeave:Connect(function()
-		endPromptHold()
-	end))
-
-	table.insert(connections, keyButton.InputBegan:Connect(function(inputObject: InputObject)
-		local inputTypeLocal = inputObject.UserInputType
-		if inputTypeLocal == Enum.UserInputType.Touch then
-			beginPromptHold()
-		end
-	end))
-
-	table.insert(connections, keyButton.InputEnded:Connect(function(inputObject: InputObject)
-		local inputTypeLocal = inputObject.UserInputType
-		if inputTypeLocal == Enum.UserInputType.Touch then
-			endPromptHold()
-		end
-	end))
-
-	table.insert(connections, keyButton.Activated:Connect(function()
-		if prompt.HoldDuration <= 0 then
-			prompt:InputHoldBegin()
-			prompt:InputHoldEnd()
-		end
 	end))
 
 	table.insert(connections, UserInputService.InputEnded:Connect(function(inputObject: InputObject)
@@ -326,10 +459,10 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 
 	table.insert(connections, prompt.PromptButtonHoldBegan:Connect(function()
 		resetHoldProgress()
-		if prompt.HoldDuration <= 0 then
+		if prompt.HoldDuration <= 0 or not elements.holdProgress then
 			return
 		end
-		holdTween = TweenService:Create(holdProgress, TweenInfo.new(prompt.HoldDuration, Enum.EasingStyle.Linear), {
+		holdTween = TweenService:Create(elements.holdProgress, TweenInfo.new(prompt.HoldDuration, Enum.EasingStyle.Linear), {
 			Value = 1,
 		})
 		holdTween:Play()
@@ -340,11 +473,11 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 	end))
 
 	table.insert(connections, prompt.Triggered:Connect(function()
-		if prompt.HoldDuration <= 0 then
-			holdProgress.Value = 1
+		if prompt.HoldDuration <= 0 and elements.holdProgress then
+			elements.holdProgress.Value = 1
 			task.delay(0.08, function()
-				if holdProgress.Parent then
-					holdProgress.Value = 0
+				if elements.holdProgress and elements.holdProgress.Parent then
+					elements.holdProgress.Value = 0
 				end
 			end)
 		end
@@ -363,6 +496,8 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 end
 
 function Client_ProximityPrompts.Init()
+	getPromptTemplate()
+
 	ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType)
 		if prompt.Style ~= Enum.ProximityPromptStyle.Custom then
 			return

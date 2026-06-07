@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
@@ -16,6 +17,11 @@ local HELD_MODEL_NAME = "EquippedBrainrot"
 local HOLD_ANIMATION_NAME = "TwoHandsHolding"
 local TORSO_FORWARD_OFFSET = 1
 local TORSO_HEIGHT_OFFSET = 0.75
+local LUCKYBLOCK_FORWARD_OFFSET_DELTA = 0.25
+local LUCKYBLOCK_HEIGHT_OFFSET_DELTA = -1
+local HOLD_ANIMATION_FADE_TIME = 0.1
+local HOLD_ANIMATION_WEIGHT = 10
+local HOLD_ANIMATION_SPEED = 1
 
 local holdTrack: AnimationTrack? = nil
 local holdAnimator: Animator? = nil
@@ -41,6 +47,17 @@ local function getBrainrotModel(configName: string, modifier: string): Model?
 	end
 
 	local template = folder:FindFirstChild(modifier) or folder:FindFirstChild("Normal")
+	if not template or not template:IsA("Model") then
+		return nil
+	end
+
+	return template:Clone()
+end
+
+local function getLuckyBlockModel(configName: string): Model?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local luckyBlocks = assets and assets:FindFirstChild("LuckyBlocks")
+	local template = luckyBlocks and luckyBlocks:FindFirstChild(configName)
 	if not template or not template:IsA("Model") then
 		return nil
 	end
@@ -87,7 +104,9 @@ local function playHoldAnimation(character: Model)
 	holdTrack = animator:LoadAnimation(animation)
 	holdTrack.Priority = Enum.AnimationPriority.Action4
 	holdTrack.Looped = true
-	holdTrack:Play(0.15, 1, 1)
+	holdTrack:Play(HOLD_ANIMATION_FADE_TIME, HOLD_ANIMATION_WEIGHT, HOLD_ANIMATION_SPEED)
+	holdTrack:AdjustWeight(HOLD_ANIMATION_WEIGHT, 0)
+	holdTrack:AdjustSpeed(HOLD_ANIMATION_SPEED)
 
 	holdWatchdogConnection = RunService.Heartbeat:Connect(function()
 		if not holdTrack or not holdAnimator or holdAnimator.Parent == nil then
@@ -95,8 +114,14 @@ local function playHoldAnimation(character: Model)
 		end
 
 		if not holdTrack.IsPlaying then
-			holdTrack:Play(0.1, 1, 1)
+			holdTrack.Priority = Enum.AnimationPriority.Action4
+			holdTrack:Play(HOLD_ANIMATION_FADE_TIME, HOLD_ANIMATION_WEIGHT, HOLD_ANIMATION_SPEED)
 		end
+
+		-- Keep arm pose dominant against locomotion tracks.
+		holdTrack.Priority = Enum.AnimationPriority.Action4
+		holdTrack:AdjustWeight(HOLD_ANIMATION_WEIGHT, 0)
+		holdTrack:AdjustSpeed(HOLD_ANIMATION_SPEED)
 	end)
 end
 
@@ -109,7 +134,7 @@ local function clearHeldVisual()
 	end
 end
 
-local function attachBrainrotToTorso(model: Model, character: Model): boolean
+local function attachBrainrotToTorso(model: Model, character: Model, forwardOffsetDelta: number?, heightOffsetDelta: number?): boolean
 	if not model.PrimaryPart then
 		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
 	end
@@ -137,10 +162,13 @@ local function attachBrainrotToTorso(model: Model, character: Model): boolean
 		end
 	end
 
+	local resolvedForwardOffset = TORSO_FORWARD_OFFSET + (forwardOffsetDelta or 0)
+	local resolvedHeightOffset = TORSO_HEIGHT_OFFSET + (heightOffsetDelta or 0)
+
 	local offset = CFrame.new(
 		0,
-		primaryPart.Size.Y * 0.3 + TORSO_HEIGHT_OFFSET,
-		-primaryPart.Size.Z / 2 - TORSO_FORWARD_OFFSET
+		primaryPart.Size.Y * 0.3 + resolvedHeightOffset,
+		-primaryPart.Size.Z / 2 - resolvedForwardOffset
 	)
 	model:PivotTo(attachPart.CFrame * offset)
 
@@ -165,7 +193,7 @@ local function refreshHeldVisual()
 
 	local inventory = Client_Data:GetValue("Inventory") or {}
 	local item = inventory[inventoryIndex]
-	if not item or item.ItemType ~= "Brainrot" or type(item.ConfigName) ~= "string" then
+	if not item or type(item.ConfigName) ~= "string" then
 		return
 	end
 
@@ -175,10 +203,26 @@ local function refreshHeldVisual()
 	end
 
 	local configName = item.ConfigName
+	local itemType = item.ItemType
+	local model: Model? = nil
 	local modifier = item.Data and item.Data.Modifier or "Normal"
 	local level = math.max(1, item.Data and item.Data.Level or 1)
+	local forwardOffsetDelta = 0
+	local heightOffsetDelta = 0
 
-	local model = getBrainrotModel(configName, modifier)
+	if itemType == "Brainrot" then
+		model = getBrainrotModel(configName, modifier)
+	elseif itemType == "LuckyBlock" then
+		if not Shared_LuckyBlocks.Data[configName] then
+			return
+		end
+		model = getLuckyBlockModel(configName)
+		forwardOffsetDelta = LUCKYBLOCK_FORWARD_OFFSET_DELTA
+		heightOffsetDelta = LUCKYBLOCK_HEIGHT_OFFSET_DELTA
+	else
+		return
+	end
+
 	if not model then
 		return
 	end
@@ -187,9 +231,11 @@ local function refreshHeldVisual()
 		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
 	end
 
-	model:ScaleTo(Shared_Brainrots.GetScaleForLevel(level))
+	if itemType == "Brainrot" then
+		model:ScaleTo(Shared_Brainrots.GetScaleForLevel(level))
+	end
 
-	if not attachBrainrotToTorso(model, character) then
+	if not attachBrainrotToTorso(model, character, forwardOffsetDelta, heightOffsetDelta) then
 		model:Destroy()
 		return
 	end
@@ -197,7 +243,9 @@ local function refreshHeldVisual()
 	heldModel = model
 	model:SetAttribute("ConfigName", configName)
 
-	Shared_BrainrotBillboard.Setup(model, configName, modifier, level)
+	if itemType == "Brainrot" then
+		Shared_BrainrotBillboard.Setup(model, configName, modifier, level)
+	end
 	playHoldAnimation(character)
 end
 

@@ -141,7 +141,7 @@ local function createDragClone(original: ImageButton, item: any, playAnimation: 
 		local itemName = clone:FindFirstChild("ItemName")
 		if itemName and itemName:IsA("TextLabel") then
 			itemName.Visible = true
-			itemName.Text = Client_ItemDisplay.getDisplayName(item.ConfigName)
+			itemName.Text = Client_ItemDisplay.getDisplayName(item.ConfigName, item.ItemType)
 		end
 	end
 

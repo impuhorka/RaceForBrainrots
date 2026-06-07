@@ -1,3 +1,4 @@
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -12,9 +13,13 @@ local localPlayer = Players.LocalPlayer
 
 local Client_PlotUpgradeSign = {}
 
+local ANIMATED_BUTTON_TAG = "AnimatedButton0"
+
 local plotGuis: { [Model]: SurfaceGui } = {}
 local hookedPlots: { [Model]: boolean } = {}
 local watchingPlots: { [Model]: boolean } = {}
+local watchingSlotsFolders: { [Model]: boolean } = {}
+local buttonConnections: { [ImageButton]: RBXScriptConnection } = {}
 local originalSlotsLayouts: { [TextLabel]: { Position: UDim2, Size: UDim2 } } = {}
 local originalFrameVisible: { [GuiObject]: boolean } = {}
 
@@ -147,11 +152,34 @@ local function getUpgradeSignButton(gui: SurfaceGui): ImageButton?
 	return nil
 end
 
-local function getCurrentSlotCount(): number
-	return Client_Data:GetValue("TotalPlotSlots") or PlotConfig.DefaultPlotSlots
+local function isOwnPlot(plotModel: Model): boolean
+	return getOwnerUserId(plotModel) == localPlayer.UserId
 end
 
-local function updateUpgradeSignLabels(gui: SurfaceGui?)
+local function getPlotSlotCount(plotModel: Model): number
+	if isOwnPlot(plotModel) then
+		return Client_Data:GetValue("TotalPlotSlots") or PlotConfig.DefaultPlotSlots
+	end
+
+	local slotsFolder = plotModel:FindFirstChild("Slots")
+	if not slotsFolder then
+		return PlotConfig.DefaultPlotSlots
+	end
+
+	local maxSlotId = 0
+	for _, child in slotsFolder:GetChildren() do
+		if child:IsA("Model") then
+			local slotId = tonumber(string.match(child.Name, "^Slot(%d+)$"))
+			if slotId and slotId > maxSlotId then
+				maxSlotId = slotId
+			end
+		end
+	end
+
+	return if maxSlotId > 0 then maxSlotId else PlotConfig.DefaultPlotSlots
+end
+
+local function updateUpgradeSignLabels(gui: SurfaceGui?, plotModel: Model)
 	if not gui or not gui.Parent then
 		return
 	end
@@ -161,7 +189,7 @@ local function updateUpgradeSignLabels(gui: SurfaceGui?)
 		return
 	end
 
-	local currentSlots = getCurrentSlotCount()
+	local currentSlots = getPlotSlotCount(plotModel)
 	local maxSlots = PlotConfig.MaxPlotSlots
 
 	if currentSlots >= maxSlots then
@@ -181,7 +209,7 @@ local function updateUpgradeSignLabels(gui: SurfaceGui?)
 end
 
 local function tryBuySlot()
-	local currentSlots = getCurrentSlotCount()
+	local currentSlots = Client_Data:GetValue("TotalPlotSlots") or PlotConfig.DefaultPlotSlots
 	if currentSlots >= PlotConfig.MaxPlotSlots then
 		Client_Messaging.Show("You've purchased MAX amount of slots!", "red")
 		return
@@ -198,32 +226,79 @@ local function tryBuySlot()
 	plotHandler:FireServer("BuySlot")
 end
 
-local function setupUpgradeSignButton(gui: SurfaceGui)
+local function setupUpgradeSignButton(gui: SurfaceGui, plotModel: Model)
 	local imageButton = getUpgradeSignButton(gui)
 	if not imageButton then
 		return
 	end
 
-	imageButton.MouseButton1Click:Connect(function()
-		tryBuySlot()
-	end)
+	local ownPlot = isOwnPlot(plotModel)
+	imageButton.Active = ownPlot
+
+	local existingConnection = buttonConnections[imageButton]
+	if existingConnection then
+		existingConnection:Disconnect()
+		buttonConnections[imageButton] = nil
+	end
+
+	if ownPlot then
+		if not CollectionService:HasTag(imageButton, ANIMATED_BUTTON_TAG) then
+			CollectionService:AddTag(imageButton, ANIMATED_BUTTON_TAG)
+		end
+		buttonConnections[imageButton] = imageButton.MouseButton1Click:Connect(function()
+			tryBuySlot()
+		end)
+	else
+		if CollectionService:HasTag(imageButton, ANIMATED_BUTTON_TAG) then
+			CollectionService:RemoveTag(imageButton, ANIMATED_BUTTON_TAG)
+		end
+	end
+end
+
+local function watchPlotSlotsFolder(plotModel: Model)
+	if watchingSlotsFolders[plotModel] then
+		return
+	end
+
+	local slotsFolder = plotModel:FindFirstChild("Slots")
+	if not slotsFolder then
+		return
+	end
+
+	watchingSlotsFolders[plotModel] = true
+
+	local function refreshLabels()
+		local gui = plotGuis[plotModel]
+		if gui and gui.Parent then
+			updateUpgradeSignLabels(gui, plotModel)
+		end
+	end
+
+	slotsFolder.ChildAdded:Connect(refreshLabels)
+	slotsFolder.ChildRemoved:Connect(refreshLabels)
 end
 
 local function cleanupPlotSurface(plotModel: Model)
 	local gui = plotGuis[plotModel]
 	if gui then
+		local imageButton = getUpgradeSignButton(gui)
+		if imageButton then
+			local existingConnection = buttonConnections[imageButton]
+			if existingConnection then
+				existingConnection:Disconnect()
+				buttonConnections[imageButton] = nil
+			end
+		end
 		gui:Destroy()
 		plotGuis[plotModel] = nil
 	end
+	watchingSlotsFolders[plotModel] = nil
 end
 
 local function setupPlotSurface(plotModel: Model)
 	if plotGuis[plotModel] then
-		updateUpgradeSignLabels(plotGuis[plotModel])
-		return
-	end
-
-	if getOwnerUserId(plotModel) ~= localPlayer.UserId then
+		updateUpgradeSignLabels(plotGuis[plotModel], plotModel)
+		setupUpgradeSignButton(plotGuis[plotModel], plotModel)
 		return
 	end
 
@@ -233,7 +308,7 @@ local function setupPlotSurface(plotModel: Model)
 			watchingPlots[plotModel] = true
 			plotModel.DescendantAdded:Connect(function()
 				if getUpgradeSign(plotModel) then
-					setupPlotSurface(plotModel)
+					refreshPlot(plotModel)
 				end
 			end)
 			plotModel.Destroying:Connect(function()
@@ -256,14 +331,21 @@ local function setupPlotSurface(plotModel: Model)
 
 	local gui = template:Clone()
 	gui.Name = "UpgradeSignDisplay_" .. plotModel.Name
+
+	local clonedButton = getUpgradeSignButton(gui)
+	if clonedButton and not isOwnPlot(plotModel) and CollectionService:HasTag(clonedButton, ANIMATED_BUTTON_TAG) then
+		CollectionService:RemoveTag(clonedButton, ANIMATED_BUTTON_TAG)
+	end
+
 	gui.Parent = getSurfaceGuisFolder()
 	gui.Adornee = originPart
 	gui.Enabled = true
 
 	plotGuis[plotModel] = gui
 
-	updateUpgradeSignLabels(gui)
-	setupUpgradeSignButton(gui)
+	updateUpgradeSignLabels(gui, plotModel)
+	setupUpgradeSignButton(gui, plotModel)
+	watchPlotSlotsFolder(plotModel)
 
 	plotModel.Destroying:Connect(function()
 		cleanupPlotSurface(plotModel)
@@ -276,15 +358,11 @@ local function refreshPlot(plotModel: Model)
 		return
 	end
 
-	if getOwnerUserId(plotModel) ~= localPlayer.UserId then
-		cleanupPlotSurface(plotModel)
-		return
-	end
-
 	setupPlotSurface(plotModel)
+	watchPlotSlotsFolder(plotModel)
 end
 
-local function refreshOwnPlot()
+local function refreshAllPlots()
 	local gameFolder = Workspace:FindFirstChild("Game")
 	local plotsFolder = gameFolder and gameFolder:FindFirstChild("Plots")
 	if not plotsFolder then
@@ -297,9 +375,9 @@ local function refreshOwnPlot()
 		end
 	end
 
-	for _, gui in plotGuis do
+	for plotModel, gui in plotGuis do
 		if gui.Parent then
-			updateUpgradeSignLabels(gui)
+			updateUpgradeSignLabels(gui, plotModel)
 		end
 	end
 end
@@ -315,6 +393,16 @@ local function hookPlot(plotModel: Model)
 		refreshPlot(plotModel)
 	end)
 
+	plotModel.ChildAdded:Connect(function(child)
+		if child.Name == "Slots" then
+			watchPlotSlotsFolder(plotModel)
+			local gui = plotGuis[plotModel]
+			if gui and gui.Parent then
+				updateUpgradeSignLabels(gui, plotModel)
+			end
+		end
+	end)
+
 	refreshPlot(plotModel)
 end
 
@@ -326,9 +414,9 @@ function Client_PlotUpgradeSign.Init()
 			return
 		end
 
-		for _, gui in plotGuis do
-			if gui.Parent then
-				updateUpgradeSignLabels(gui)
+		for plotModel, gui in plotGuis do
+			if gui.Parent and isOwnPlot(plotModel) then
+				updateUpgradeSignLabels(gui, plotModel)
 			end
 		end
 
@@ -352,18 +440,22 @@ function Client_PlotUpgradeSign.Init()
 		end
 	end)
 
-	task.defer(refreshOwnPlot)
-	task.delay(1, refreshOwnPlot)
+	task.defer(refreshAllPlots)
+	task.delay(1, refreshAllPlots)
 
 	task.spawn(function()
 		Client_Data.WaitUntilReady()
 		Client_Data:ListenToChange("TotalPlotSlots", function()
-			refreshOwnPlot()
+			for plotModel, gui in plotGuis do
+				if gui.Parent and isOwnPlot(plotModel) then
+					updateUpgradeSignLabels(gui, plotModel)
+				end
+			end
 		end)
 		Client_Data:ListenToChange("Cash", function()
-			for _, gui in plotGuis do
-				if gui.Parent then
-					updateUpgradeSignLabels(gui)
+			for plotModel, gui in plotGuis do
+				if gui.Parent and isOwnPlot(plotModel) then
+					updateUpgradeSignLabels(gui, plotModel)
 				end
 			end
 		end)

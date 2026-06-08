@@ -244,11 +244,32 @@ function Client_Equip.Init()
 
 		local rawObjects = playerGui:GetGuiObjectsAtPosition(pointer.X, pointer.Y)
 		if #rawObjects > 0 then
-			return true
+			-- On touch devices there are often fullscreen helper layers in PlayerGui.
+			-- Only block when touching actually interactive UI controls.
+			if input.UserInputType == Enum.UserInputType.Touch then
+				for _, gui in rawObjects do
+					if gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox") then
+						return true
+					end
+				end
+			else
+				return true
+			end
 		end
 
 		local insetObjects = playerGui:GetGuiObjectsAtPosition(guiPointer.X, guiPointer.Y)
-		return #insetObjects > 0
+		if input.UserInputType == Enum.UserInputType.Touch then
+			for _, gui in insetObjects do
+				if gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox") then
+					return true
+				end
+			end
+			return false
+		end
+		if #insetObjects > 0 then
+			return true
+		end
+		return false
 	end
 
 	local function tryOpenEquippedLuckyBlock(input: InputObject, gameProcessed: boolean)

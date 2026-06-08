@@ -64,12 +64,12 @@ local function getLuckyBlockModel(configName: string): Model?
 	return template:Clone()
 end
 
-local function getBrainrotModel(configName: string): Model?
+local function getBrainrotModel(configName: string, modifier: string?): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local folder = assets and assets:FindFirstChild("Brainrots")
 	local sub = folder and folder:FindFirstChild(configName)
 	if not sub then return nil end
-	local template = sub:FindFirstChild("Normal") or sub:FindFirstChildWhichIsA("Model")
+	local template = sub:FindFirstChild(modifier or "Normal") or sub:FindFirstChild("Normal") or sub:FindFirstChildWhichIsA("Model")
 	if not template or not template:IsA("Model") then return nil end
 	return template:Clone()
 end
@@ -338,6 +338,7 @@ local function playOpening(data: {
 	pickedConfigName: string,
 	pickedItemType: string,
 	pickedLevel: number?,
+	pickedModifier: string?,
 })
 	local Assets = ReplicatedStorage:FindFirstChild("Assets")
 	if not Assets then return end
@@ -365,7 +366,7 @@ local function playOpening(data: {
 	local targetRevealScale = 1
 	local revealedHalfHeight = primary.Size.Y * 0.5
 	if data.pickedItemType == "Brainrot" then
-		revealedModel = getBrainrotModel(data.pickedConfigName)
+		revealedModel = getBrainrotModel(data.pickedConfigName, data.pickedModifier or "Normal")
 		local pickedLevel = math.max(1, math.floor(data.pickedLevel or 1))
 		targetRevealScale = Shared_Brainrots.GetScaleForLevel(pickedLevel)
 	elseif data.pickedItemType == "LuckyBlock" then
@@ -698,7 +699,7 @@ local function playOpening(data: {
 
 		if data.pickedItemType == "Brainrot" and revealedModel.Parent then
 			local pickedLevel = math.max(1, math.floor(data.pickedLevel or 1))
-			Shared_BrainrotBillboard.Setup(revealedModel, data.pickedConfigName, "Normal", pickedLevel)
+			Shared_BrainrotBillboard.Setup(revealedModel, data.pickedConfigName, data.pickedModifier or "Normal", pickedLevel)
 		end
 	end)
 

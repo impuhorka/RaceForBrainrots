@@ -7,6 +7,7 @@ local ReplicaService = require(script.Parent.ReplicaService)
 require(script.Parent.ReplicaServiceListeners)
 
 local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
+local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 
 local DataTemplate = {
 	Cash = 0,
@@ -125,6 +126,39 @@ local function deepCopy(value)
 		copy[key] = deepCopy(nestedValue)
 	end
 	return copy
+end
+
+local function addBrainrotToIndex(data: { [string]: any }, item: any): boolean
+	if not item or item.ItemType ~= "Brainrot" or type(item.ConfigName) ~= "string" then
+		return false
+	end
+
+	if not Shared_Brainrots.Data[item.ConfigName] then
+		return false
+	end
+
+	local modifier = if type(item.Data) == "table" and type(item.Data.Modifier) == "string" and item.Data.Modifier ~= ""
+		then item.Data.Modifier
+		else "Normal"
+
+	if type(data.Index) ~= "table" then
+		data.Index = {}
+	end
+
+	local modifierEntries = data.Index[modifier]
+	if type(modifierEntries) ~= "table" then
+		modifierEntries = {}
+		data.Index[modifier] = modifierEntries
+	end
+
+	for _, configName in modifierEntries do
+		if configName == item.ConfigName then
+			return false
+		end
+	end
+
+	table.insert(modifierEntries, item.ConfigName)
+	return true
 end
 
 function Module:GetProfile(player)
@@ -259,10 +293,14 @@ function Module:AddInventoryItem(player: Player, item: any): number?
 
 	table.insert(data.Inventory, item)
 	local newIndex = #data.Inventory
+	local indexChanged = addBrainrotToIndex(data, item)
 
 	local replica = self:GetReplica(player)
 	if replica then
 		replica:SetValue({ "Inventory" }, data.Inventory)
+		if indexChanged then
+			replica:SetValue({ "Index" }, data.Index)
+		end
 	end
 
 	return newIndex

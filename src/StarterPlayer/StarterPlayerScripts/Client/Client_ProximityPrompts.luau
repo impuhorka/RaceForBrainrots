@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -38,7 +37,7 @@ type PromptElements = {
 
 local activePrompts: { [ProximityPrompt]: PromptEntry } = {}
 local promptsSuppressed = false
-local suppressionHeartbeat: RBXScriptConnection? = nil
+local watchedFrameVisibility: { [GuiObject]: boolean } = {}
 
 local function applyPromptVisibility(entry: PromptEntry)
 	if entry.gui then
@@ -69,7 +68,10 @@ local function isAnyNonInventoryFrameOpen(): boolean
 	end
 
 	for _, child in frames:GetChildren() do
-		if child:IsA("GuiObject") and FrameController.isOpenForBlur(child) then
+		if child:IsA("GuiObject")
+			and FrameController.countsForBlur(child)
+			and FrameController.isOpenForBlur(child)
+		then
 			return true
 		end
 	end
@@ -589,25 +591,34 @@ function Client_ProximityPrompts.Init()
 		local playerGui = localPlayer:WaitForChild("PlayerGui")
 		local main = playerGui:WaitForChild("Main")
 		local frames = main:WaitForChild("Frames")
-
-		FrameController.onBlurChanged(refreshSuppressionNow)
-		frames.ChildAdded:Connect(refreshSuppressionNow)
-		frames.ChildRemoved:Connect(refreshSuppressionNow)
-		refreshSuppressionNow()
-
-		-- Self-heal in case rapid UI spam/race misses a blur event.
-		if suppressionHeartbeat then
-			suppressionHeartbeat:Disconnect()
-		end
-		local elapsed = 0
-		suppressionHeartbeat = RunService.Heartbeat:Connect(function(dt)
-			elapsed += dt
-			if elapsed < 0.2 then
+		local function hookFrameVisibility(frame: GuiObject)
+			if watchedFrameVisibility[frame] then
 				return
 			end
-			elapsed = 0
+			watchedFrameVisibility[frame] = true
+			frame:GetPropertyChangedSignal("Visible"):Connect(function()
+				refreshSuppressionNow()
+			end)
+			frame.Destroying:Connect(function()
+				watchedFrameVisibility[frame] = nil
+				refreshSuppressionNow()
+			end)
+		end
+
+		FrameController.onBlurChanged(refreshSuppressionNow)
+		for _, child in frames:GetChildren() do
+			if child:IsA("GuiObject") then
+				hookFrameVisibility(child)
+			end
+		end
+		frames.ChildAdded:Connect(function(child)
+			if child:IsA("GuiObject") then
+				hookFrameVisibility(child)
+			end
 			refreshSuppressionNow()
 		end)
+		frames.ChildRemoved:Connect(refreshSuppressionNow)
+		refreshSuppressionNow()
 	end)
 
 	ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType)

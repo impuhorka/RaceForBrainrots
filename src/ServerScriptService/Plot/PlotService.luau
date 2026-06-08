@@ -11,6 +11,7 @@ local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
 
@@ -56,6 +57,43 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 	end
 
 	return candidates[math.random(1, #candidates)]
+end
+
+local function rollLuckyBlockModifier(luckyBlockData: { [string]: any }): string
+	local rarityChances = nil
+	if type(luckyBlockData.Rarity) == "string" then
+		rarityChances = Shared_LuckyBlocks.ModifierChancesByRarity
+			and Shared_LuckyBlocks.ModifierChancesByRarity[luckyBlockData.Rarity]
+	end
+
+	local rawChances = luckyBlockData.ModifierChances or rarityChances or Shared_LuckyBlocks.DefaultModifierChances
+	if type(rawChances) ~= "table" then
+		return "Normal"
+	end
+
+	local totalWeight = 0
+	for modifierName, weight in rawChances do
+		if Shared_Modifiers.Data[modifierName] and type(weight) == "number" and weight > 0 then
+			totalWeight += weight
+		end
+	end
+
+	if totalWeight <= 0 then
+		return "Normal"
+	end
+
+	local roll = math.random() * totalWeight
+	local cumulative = 0
+	for modifierName, weight in rawChances do
+		if Shared_Modifiers.Data[modifierName] and type(weight) == "number" and weight > 0 then
+			cumulative += weight
+			if roll <= cumulative then
+				return modifierName
+			end
+		end
+	end
+
+	return "Normal"
 end
 
 local function openLuckyBlock(player: Player, inventoryIndex: number): { [string]: any }?
@@ -104,13 +142,14 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 	local minLevel = math.max(1, math.floor(luckyBlockData.MinLevel or 1))
 	local maxLevel = math.max(minLevel, math.floor(luckyBlockData.MaxLevel or minLevel))
 	local rewardedLevel = math.random(minLevel, maxLevel)
+	local rewardedModifier = rollLuckyBlockModifier(luckyBlockData)
 
 	local rewardIndex = Server_Data:AddInventoryItem(player, {
 		ItemType = "Brainrot",
 		ConfigName = rewardedConfigName,
 		Data = {
 			Level = rewardedLevel,
-			Modifier = "Normal",
+			Modifier = rewardedModifier,
 		},
 	})
 
@@ -145,11 +184,60 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 		pickedConfigName = rewardedConfigName,
 		pickedItemType = "Brainrot",
 		pickedLevel = rewardedLevel,
+		pickedModifier = rewardedModifier,
 		rewardInventoryIndex = rewardIndex,
 	}
 
 	finish()
 	return animationData
+end
+
+local function sellEquippedBrainrot(player: Player, inventoryIndex: number): (boolean, number?)
+	local inventory = Server_Data:GetValue(player, "Inventory") or {}
+	local item = inventory[inventoryIndex]
+	if not item or item.ItemType ~= "Brainrot" or type(item.ConfigName) ~= "string" then
+		return false, nil
+	end
+
+	local level = math.max(1, tonumber(item.Data and item.Data.Level) or 1)
+	local modifier = item.Data and item.Data.Modifier or "Normal"
+	local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
+	if sellWorth <= 0 then
+		return false, nil
+	end
+
+	local removedItem = Server_Data:RemoveInventoryAt(player, inventoryIndex)
+	if not removedItem then
+		return false, nil
+	end
+
+	Server_Data:AddValue(player, "Cash", sellWorth)
+	return true, sellWorth
+end
+
+local function sellAllBrainrots(player: Player): (number, number)
+	local inventory = Server_Data:GetValue(player, "Inventory") or {}
+	local soldCount = 0
+	local totalWorth = 0
+
+	for index = #inventory, 1, -1 do
+		local item = inventory[index]
+		if item and item.ItemType == "Brainrot" and type(item.ConfigName) == "string" then
+			local level = math.max(1, tonumber(item.Data and item.Data.Level) or 1)
+			local modifier = item.Data and item.Data.Modifier or "Normal"
+			local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
+			if sellWorth > 0 and Server_Data:RemoveInventoryAt(player, index) then
+				soldCount += 1
+				totalWorth += sellWorth
+			end
+		end
+	end
+
+	if totalWorth > 0 then
+		Server_Data:AddValue(player, "Cash", totalWorth)
+	end
+
+	return soldCount, totalWorth
 end
 
 local function getPlayerSlotCount(player: Player): number
@@ -341,6 +429,29 @@ function PlotService:Init()
 			local animationData = openLuckyBlock(player, slotId)
 			if animationData then
 				plotHandler:FireClient(player, "LuckyBlockOpen", animationData)
+			end
+			return
+		end
+
+		if action == "SellEquipped" then
+			if type(slotId) ~= "number" then
+				return
+			end
+			local sold, sellWorth = sellEquippedBrainrot(player, slotId)
+			if sold and sellWorth then
+				plotHandler:FireClient(player, "SellEquippedSuccess", sellWorth)
+			else
+				plotHandler:FireClient(player, "SellEquippedFailed")
+			end
+			return
+		end
+
+		if action == "SellAllBrainrots" then
+			local soldCount, totalWorth = sellAllBrainrots(player)
+			if soldCount > 0 and totalWorth > 0 then
+				plotHandler:FireClient(player, "SellAllBrainrotsSuccess", soldCount, totalWorth)
+			else
+				plotHandler:FireClient(player, "SellAllBrainrotsFailed")
 			end
 		end
 	end)

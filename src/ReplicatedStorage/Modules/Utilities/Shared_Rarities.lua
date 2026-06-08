@@ -26,6 +26,7 @@ Shared_Rarities.Balance = {
 Shared_Rarities.Data = {
 	Common = {
 		DisplayName = "Common",
+		LayoutOrder = 1,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 75)),
@@ -37,6 +38,7 @@ Shared_Rarities.Data = {
 	},
 	Rare = {
 		DisplayName = "Rare",
+		LayoutOrder = 2,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 245, 210)),
@@ -48,6 +50,7 @@ Shared_Rarities.Data = {
 	},
 	Epic = {
 		DisplayName = "Epic",
+		LayoutOrder = 3,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 175, 220)),
@@ -59,6 +62,7 @@ Shared_Rarities.Data = {
 	},
 	Legendary = {
 		DisplayName = "Legendary",
+		LayoutOrder = 4,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 160, 120)),
@@ -70,6 +74,7 @@ Shared_Rarities.Data = {
 	},
 	Mythical = {
 		DisplayName = "Mythical",
+		LayoutOrder = 5,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(235, 235, 0)),
@@ -81,6 +86,7 @@ Shared_Rarities.Data = {
 	},
 	Secret = {
 		DisplayName = "Secret",
+		LayoutOrder = 6,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 40)),
@@ -92,6 +98,7 @@ Shared_Rarities.Data = {
 	},
 	Divine = {
 		DisplayName = "Divine",
+		LayoutOrder = 7,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 240, 230)),
@@ -104,6 +111,7 @@ Shared_Rarities.Data = {
 	},
 	Superior = {
 		DisplayName = "SUPERIOR",
+		LayoutOrder = 8,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 220, 0)),

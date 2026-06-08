@@ -33,10 +33,6 @@ function Shared_BrainrotAnimations.IsAnimatedConfigName(configName: string): boo
 end
 
 function Shared_BrainrotAnimations.GetIdleAnimation(configName: string): Animation?
-	if not Shared_BrainrotAnimations.IsAnimatedConfigName(configName) then
-		return nil
-	end
-
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local animFolder = assets and assets:FindFirstChild("Animations")
 	local configAnimFolder = animFolder and animFolder:FindFirstChild(configName)

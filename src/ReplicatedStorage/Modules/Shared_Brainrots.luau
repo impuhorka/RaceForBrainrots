@@ -46,6 +46,7 @@ Brainrots.Data = {
 		Rarity = "Mythical",
 		PowerTier = 5,
 	},
+	
 	PipiPotato = {
 		DispalayName = "Pipi Potato",
 		Rarity = "Secret",

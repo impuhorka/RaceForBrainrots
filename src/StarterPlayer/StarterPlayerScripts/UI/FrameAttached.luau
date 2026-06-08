@@ -1,4 +1,5 @@
 local CollectionService = game:GetService("CollectionService")
+local UserInputService = game:GetService("UserInputService")
 
 local FrameController = require(script.Parent.FrameController)
 local FrameRegistry = require(script.Parent.FrameRegistry)
@@ -10,6 +11,7 @@ local FrameAttached = {}
 
 local active: { [Instance]: RBXScriptConnection } = {}
 local inventoryButtons: { [ImageButton]: boolean } = {}
+local keyboardToggleConnection: RBXScriptConnection? = nil
 
 local function setInventoryStatus(button: ImageButton, isOpen: boolean)
 	local status = button:FindFirstChild("Status")
@@ -92,6 +94,25 @@ function FrameAttached.init()
 	for _, instance in CollectionService:GetTagged(TAG) do
 		setup(instance)
 	end
+
+	if keyboardToggleConnection then
+		keyboardToggleConnection:Disconnect()
+		keyboardToggleConnection = nil
+	end
+
+	keyboardToggleConnection = UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+		if gameProcessed or UserInputService:GetFocusedTextBox() then
+			return
+		end
+
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then
+			return
+		end
+
+		if input.KeyCode == Enum.KeyCode.B then
+			FrameRegistry.toggle(INVENTORY_NAME)
+		end
+	end)
 end
 
 return FrameAttached

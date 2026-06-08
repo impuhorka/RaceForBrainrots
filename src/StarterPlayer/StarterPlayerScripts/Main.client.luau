@@ -96,6 +96,9 @@ Client_PlotUpgradeVfx.Init()
 local Client_PlotCashCollect = require(script.Parent.Client.Client_PlotCashCollect)
 Client_PlotCashCollect.Init()
 
+local Client_SellBillboard = require(script.Parent.Client.Client_SellBillboard)
+Client_SellBillboard.Init()
+
 local Client_PlotUpgradeSign = require(script.Parent.Client.Client_PlotUpgradeSign)
 Client_PlotUpgradeSign.Init()
 
@@ -104,6 +107,12 @@ Client_InteractStorePrompts.Init()
 
 local Client_LuckyBlockOpening = require(script.Parent.Client.Client_LuckyBlockOpening)
 Client_LuckyBlockOpening.Init()
+
+local Client_Index = require(script.Parent.Client.Client_Index)
+Client_Index.Init()
+
+local Client_RainbowBrainrots = require(script.Parent.Client.Client_RainbowBrainrots)
+Client_RainbowBrainrots.Init()
 
 require(script.Parent.Animations)
 require(script.Parent.UI)

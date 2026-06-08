@@ -9,29 +9,90 @@ local hookedSlots: { [Model]: boolean } = {}
 local hookedPlots: { [Model]: boolean } = {}
 local hookedSlotsFolders: { [Folder]: boolean } = {}
 local hookedTaggedModels: { [Model]: boolean } = {}
+local hookedPlacedModels: { [Model]: boolean } = {}
+local playRetryTokens: { [Model]: number } = {}
 local ANIMATED_BRAINROT_TAG = "AnimatedBrainrot"
 
 local function resolveConfigName(brainrotModel: Model): string?
-	if CollectionService:HasTag(brainrotModel, ANIMATED_BRAINROT_TAG) then
-		if brainrotModel.Name ~= "" then
-			return brainrotModel.Name
-		end
-	end
-
 	local configName = brainrotModel:GetAttribute("ConfigName")
 	if type(configName) == "string" and configName ~= "" then
 		return configName
 	end
 
+	if CollectionService:HasTag(brainrotModel, ANIMATED_BRAINROT_TAG) then
+		if brainrotModel.Name ~= "" and brainrotModel.Name ~= "PlacedBrainrot" then
+			return brainrotModel.Name
+		end
+	end
+
 	return nil
 end
 
-local function playPlacedBrainrot(brainrotModel: Model)
+local function playPlacedBrainrot(brainrotModel: Model): boolean
 	local configName = resolveConfigName(brainrotModel)
 	if not configName then
+		return false
+	end
+	return Shared_BrainrotAnimations.PlayIdle(brainrotModel, configName) ~= nil
+end
+
+local function queuePlayRetry(brainrotModel: Model)
+	local token = (playRetryTokens[brainrotModel] or 0) + 1
+	playRetryTokens[brainrotModel] = token
+
+	task.spawn(function()
+		for _ = 1, 15 do
+			if playRetryTokens[brainrotModel] ~= token then
+				return
+			end
+
+			if not brainrotModel.Parent or not brainrotModel:IsDescendantOf(Workspace) then
+				return
+			end
+
+			if playPlacedBrainrot(brainrotModel) then
+				return
+			end
+
+			task.wait(0.2)
+		end
+	end)
+end
+
+local function hookPlacedBrainrotModel(brainrotModel: Model)
+	if hookedPlacedModels[brainrotModel] then
+		if brainrotModel:IsDescendantOf(Workspace) and not playPlacedBrainrot(brainrotModel) then
+			queuePlayRetry(brainrotModel)
+		end
 		return
 	end
-	Shared_BrainrotAnimations.PlayIdle(brainrotModel, configName)
+	hookedPlacedModels[brainrotModel] = true
+
+	if brainrotModel:IsDescendantOf(Workspace) and not playPlacedBrainrot(brainrotModel) then
+		queuePlayRetry(brainrotModel)
+	end
+
+	brainrotModel:GetAttributeChangedSignal("ConfigName"):Connect(function()
+		if brainrotModel:IsDescendantOf(Workspace) and not playPlacedBrainrot(brainrotModel) then
+			queuePlayRetry(brainrotModel)
+		end
+	end)
+
+	brainrotModel.AncestryChanged:Connect(function(_, newParent)
+		if newParent and brainrotModel:IsDescendantOf(Workspace) then
+			if not playPlacedBrainrot(brainrotModel) then
+				queuePlayRetry(brainrotModel)
+			end
+		else
+			Shared_BrainrotAnimations.StopIdle(brainrotModel)
+		end
+	end)
+
+	brainrotModel.Destroying:Connect(function()
+		hookedPlacedModels[brainrotModel] = nil
+		playRetryTokens[brainrotModel] = nil
+		Shared_BrainrotAnimations.StopIdle(brainrotModel)
+	end)
 end
 
 local function hookTaggedBrainrotModel(model: Model)
@@ -41,12 +102,16 @@ local function hookTaggedBrainrotModel(model: Model)
 	hookedTaggedModels[model] = true
 
 	if model:IsDescendantOf(Workspace) then
-		playPlacedBrainrot(model)
+		if not playPlacedBrainrot(model) then
+			queuePlayRetry(model)
+		end
 	end
 
 	model.AncestryChanged:Connect(function(_, newParent)
 		if newParent and model:IsDescendantOf(Workspace) then
-			playPlacedBrainrot(model)
+			if not playPlacedBrainrot(model) then
+				queuePlayRetry(model)
+			end
 		else
 			Shared_BrainrotAnimations.StopIdle(model)
 		end
@@ -54,6 +119,7 @@ local function hookTaggedBrainrotModel(model: Model)
 
 	model.Destroying:Connect(function()
 		hookedTaggedModels[model] = nil
+		playRetryTokens[model] = nil
 		Shared_BrainrotAnimations.StopIdle(model)
 	end)
 end
@@ -66,17 +132,19 @@ local function hookSlot(slotModel: Model)
 
 	local placedBrainrot = slotModel:FindFirstChild("PlacedBrainrot")
 	if placedBrainrot and placedBrainrot:IsA("Model") then
-		playPlacedBrainrot(placedBrainrot)
+		hookPlacedBrainrotModel(placedBrainrot)
 	end
 
 	slotModel.ChildAdded:Connect(function(child)
 		if child.Name == "PlacedBrainrot" and child:IsA("Model") then
-			playPlacedBrainrot(child)
+			hookPlacedBrainrotModel(child)
 		end
 	end)
 
 	slotModel.ChildRemoved:Connect(function(child)
 		if child.Name == "PlacedBrainrot" and child:IsA("Model") then
+			hookedPlacedModels[child] = nil
+			playRetryTokens[child] = nil
 			Shared_BrainrotAnimations.StopIdle(child)
 		end
 	end)

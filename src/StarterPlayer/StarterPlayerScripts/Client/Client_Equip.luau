@@ -40,6 +40,7 @@ local strokeTemplate: UIStroke?
 local slotStrokes: { [ImageButton]: UIStroke } = {}
 local equipListeners: { () -> () } = {}
 local refreshAll: (() -> ())?
+local cashAddingFrame: GuiObject? = nil
 
 local function shouldPlaySfx(): boolean
 	local value = Client_Data:GetValue("SFX")
@@ -257,6 +258,16 @@ end
 
 function Client_Equip.Init()
 	getStrokeTemplate()
+	local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+	if playerGui then
+		local main = playerGui:FindFirstChild("Main")
+		if main and main:IsA("GuiObject") then
+			local foundCashAdding = main:FindFirstChild("CashAdding")
+			if foundCashAdding and foundCashAdding:IsA("GuiObject") then
+				cashAddingFrame = foundCashAdding
+			end
+		end
+	end
 
 	local function getPointerPosition(input: InputObject): Vector2
 		if input.UserInputType == Enum.UserInputType.Touch then
@@ -271,7 +282,14 @@ function Client_Equip.Init()
 			return false
 		end
 
+		local function isIgnorableUi(gui: GuiObject): boolean
+			return cashAddingFrame ~= nil and gui:IsDescendantOf(cashAddingFrame)
+		end
+
 		local function isInteractiveControl(gui: GuiObject): boolean
+			if isIgnorableUi(gui) then
+				return false
+			end
 			return gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox")
 		end
 
@@ -363,11 +381,6 @@ function Client_Equip.Init()
 			return
 		end
 
-		if Client_LuckyBlockOpening.IsOpeningBusy() then
-			Client_Messaging.Show("Lucky block is already opening.", "red")
-			return
-		end
-
 		if inputType == Enum.UserInputType.Touch and isTouchOnMobileMovementControl(input) then
 			return
 		end
@@ -384,6 +397,11 @@ function Client_Equip.Init()
 		local inventory = Client_Data:GetValue("Inventory") or {}
 		local item = inventory[equippedIndex]
 		if not item or item.ItemType ~= "LuckyBlock" then
+			return
+		end
+
+		if Client_LuckyBlockOpening.IsOpeningBusy() then
+			Client_Messaging.Show("Lucky block is already opening.", "red")
 			return
 		end
 

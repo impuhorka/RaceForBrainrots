@@ -12,6 +12,8 @@ local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockReve
 local FrameController = require(script.Parent.Parent.UI.FrameController)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
 
 local HOLD_DRAG_TIME = 0.75
 local DRAG_FAILSAFE_TIMEOUT = 6
@@ -25,6 +27,25 @@ local itemTemplate: GuiObject?
 local dragLayer: GuiObject?
 local searchTextBox: TextBox?
 local slotsCountLabel: TextLabel?
+
+local function shouldPlaySfx(): boolean
+	local value = Client_Data:GetValue("SFX")
+	if value == nil then
+		return true
+	end
+	return value == true
+end
+
+local function playUiPopSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+	if not shouldPlaySfx() then
+		return
+	end
+	Client_SoundPreload.PlayUi(soundId, 1, 1)
+end
 
 local function toGuiPos(position: Vector2): Vector2
 	local inset = GuiService:GetGuiInset()
@@ -389,6 +410,9 @@ local function runSlotInteraction(
 				local rawPos = dropRawPos or lastPos
 				local guiPos = toGuiPos(rawPos)
 				local restoreSource = onDrop(guiPos, rawPos, true)
+				if not restoreSource then
+					playUiPopSfx()
+				end
 
 				if restoreSource then
 					if fromInventory then

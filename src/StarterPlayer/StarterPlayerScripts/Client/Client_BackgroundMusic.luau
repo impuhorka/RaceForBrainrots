@@ -6,7 +6,7 @@ local Client_Data = require(script.Parent.Client_Data)
 
 local Client_BackgroundMusic = {}
 
-local BACKGROUND_MUSIC_VOLUME = 0.12
+local BACKGROUND_MUSIC_VOLUME = 0.24
 
 local backgroundSound: Sound?
 

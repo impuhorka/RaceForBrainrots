@@ -47,6 +47,17 @@ local function playCashAddSfx()
 	Client_SoundPreload.PlayUi(soundId, 1, 1)
 end
 
+local function playCashCollectSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.CashCollect or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+	if not shouldPlaySfx() then
+		return
+	end
+	Client_SoundPreload.PlayUi(soundId, 1, 1, 0.3)
+end
+
 local function playPopupAppearSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.CashPopupAppear or ""
 	if type(soundId) ~= "string" or soundId == "" then
@@ -135,7 +146,7 @@ local function startStaticPulse(
 	end)
 end
 
-local function spawnPopup(amount: number)
+local function spawnPopup(amount: number, popupIndex: number)
 	if not popupFrame or not template then
 		return
 	end
@@ -176,7 +187,11 @@ local function spawnPopup(amount: number)
 			Position = targetPosition or popup.Position,
 		}
 	)
-	playPopupAppearSfx()
+	if popupIndex == 1 then
+		playCashCollectSfx()
+	else
+		playPopupAppearSfx()
+	end
 	growTween:Play()
 	growTween.Completed:Once(function()
 		if popup.Parent then
@@ -234,7 +249,7 @@ end
 function Client_CashAddingPopups.Show(amount: number)
 	for index = 1, POPUP_COUNT do
 		task.delay((index - 1) * POPUP_SPAWN_STAGGER, function()
-			spawnPopup(amount)
+			spawnPopup(amount, index)
 		end)
 	end
 end

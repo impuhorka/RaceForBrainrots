@@ -64,7 +64,7 @@ function Client_SoundPreload.Init()
 	end)
 end
 
-function Client_SoundPreload.Play(soundId: string, volume: number?)
+function Client_SoundPreload.Play(soundId: string, volume: number?, startTime: number?)
 	if soundId == "" then
 		return
 	end
@@ -73,6 +73,9 @@ function Client_SoundPreload.Play(soundId: string, volume: number?)
 	local clone = template:Clone()
 	if type(volume) == "number" then
 		clone.Volume = volume
+	end
+	if type(startTime) == "number" and startTime > 0 then
+		clone.TimePosition = startTime
 	end
 	clone.Parent = SoundService
 	clone:Play()
@@ -92,8 +95,8 @@ local function shouldSuppressUiPlay(priority: number): boolean
 	return false
 end
 
-local function commitUiPlay(soundId: string, volume: number?, priority: number)
-	Client_SoundPreload.Play(soundId, volume)
+local function commitUiPlay(soundId: string, volume: number?, priority: number, startTime: number?)
+	Client_SoundPreload.Play(soundId, volume, startTime)
 	local now = os.clock()
 	lastUiPlayAt = now
 	lastUiPriority = priority
@@ -102,7 +105,7 @@ local function commitUiPlay(soundId: string, volume: number?, priority: number)
 	end
 end
 
-function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: number?)
+function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: number?, startTime: number?)
 	if soundId == "" then
 		return
 	end
@@ -118,7 +121,7 @@ function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: 
 			if shouldSuppressUiPlay(0) then
 				return
 			end
-			commitUiPlay(soundId, volume, 0)
+			commitUiPlay(soundId, volume, 0, startTime)
 		end)
 		return
 	end
@@ -128,7 +131,7 @@ function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: 
 	if shouldSuppressUiPlay(resolvedPriority) then
 		return
 	end
-	commitUiPlay(soundId, volume, resolvedPriority)
+	commitUiPlay(soundId, volume, resolvedPriority, startTime)
 end
 
 function Client_SoundPreload.Destroy()

@@ -5,11 +5,16 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local localPlayer = Players.LocalPlayer
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_Data = require(script.Parent.Client_Data)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
 local FrameController = require(script.Parent.Parent.UI.FrameController)
 
 local Client_ProximityPrompts = {}
 local progressGradientFuzz = 0.01
 local ENABLE_KEYBADGE_PROGRESS_RING = false
+local PROXIMITY_ACTIVATE_SOUND_START_TIME = 0.3
+local PROXIMITY_ACTIVATE_SOUND_VOLUME = 0.6
 local promptGuiRoot: ScreenGui?
 local promptTemplate: BillboardGui
 
@@ -38,6 +43,25 @@ type PromptElements = {
 local activePrompts: { [ProximityPrompt]: PromptEntry } = {}
 local promptsSuppressed = false
 local watchedFrameVisibility: { [GuiObject]: boolean } = {}
+
+local function shouldPlaySfx(): boolean
+	local value = Client_Data:GetValue("SFX")
+	if value == nil then
+		return true
+	end
+	return value == true
+end
+
+local function playProximityActivateSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.ProximityActivate or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+	if not shouldPlaySfx() then
+		return
+	end
+	Client_SoundPreload.PlayUi(soundId, PROXIMITY_ACTIVATE_SOUND_VOLUME, 1, PROXIMITY_ACTIVATE_SOUND_START_TIME)
+end
 
 local function applyPromptVisibility(entry: PromptEntry)
 	if entry.gui then
@@ -562,6 +586,7 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 	end))
 
 	table.insert(connections, prompt.Triggered:Connect(function()
+		playProximityActivateSfx()
 		if prompt.HoldDuration <= 0 and elements.holdProgress then
 			elements.holdProgress.Value = 1
 			task.delay(0.08, function()

@@ -19,6 +19,9 @@ local TweenService    = game:GetService("TweenService")
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Brainrots   = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_Data = require(script.Parent.Client_Data)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
 local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 
 local Client_LuckyBlockOpening = {}
@@ -41,8 +44,18 @@ local TADA_STAGGER_MAX  = 0.35
 
 -- Disabled invalid/unauthorized asset ids to avoid output spam.
 local THROW_SOUND_ID: string? = nil
-local WIGGLE_SOUND_ID: string? = nil
+local WIGGLE_SOUND_ID: string? = "rbxassetid://131713031201598"
 local EXPLOSION_SOUND_ID: string? = nil
+local ROLLOUT_FIRST_TICK_SOUND_ID: string = "rbxassetid://88777016324165"
+local ROLLOUT_SUCCESS_SOUND_ID: string = "rbxassetid://91024772071405"
+local ROLLOUT_EXTRA_SOUND_ID: string = "rbxassetid://9048767983"
+local ROLLOUT_SUCCESS_REPEAT_INTERVAL = 0.1
+local WIGGLE_SOUND_START_INTERVAL = 0.2
+local WIGGLE_SOUND_END_INTERVAL = 0.065
+local WIGGLE_SOUND_START_VOLUME = 0.42
+local WIGGLE_SOUND_END_VOLUME = 0.55
+local WIGGLE_SOUND_START_SPEED = 0.95
+local WIGGLE_SOUND_END_SPEED = 1.3
 
 local openingInProgress = false
 local localPlayer = Players.LocalPlayer
@@ -125,6 +138,60 @@ local function playSound(parent: Instance, soundId: string, volume: number, play
 		s:Destroy()
 	end)
 	return s
+end
+
+local function playWiggleSoundLoop(parent: Instance, totalDuration: number)
+	if not WIGGLE_SOUND_ID or totalDuration <= 0 then
+		return
+	end
+
+	task.spawn(function()
+		local startedAt = os.clock()
+		while parent.Parent do
+			local elapsed = os.clock() - startedAt
+			if elapsed >= totalDuration then
+				break
+			end
+
+			local alpha = math.clamp(elapsed / totalDuration, 0, 1)
+			local interval = WIGGLE_SOUND_START_INTERVAL
+				+ (WIGGLE_SOUND_END_INTERVAL - WIGGLE_SOUND_START_INTERVAL) * alpha
+			local volume = WIGGLE_SOUND_START_VOLUME
+				+ (WIGGLE_SOUND_END_VOLUME - WIGGLE_SOUND_START_VOLUME) * alpha
+			local speed = WIGGLE_SOUND_START_SPEED
+				+ (WIGGLE_SOUND_END_SPEED - WIGGLE_SOUND_START_SPEED) * alpha
+
+			playSound(parent, WIGGLE_SOUND_ID, volume, speed)
+			task.wait(math.max(interval, 0.02))
+		end
+	end)
+end
+
+local function playSuccessRolloutSfx()
+	local firstTickId = ROLLOUT_FIRST_TICK_SOUND_ID
+	local successTickId = ROLLOUT_SUCCESS_SOUND_ID
+	local extraRolloutId = ROLLOUT_EXTRA_SOUND_ID
+	if type(firstTickId) ~= "string" or firstTickId == "" then
+		return
+	end
+	if type(successTickId) ~= "string" or successTickId == "" then
+		return
+	end
+	if type(extraRolloutId) ~= "string" or extraRolloutId == "" then
+		return
+	end
+
+	local sfxEnabled = Client_Data:GetValue("SFX")
+	if sfxEnabled == false then
+		return
+	end
+
+	task.spawn(function()
+		Client_SoundPreload.PlayUi(extraRolloutId, 1, 2)
+		Client_SoundPreload.PlayUi(firstTickId, 1, 2)
+		task.wait(ROLLOUT_SUCCESS_REPEAT_INTERVAL)
+		Client_SoundPreload.PlayUi(successTickId, 1, 2)
+	end)
 end
 
 local function emitParticlesInContainer(container: Instance, emitCount: number)
@@ -517,9 +584,7 @@ local function playOpening(data: {
 		end
 	end
 
-	if WIGGLE_SOUND_ID then
-		playSound(primary, WIGGLE_SOUND_ID, 0.6, 1.15)
-	end
+	playWiggleSoundLoop(primary, phaseDuration)
 
 	local phaseStart = os.clock()
 	local lastStepTime = phaseStart
@@ -612,6 +677,7 @@ local function playOpening(data: {
 			data._onRewardPoppedOut()
 			data._onRewardPoppedOut = nil
 		end
+		playSuccessRolloutSfx()
 
 		if not revealedModel.PrimaryPart then
 			revealedModel.PrimaryPart = revealedModel:FindFirstChildWhichIsA("BasePart", true)

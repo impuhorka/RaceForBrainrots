@@ -7,6 +7,7 @@ Shared_Sounds.SFX = {
 	ImageButtonClick = "rbxassetid://135366639238389",
 	CashAdd = "rbxassetid://134583420216867",
 	CashPopupAppear = "rbxassetid://134637530898931",
+	ProximityActivate = "rbxassetid://132673746791429",
 }
 
 Shared_Sounds.Music = {

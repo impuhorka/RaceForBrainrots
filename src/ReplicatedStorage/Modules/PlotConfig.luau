@@ -2,7 +2,7 @@ local PlotConfig = {}
 
 PlotConfig.SlotsPerFloor = 10
 PlotConfig.DefaultPlotSlots = 10
-PlotConfig.MaxPlotSlots = 25
+PlotConfig.MaxPlotSlots = 35
 
 local function roundToCoolThousands(value: number): number
 	return math.max(1000, math.floor(value / 1000 + 0.5) * 1000)

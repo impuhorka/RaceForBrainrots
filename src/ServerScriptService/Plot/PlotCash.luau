@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
 
 local PlotCash = {}
 
@@ -90,6 +91,9 @@ function PlotCash.TickPlot(plot)
 		if income <= 0 then
 			continue
 		end
+
+		local rebirths = Server_Data:GetValue(plot.Owner, "Rebirths")
+		income = math.floor(income * Shared_Rebirth.GetCashMultiplier(rebirths) + 0.5)
 
 		local currentCash = slotModel:GetAttribute("CashToCollect") or 0
 		slotModel:SetAttribute("CashToCollect", currentCash + income)

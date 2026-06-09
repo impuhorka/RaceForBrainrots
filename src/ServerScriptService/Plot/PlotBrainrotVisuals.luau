@@ -121,8 +121,12 @@ function PlotBrainrotVisuals.SetupPickupPrompt(
 		attachment.Parent = primary
 	end
 
+	local pickUpPreset = Shared_ProximityPrompt.GetPreset("PickUp")
+	local pickupDistance = (pickUpPreset.MaxActivationDistance or 10) * 1.35
+
 	local prompt = Shared_ProximityPrompt.Create(attachment, {
 		Preset = "PickUp",
+		MaxActivationDistance = pickupDistance,
 	})
 
 	prompt.Triggered:Connect(onPickup)

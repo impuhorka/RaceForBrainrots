@@ -15,12 +15,15 @@ local progressGradientFuzz = 0.01
 local ENABLE_KEYBADGE_PROGRESS_RING = false
 local PROXIMITY_ACTIVATE_SOUND_START_TIME = 0.3
 local PROXIMITY_ACTIVATE_SOUND_VOLUME = 0.6
+local PROMPT_POP_IN_TIME = 0.25
+local PROMPT_POP_IN_TWEEN_INFO = TweenInfo.new(PROMPT_POP_IN_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local promptGuiRoot: ScreenGui?
 local promptTemplate: BillboardGui
 
 type PromptEntry = {
 	gui: BillboardGui,
 	connections: { RBXScriptConnection },
+	popTween: Tween?,
 }
 
 type PromptElements = {
@@ -44,20 +47,9 @@ local activePrompts: { [ProximityPrompt]: PromptEntry } = {}
 local promptsSuppressed = false
 local watchedFrameVisibility: { [GuiObject]: boolean } = {}
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
 local function playProximityActivateSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.ProximityActivate or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, PROXIMITY_ACTIVATE_SOUND_VOLUME, 1, PROXIMITY_ACTIVATE_SOUND_START_TIME)
@@ -419,10 +411,29 @@ local function updatePromptLabels(prompt: ProximityPrompt, elements: PromptEleme
 	end
 end
 
+local function playPromptPopIn(card: GuiObject): Tween?
+	local uiScale = card:FindFirstChildOfClass("UIScale")
+	if not uiScale then
+		uiScale = Instance.new("UIScale")
+		uiScale.Scale = 1
+		uiScale.Parent = card
+	end
+
+	uiScale.Scale = 0
+	local tween = TweenService:Create(uiScale, PROMPT_POP_IN_TWEEN_INFO, { Scale = 1 })
+	tween:Play()
+	return tween
+end
+
 local function cleanupPrompt(prompt: ProximityPrompt)
 	local entry = activePrompts[prompt]
 	if not entry then
 		return
+	end
+
+	if entry.popTween then
+		entry.popTween:Cancel()
+		entry.popTween = nil
 	end
 
 	for _, connection in entry.connections do
@@ -450,8 +461,10 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 		currentInputType = inputType
 	end
 
+	local popTween: Tween? = nil
 	if elements.card then
 		elements.card.Active = true
+		popTween = playPromptPopIn(elements.card)
 	end
 
 	updateInputDisplay(prompt, elements, currentInputType)
@@ -606,6 +619,7 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 	return {
 		gui = billboard,
 		connections = connections,
+		popTween = popTween,
 	}
 end
 

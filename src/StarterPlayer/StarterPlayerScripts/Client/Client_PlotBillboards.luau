@@ -1,5 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
+local Client_Data = require(script.Parent.Client_Data)
 
 local localPlayer = Players.LocalPlayer
 
@@ -13,6 +17,7 @@ local Client_PlotBillboards = {}
 
 local hookedPlots: { [Model]: boolean } = {}
 local originalTextSizes: { [TextLabel]: UDim2 } = {}
+local updatingBillboards = false
 
 local function getOwnerUserId(plotModel: Model): number
 	local ownerUserId = plotModel:GetAttribute("OwnerUserId")
@@ -38,6 +43,36 @@ local function getBillboard(plotModel: Model): BillboardGui?
 	return ownerPart:FindFirstChildWhichIsA("BillboardGui", true)
 end
 
+local function getMultLabel(billboard: BillboardGui): TextLabel?
+	local frame = billboard:FindFirstChild("Frame")
+	if not frame then
+		frame = billboard:FindFirstChild("Frame", true)
+	end
+	if not frame then
+		return nil
+	end
+
+	local mult = frame:FindFirstChild("Mult")
+	if mult and mult:IsA("TextLabel") then
+		return mult
+	end
+
+	return nil
+end
+
+local function getOwnerRebirths(plotModel: Model): number
+	local ownerUserId = getOwnerUserId(plotModel)
+	if ownerUserId <= 0 then
+		return 0
+	end
+
+	if ownerUserId == localPlayer.UserId then
+		return Shared_Rebirth.GetRebirthCount(Client_Data:GetValue("Rebirths"))
+	end
+
+	return Shared_Rebirth.GetRebirthCount(plotModel:GetAttribute("OwnerRebirths"))
+end
+
 local function getBillboardLabels(billboard: BillboardGui): (ImageLabel?, TextLabel?)
 	local root = billboard:FindFirstChild("Frame", true)
 	if not root or not root:IsA("GuiObject") then
@@ -45,7 +80,14 @@ local function getBillboardLabels(billboard: BillboardGui): (ImageLabel?, TextLa
 	end
 
 	local imageLabel = root:FindFirstChildWhichIsA("ImageLabel", true)
-	local textLabel = root:FindFirstChildWhichIsA("TextLabel", true)
+
+	local textLabel: TextLabel? = nil
+	for _, child in root:GetDescendants() do
+		if child:IsA("TextLabel") and child.Name ~= "Mult" then
+			textLabel = child
+			break
+		end
+	end
 
 	return imageLabel, textLabel
 end
@@ -86,26 +128,52 @@ local function applyAvatar(imageLabel: ImageLabel, userId: number)
 end
 
 local function updatePlotBillboard(plotModel: Model)
+	if updatingBillboards then
+		return
+	end
+
 	local billboard = getBillboard(plotModel)
 	if not billboard or not billboard.Enabled then
 		return
 	end
 
-	local imageLabel, textLabel = getBillboardLabels(billboard)
-	if not textLabel then
-		return
+	updatingBillboards = true
+
+	local function finish()
+		updatingBillboards = false
 	end
+
+	local imageLabel, textLabel = getBillboardLabels(billboard)
+	local multLabel = getMultLabel(billboard)
 
 	local ownerUserId = getOwnerUserId(plotModel)
 	local ownerName = plotModel:GetAttribute("OwnerName")
 
 	if ownerUserId <= 0 then
-		textLabel.Text = ""
-		textLabel.TextColor3 = OTHER_COLOR
-		applyTextSize(textLabel, false)
+		if textLabel then
+			textLabel.Text = ""
+			textLabel.TextColor3 = OTHER_COLOR
+			applyTextSize(textLabel, false)
+		end
+		if multLabel then
+			multLabel.Text = ""
+		end
 		if imageLabel then
 			imageLabel.Image = ""
 		end
+		finish()
+		return
+	end
+
+	if multLabel then
+		multLabel.Text = Shared_Rebirth.FormatCashLabel(getOwnerRebirths(plotModel))
+	end
+
+	if not textLabel then
+		if imageLabel then
+			applyAvatar(imageLabel, ownerUserId)
+		end
+		finish()
 		return
 	end
 
@@ -125,6 +193,8 @@ local function updatePlotBillboard(plotModel: Model)
 	if imageLabel then
 		applyAvatar(imageLabel, ownerUserId)
 	end
+
+	finish()
 end
 
 local function refreshAll()
@@ -156,6 +226,7 @@ local function hookPlot(plotModel: Model)
 
 	plotModel:GetAttributeChangedSignal("OwnerUserId"):Connect(refresh)
 	plotModel:GetAttributeChangedSignal("OwnerName"):Connect(refresh)
+	plotModel:GetAttributeChangedSignal("OwnerRebirths"):Connect(refresh)
 
 	local billboard = getBillboard(plotModel)
 	if billboard then
@@ -187,6 +258,8 @@ function Client_PlotBillboards:Init()
 			hookPlot(child)
 		end
 	end)
+
+	Client_Data:ListenToChange("Rebirths", refreshAll)
 
 	task.spawn(function()
 		for _ = 1, 30 do

@@ -9,6 +9,14 @@ local Client_SlowModeButton = {}
 
 local plotHandler: RemoteEvent?
 local activeConnections: { [ImageButton]: RBXScriptConnection } = {}
+local optimisticSlowMode: boolean? = nil
+
+local function getSlowModeEnabled(): boolean
+	if optimisticSlowMode ~= nil then
+		return optimisticSlowMode
+	end
+	return Client_Data:GetValue("SlowMode") == true
+end
 
 local function setGradientEnabled(button: ImageButton, gradientName: string, enabled: boolean)
 	local gradient = button:FindFirstChild(gradientName, true)
@@ -31,7 +39,7 @@ local function applyButtonState(button: ImageButton, enabled: boolean)
 end
 
 local function applyAllButtons()
-	local slowModeEnabled = Client_Data:GetValue("SlowMode") == true
+	local slowModeEnabled = getSlowModeEnabled()
 	for button in activeConnections do
 		applyButtonState(button, slowModeEnabled)
 	end
@@ -60,11 +68,13 @@ local function setupButton(instance: Instance)
 		if not plotHandler then
 			return
 		end
-		local currentEnabled = Client_Data:GetValue("SlowMode") == true
-		plotHandler:FireServer("SetSlowMode", not currentEnabled)
+		local newEnabled = not getSlowModeEnabled()
+		optimisticSlowMode = newEnabled
+		applyAllButtons()
+		plotHandler:FireServer("SetSlowMode", newEnabled)
 	end)
 
-	applyButtonState(button, Client_Data:GetValue("SlowMode") == true)
+	applyButtonState(button, getSlowModeEnabled())
 
 	button.Destroying:Connect(function()
 		local connection = activeConnections[button]
@@ -101,6 +111,7 @@ function Client_SlowModeButton.Init()
 	CollectionService:GetInstanceRemovedSignal(TAG):Connect(teardownButton)
 
 	Client_Data:ListenToChange("SlowMode", function()
+		optimisticSlowMode = nil
 		applyAllButtons()
 	end)
 end

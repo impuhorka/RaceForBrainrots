@@ -1,4 +1,6 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
@@ -13,6 +15,7 @@ local STORE_MODELS = {
 
 local PROMPT_DISTANCE = 25
 local hookedStores: { [Model]: boolean } = {}
+local storeModels: { [string]: Model } = {}
 
 local function openStoreFrame(storeName: string)
 	local frame = FrameController.getFrame(storeName)
@@ -32,6 +35,7 @@ local function setupStorePrompt(storeModel: Model)
 		return
 	end
 	hookedStores[storeModel] = true
+	storeModels[storeModel.Name] = storeModel
 
 	local proximityPart = storeModel:FindFirstChild("ProximityPart")
 	if not proximityPart or not proximityPart:IsA("BasePart") then
@@ -53,6 +57,46 @@ local function setupStorePrompt(storeModel: Model)
 
 	storeModel.Destroying:Connect(function()
 		hookedStores[storeModel] = nil
+		storeModels[storeModel.Name] = nil
+	end)
+end
+
+local function getPlayerPosition(): Vector3?
+	local character = Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root.Position
+	end
+	return nil
+end
+
+local function watchStoreDistance()
+	RunService.Heartbeat:Connect(function()
+		local playerPosition = getPlayerPosition()
+		if not playerPosition then
+			return
+		end
+
+		for storeName in pairs(STORE_MODELS) do
+			local frame = FrameController.getFrame(storeName)
+			if not frame or not frame.Visible then
+				continue
+			end
+
+			local storeModel = storeModels[storeName]
+			if not storeModel then
+				continue
+			end
+
+			local proximityPart = storeModel:FindFirstChild("ProximityPart")
+			if not proximityPart or not proximityPart:IsA("BasePart") then
+				continue
+			end
+
+			if (playerPosition - proximityPart.Position).Magnitude > PROMPT_DISTANCE then
+				FrameController.close(frame)
+			end
+		end
 	end)
 end
 
@@ -71,6 +115,8 @@ function Client_InteractStorePrompts.Init()
 			setupStorePrompt(child)
 		end
 	end)
+
+	watchStoreDistance()
 end
 
 return Client_InteractStorePrompts

@@ -28,20 +28,9 @@ local dragLayer: GuiObject?
 local searchTextBox: TextBox?
 local slotsCountLabel: TextLabel?
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
 local function playUiPopSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, 1, 1)
@@ -749,6 +738,8 @@ function Client_Inventory.Init()
 	Client_Equip.OnChanged(function()
 		refreshViewportAnimations()
 	end)
+
+	Client_Data:ListenToChange("Animations", refreshViewportAnimations)
 
 	Client_Data:ListenToChange("Inventory", function()
 		Client_Equip.ValidateEquipped()

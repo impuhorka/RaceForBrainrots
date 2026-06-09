@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 
 local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_AudioSettings = require(script.Parent.Client_AudioSettings)
 
 local Client_SoundPreload = {}
 local templatesById: { [string]: Sound } = {}
@@ -71,9 +72,8 @@ function Client_SoundPreload.Play(soundId: string, volume: number?, startTime: n
 
 	local template = ensureTemplate(soundId)
 	local clone = template:Clone()
-	if type(volume) == "number" then
-		clone.Volume = volume
-	end
+	local resolvedVolume = (if type(volume) == "number" then volume else 1) * Client_AudioSettings.GetSfxVolume()
+	clone.Volume = resolvedVolume
 	if type(startTime) == "number" and startTime > 0 then
 		clone.TimePosition = startTime
 	end
@@ -109,6 +109,8 @@ function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: 
 	if soundId == "" then
 		return
 	end
+
+	volume = (if type(volume) == "number" then volume else 1) * Client_AudioSettings.GetSfxVolume()
 
 	local resolvedPriority = priority or 0
 	if resolvedPriority <= 0 then

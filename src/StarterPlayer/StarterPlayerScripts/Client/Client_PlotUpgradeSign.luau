@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 
 local PlotConfig = require(ReplicatedStorage.Modules.PlotConfig)
 local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
+local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Messaging = require(script.Parent.Client_Messaging)
@@ -112,6 +113,24 @@ local function storeUpgradeSignDefaults(slotsLabel: TextLabel, frame: Frame?)
 	end
 end
 
+local function applyRebirthLockedLayout(slotsLabel: TextLabel, frame: Frame?, requiredRebirths: number)
+	storeUpgradeSignDefaults(slotsLabel, frame)
+
+	if frame then
+		frame.Visible = false
+	end
+
+	local original = originalSlotsLayouts[slotsLabel]
+	local xScale = if original then original.Position.X.Scale else slotsLabel.Position.X.Scale
+	local xOffset = if original then original.Position.X.Offset else slotsLabel.Position.X.Offset
+	local sizeXScale = if original then original.Size.X.Scale else slotsLabel.Size.X.Scale
+	local sizeXOffset = if original then original.Size.X.Offset else slotsLabel.Size.X.Offset
+
+	slotsLabel.Text = ("Rebirth %d to unlock"):format(requiredRebirths)
+	slotsLabel.Position = UDim2.new(xScale, xOffset, 0.55, 0)
+	slotsLabel.Size = UDim2.new(sizeXScale, sizeXOffset, 0.5, 0)
+end
+
 local function applyMaxSlotsLayout(slotsLabel: TextLabel, frame: Frame?)
 	storeUpgradeSignDefaults(slotsLabel, frame)
 
@@ -191,9 +210,23 @@ local function updateUpgradeSignLabels(gui: SurfaceGui?, plotModel: Model)
 
 	local currentSlots = getPlotSlotCount(plotModel)
 	local maxSlots = PlotConfig.MaxPlotSlots
+	local rebirths = if isOwnPlot(plotModel)
+		then Client_Data:GetValue("Rebirths")
+		else plotModel:GetAttribute("OwnerRebirths")
+	local maxAllowed = Shared_Rebirth.GetMaxPlotSlots(rebirths)
 
 	if currentSlots >= maxSlots then
 		applyMaxSlotsLayout(slotsLabel, frame)
+		return
+	end
+
+	if isOwnPlot(plotModel) and currentSlots >= maxAllowed then
+		local requiredRebirths = Shared_Rebirth.GetRebirthsRequiredForNextSlot(currentSlots, rebirths)
+		if requiredRebirths then
+			applyRebirthLockedLayout(slotsLabel, frame, requiredRebirths)
+		else
+			applyMaxSlotsLayout(slotsLabel, frame)
+		end
 		return
 	end
 
@@ -210,8 +243,19 @@ end
 
 local function tryBuySlot()
 	local currentSlots = Client_Data:GetValue("TotalPlotSlots") or PlotConfig.DefaultPlotSlots
+	local rebirths = Client_Data:GetValue("Rebirths")
+	local maxAllowed = Shared_Rebirth.GetMaxPlotSlots(rebirths)
+
 	if currentSlots >= PlotConfig.MaxPlotSlots then
 		Client_Messaging.Show("You've purchased MAX amount of slots!", "red")
+		return
+	end
+
+	if currentSlots >= maxAllowed then
+		local requiredRebirths = Shared_Rebirth.GetRebirthsRequiredForNextSlot(currentSlots, rebirths)
+		if requiredRebirths then
+			Client_Messaging.Show(("Rebirth %d times to unlock more slots!"):format(requiredRebirths), "red")
+		end
 		return
 	end
 
@@ -453,6 +497,13 @@ function Client_PlotUpgradeSign.Init()
 			end
 		end)
 		Client_Data:ListenToChange("Cash", function()
+			for plotModel, gui in plotGuis do
+				if gui.Parent and isOwnPlot(plotModel) then
+					updateUpgradeSignLabels(gui, plotModel)
+				end
+			end
+		end)
+		Client_Data:ListenToChange("Rebirths", function()
 			for plotModel, gui in plotGuis do
 				if gui.Parent and isOwnPlot(plotModel) then
 					updateUpgradeSignLabels(gui, plotModel)

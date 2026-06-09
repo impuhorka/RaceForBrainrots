@@ -42,20 +42,9 @@ local equipListeners: { () -> () } = {}
 local refreshAll: (() -> ())?
 local cashAddingFrame: GuiObject? = nil
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
 local function playUiPopSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, 1, 1)
@@ -282,12 +271,29 @@ function Client_Equip.Init()
 			return false
 		end
 
+		local function isGuiVisibleForInput(gui: GuiObject): boolean
+			local current: Instance? = gui
+			while current do
+				if current:IsA("GuiObject") and not current.Visible then
+					return false
+				end
+				current = current.Parent
+			end
+			return true
+		end
+
 		local function isIgnorableUi(gui: GuiObject): boolean
-			return cashAddingFrame ~= nil and gui:IsDescendantOf(cashAddingFrame)
+			if cashAddingFrame ~= nil and gui:IsDescendantOf(cashAddingFrame) then
+				return true
+			end
+			if gui.Name == "TrackHit" then
+				return true
+			end
+			return false
 		end
 
 		local function isInteractiveControl(gui: GuiObject): boolean
-			if isIgnorableUi(gui) then
+			if not isGuiVisibleForInput(gui) or isIgnorableUi(gui) then
 				return false
 			end
 			return gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox")
@@ -367,11 +373,7 @@ function Client_Equip.Init()
 		return false
 	end
 
-	local function tryOpenEquippedLuckyBlock(input: InputObject, gameProcessed: boolean)
-		if gameProcessed then
-			return
-		end
-
+	local function tryOpenEquippedLuckyBlock(input: InputObject, _gameProcessed: boolean)
 		local inputType = input.UserInputType
 		if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then
 			return

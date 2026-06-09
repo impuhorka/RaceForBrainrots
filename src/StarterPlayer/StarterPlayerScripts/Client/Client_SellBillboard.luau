@@ -45,20 +45,9 @@ local sellAllHoldStart = 0
 local sellProgressFrame: Frame? = nil
 local sellAllProgressFrame: Frame? = nil
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
 local function playUiPopSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, 1, 1)

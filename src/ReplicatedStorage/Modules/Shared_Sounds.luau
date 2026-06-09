@@ -11,6 +11,13 @@ Shared_Sounds.SFX = {
 	ProximityActivate = "rbxassetid://132673746791429",
 }
 
+Shared_Sounds.SFXVolume = {
+	ImageButtonClick = 1.25,
+	Success = 0.65,
+	Error = 0.65,
+	CashCollect = 0.5,
+}
+
 Shared_Sounds.Music = {
 	Background = "rbxassetid://136703374512384",
 }

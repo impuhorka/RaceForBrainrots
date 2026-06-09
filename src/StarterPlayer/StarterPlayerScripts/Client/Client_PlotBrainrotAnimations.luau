@@ -2,6 +2,7 @@ local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
 
 local Shared_BrainrotAnimations = require(game:GetService("ReplicatedStorage").Modules.Shared_BrainrotAnimations)
+local Client_Data = require(script.Parent.Client_Data)
 
 local Client_PlotBrainrotAnimations = {}
 
@@ -29,6 +30,10 @@ local function resolveConfigName(brainrotModel: Model): string?
 end
 
 local function playPlacedBrainrot(brainrotModel: Model): boolean
+	if Client_Data:GetValue("Animations") == false then
+		return false
+	end
+
 	local configName = resolveConfigName(brainrotModel)
 	if not configName then
 		return false
@@ -177,6 +182,43 @@ local function hookSlotsFolder(slotsFolder: Folder)
 	end)
 end
 
+local function stopAllAnimations()
+	for model in hookedPlacedModels do
+		if model.Parent then
+			Shared_BrainrotAnimations.StopIdle(model)
+		end
+	end
+
+	for model in hookedTaggedModels do
+		if model.Parent then
+			Shared_BrainrotAnimations.StopIdle(model)
+		end
+	end
+end
+
+local function refreshAllAnimations()
+	if Client_Data:GetValue("Animations") == false then
+		stopAllAnimations()
+		return
+	end
+
+	for model in hookedPlacedModels do
+		if model.Parent and model:IsDescendantOf(Workspace) then
+			if not playPlacedBrainrot(model) then
+				queuePlayRetry(model)
+			end
+		end
+	end
+
+	for model in hookedTaggedModels do
+		if model.Parent and model:IsDescendantOf(Workspace) then
+			if not playPlacedBrainrot(model) then
+				queuePlayRetry(model)
+			end
+		end
+	end
+end
+
 local function hookPlot(plotModel: Model)
 	if not hookedPlots[plotModel] then
 		hookedPlots[plotModel] = true
@@ -199,6 +241,8 @@ local function hookPlot(plotModel: Model)
 end
 
 function Client_PlotBrainrotAnimations.Init()
+	Client_Data.WaitUntilReady()
+
 	local gameFolder = Workspace:WaitForChild("Game")
 	local plotsFolder = gameFolder:WaitForChild("Plots")
 
@@ -231,6 +275,8 @@ function Client_PlotBrainrotAnimations.Init()
 			Shared_BrainrotAnimations.StopIdle(instance)
 		end
 	end)
+
+	Client_Data:ListenToChange("Animations", refreshAllAnimations)
 end
 
 return Client_PlotBrainrotAnimations

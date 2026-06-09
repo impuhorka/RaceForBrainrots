@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlotConfig = require(script.Parent.PlotConfig)
+local Shared_Rebirth = require(game:GetService("ReplicatedStorage").Modules.Shared_Rebirth)
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
 
 local PlotSlotPurchase = {}
@@ -28,7 +29,10 @@ function PlotSlotPurchase.TryPurchase(player: Player, plot): boolean
 	end
 
 	local currentSlots = Server_Data:GetValue(player, "TotalPlotSlots") or PlotConfig.DefaultPlotSlots
-	if currentSlots >= PlotConfig.MaxPlotSlots then
+	local rebirths = Server_Data:GetValue(player, "Rebirths")
+	local maxAllowed = Shared_Rebirth.GetMaxPlotSlots(rebirths)
+
+	if currentSlots >= PlotConfig.MaxPlotSlots or currentSlots >= maxAllowed then
 		finish()
 		return false
 	end

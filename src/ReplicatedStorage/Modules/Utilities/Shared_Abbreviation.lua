@@ -24,6 +24,22 @@ function Module:Number(Val)
 		local bigNum = BigNum:FromNumber(Val)
 		return BigNum:ToString(bigNum)
 	end
+
+	if Val < 10000000 then
+		if Val == math.floor(Val) then
+			return self:NumberPoint(math.floor(Val))
+		end
+
+		local text = string.format("%.2f", Val):gsub("%.?0+$", "")
+		local wholePart, decimalPart = string.match(text, "^(%d+)%.?(.*)$")
+		if wholePart then
+			local withCommas = self:NumberPoint(tonumber(wholePart))
+			if decimalPart ~= "" then
+				return withCommas .. "." .. decimalPart
+			end
+			return withCommas
+		end
+	end
 	
 	local Suffixes = {"", "K", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No", "De", "UDe", "DDe", "TDe", "QtDe", "QnDe", "SxDe", "SpDe", "OcDe", "NoDe",
 		"Vg", "UVg", "DVg", "TVg", "QtVg", "QnVg", "SxVg", "SpVg", "OcVg", "NoVg", "Tg", "UTg", "DTg", "TTg", "QdTg", "QnTg", "SxTg", "SpTg", "OcTg", "NoTg",

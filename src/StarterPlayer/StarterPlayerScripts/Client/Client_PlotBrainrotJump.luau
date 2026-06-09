@@ -1,5 +1,7 @@
 local RunService = game:GetService("RunService")
 
+local Client_Data = require(script.Parent.Client_Data)
+
 local Client_PlotBrainrotJump = {}
 
 local UPGRADE_JUMP_BASE_HEIGHT = 2.5
@@ -100,6 +102,9 @@ local function applyJumpPose(brainrotModel: Model, state: JumpState)
 end
 
 function Client_PlotBrainrotJump.Play(brainrotModel: Model, slotModel: Model, options: JumpOptions?)
+	if Client_Data:GetValue("Animations") == false then
+		return
+	end
 	if not brainrotModel.Parent or not slotModel.Parent then
 		return
 	end
@@ -195,6 +200,13 @@ function Client_PlotBrainrotJump.PlayUpgrade(brainrotModel: Model, slotModel: Mo
 		flipY = true,
 		baseHeight = UPGRADE_JUMP_BASE_HEIGHT,
 		skipIfAnimating = true,
+	})
+end
+
+function Client_PlotBrainrotJump.PlayPlace(brainrotModel: Model, slotModel: Model)
+	Client_PlotBrainrotJump.Play(brainrotModel, slotModel, {
+		flipY = true,
+		baseHeight = UPGRADE_JUMP_BASE_HEIGHT,
 	})
 end
 

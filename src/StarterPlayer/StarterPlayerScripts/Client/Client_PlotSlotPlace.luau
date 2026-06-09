@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
@@ -8,7 +9,8 @@ local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
 local Client_Inventory = require(script.Parent.Client_Inventory)
-local Client_PlotSpawnAnimation = require(script.Parent.Client_PlotSpawnAnimation)
+local Client_CashAddingPopups = require(script.Parent.Client_CashAddingPopups)
+local Client_PlotBrainrotJump = require(script.Parent.Client_PlotBrainrotJump)
 
 local localPlayer = Players.LocalPlayer
 
@@ -226,13 +228,23 @@ function Client_PlotSlotPlace.Init()
 	local events = ReplicatedStorage:WaitForChild("Events")
 	local plotHandler = events:WaitForChild("PlotHandler") :: RemoteEvent
 
-	plotHandler.OnClientEvent:Connect(function(action: string, payload: any, _payload2: any)
+	plotHandler.OnClientEvent:Connect(function(action: string, payload: any, payload2: any)
 		if action == "PlaceSuccess" then
 			if type(payload) == "number" then
 				task.defer(function()
 					local slotModel = findOwnSlotModel(payload)
-					if slotModel then
-						Client_PlotSpawnAnimation.AnimateSlotPlace(slotModel)
+					if not slotModel then
+						return
+					end
+
+					local brainrotModel = slotModel:WaitForChild("PlacedBrainrot", 2)
+					if not brainrotModel or not brainrotModel:IsA("Model") then
+						return
+					end
+
+					RunService.Heartbeat:Wait()
+					if brainrotModel.Parent and slotModel.Parent then
+						Client_PlotBrainrotJump.PlayPlace(brainrotModel, slotModel)
 					end
 				end)
 			end
@@ -242,6 +254,10 @@ function Client_PlotSlotPlace.Init()
 		elseif action == "PickupSuccess" then
 			Client_Hotbar.Refresh()
 			Client_Inventory.Render()
+			local collectedCash = tonumber(payload2) or 0
+			if collectedCash > 0 then
+				Client_CashAddingPopups.Show(collectedCash)
+			end
 		end
 	end)
 

@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlotBrainrotVisuals = require(script.Parent.PlotBrainrotVisuals)
+local PlotCash = require(script.Parent.PlotCash)
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 
@@ -88,6 +89,11 @@ function PlotPlacement.PickupBrainrot(player: Player, plot, slotId: number): boo
 		return false
 	end
 
+	local collectedCash = slotModel:GetAttribute("CashToCollect") or 0
+	if collectedCash > 0 then
+		PlotCash.Collect(player, plot, slotId)
+	end
+
 	local item = {
 		ItemType = "Brainrot",
 		ConfigName = slotData.ConfigName,
@@ -110,7 +116,7 @@ function PlotPlacement.PickupBrainrot(player: Player, plot, slotId: number): boo
 	end
 
 	PlotPlacement.ClearSlot(slotModel)
-	getPlotHandlerEvent():FireClient(player, "PickupSuccess", newIndex)
+	getPlotHandlerEvent():FireClient(player, "PickupSuccess", newIndex, collectedCash)
 	finish()
 	return true
 end

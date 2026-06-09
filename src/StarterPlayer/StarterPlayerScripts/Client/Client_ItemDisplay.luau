@@ -6,6 +6,7 @@ local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
 local Shared_Rarities = require(ReplicatedStorage.Modules.Utilities.Shared_Rarities)
 local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
+local Client_Data = require(script.Parent.Client_Data)
 
 local Client_ItemDisplay = {}
 
@@ -229,7 +230,7 @@ function Client_ItemDisplay.setupViewport(
 		center
 	)
 
-	if playAnimation then
+	if playAnimation and Client_Data:GetValue("Animations") ~= false then
 		local animModel = model
 		local animConfigName = configName
 		task.defer(function()
@@ -263,7 +264,7 @@ function Client_ItemDisplay.setViewportIdlePlaying(viewportFrame: ViewportFrame,
 		return
 	end
 
-	if playing then
+	if playing and Client_Data:GetValue("Animations") ~= false then
 		Shared_BrainrotAnimations.PlayIdle(model, configName)
 	else
 		Shared_BrainrotAnimations.StopIdle(model)

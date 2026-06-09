@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlotConfig = require(script.Parent.PlotConfig)
+local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
 
 local Plot = {}
 Plot.__index = Plot
@@ -454,10 +455,11 @@ function Plot:RefreshBillboard()
 	end)
 end
 
-function Plot:Assign(player: Player, totalSlots: number)
+function Plot:Assign(player: Player, totalSlots: number, rebirths: any?)
 	self.Owner = player
 	self.Model:SetAttribute("OwnerUserId", player.UserId)
 	self.Model:SetAttribute("OwnerName", player.Name)
+	self.Model:SetAttribute("OwnerRebirths", Shared_Rebirth.GetRebirthCount(rebirths))
 	self.Billboard.Enabled = true
 
 	local upgradeSign = getUpgradeSign(self.Model)
@@ -475,6 +477,7 @@ function Plot:Release()
 	self.Owner = nil
 	self.Model:SetAttribute("OwnerUserId", 0)
 	self.Model:SetAttribute("OwnerName", "")
+	self.Model:SetAttribute("OwnerRebirths", 0)
 
 	local upgradeSign = getUpgradeSign(self.Model)
 	if upgradeSign then

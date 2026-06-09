@@ -16,8 +16,6 @@ task.spawn(Client_SoundPreload.Init)
 Client_Messaging.Init()
 Client_ProximityPrompts.Init()
 
-Client_PlotBillboards:Init()
-
 local Client_PlotSlotSurfaces = require(script.Parent.Client.Client_PlotSlotSurfaces)
 Client_PlotSlotSurfaces.Init()
 
@@ -74,6 +72,8 @@ if not playerReplica then
 end
 
 Client_Data:Init()
+
+Client_PlotBillboards:Init()
 
 local Client_Visuals = require(script.Parent.Client.Client_Visuals)
 Client_Visuals.Init()
@@ -137,3 +137,12 @@ Client_RainbowBrainrots.Init()
 
 require(script.Parent.Animations)
 require(script.Parent.UI)
+
+local Client_OfflineCash = require(script.Parent.Client.Client_OfflineCash)
+Client_OfflineCash.Init()
+
+local Client_Rebirth = require(script.Parent.Client.Client_Rebirth)
+Client_Rebirth.Init()
+
+local Client_Settings = require(script.Parent.Client.Client_Settings)
+Client_Settings.Init()

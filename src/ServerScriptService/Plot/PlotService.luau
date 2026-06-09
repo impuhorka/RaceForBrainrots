@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Plot = require(script.Parent.Plot)
 local PlotConfig = require(script.Parent.PlotConfig)
 local PlotCash = require(script.Parent.PlotCash)
+local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
@@ -14,8 +15,10 @@ local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
 local Shared_SpeedStore = require(ReplicatedStorage.Modules.Shared_SpeedStore)
 local Shared_StrengthStore = require(ReplicatedStorage.Modules.Shared_StrengthStore)
+local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
+local plotHandler: RemoteEvent
 
 local function normalizeName(name: string): string
 	return string.lower(string.gsub(name, "[^%w]", ""))
@@ -248,7 +251,18 @@ local function tryBuySpeed(player: Player, amount: number): (boolean, string?, n
 		return false, "InvalidAmount", nil, nil
 	end
 
+	local rebirths = Server_Data:GetValue(player, "Rebirths")
+	local maxSpeed = Shared_Rebirth.GetMaxSpeedCap(rebirths)
 	local currentSpeed = math.max(1, math.floor(Server_Data:GetValue(player, "Speed") or Shared_SpeedStore.DefaultSpeed))
+
+	if currentSpeed >= maxSpeed then
+		return false, "AtCap", nil, currentSpeed
+	end
+
+	if currentSpeed + safeAmount > maxSpeed then
+		return false, "AtCap", nil, currentSpeed
+	end
+
 	local cost = Shared_SpeedStore.GetPurchaseCost(currentSpeed, safeAmount)
 	local currentCash = Server_Data:GetValue(player, "Cash") or 0
 
@@ -270,7 +284,18 @@ local function tryBuyStrength(player: Player, amount: number): (boolean, string?
 		return false, "InvalidAmount", nil, nil
 	end
 
+	local rebirths = Server_Data:GetValue(player, "Rebirths")
+	local maxStrength = Shared_Rebirth.GetMaxStrengthCap(rebirths)
 	local currentStrength = math.max(1, math.floor(Server_Data:GetValue(player, "Strength") or Shared_StrengthStore.DefaultStrength))
+
+	if currentStrength >= maxStrength then
+		return false, "AtCap", nil, currentStrength
+	end
+
+	if currentStrength + safeAmount > maxStrength then
+		return false, "AtCap", nil, currentStrength
+	end
+
 	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount)
 	local currentCash = Server_Data:GetValue(player, "Cash") or 0
 
@@ -289,6 +314,23 @@ end
 local function setSlowMode(player: Player, enabled: boolean): boolean
 	Server_Data:SetValue(player, "SlowMode", enabled == true)
 	return true
+end
+
+local function tryRebirth(player: Player): (boolean, string?, number?)
+	local rebirths = Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
+	local cost = Shared_Rebirth.GetCost(rebirths)
+	local cash = Server_Data:GetValue(player, "Cash") or 0
+
+	if cash < cost then
+		return false, "NotEnoughCash", cost
+	end
+
+	Server_Data:SetValue(player, "Rebirths", rebirths + 1)
+	Server_Data:SetValue(player, "Cash", 0)
+	Server_Data:SetValue(player, "Speed", Shared_SpeedStore.DefaultSpeed)
+	Server_Data:SetValue(player, "Strength", Shared_StrengthStore.DefaultStrength)
+
+	return true, nil, cost
 end
 
 local function getPlayerSlotCount(player: Player): number
@@ -383,13 +425,15 @@ function PlotService:AttachPlayer(player: Player)
 			return
 		end
 
+		PlotOfflineCash.ProcessJoin(player, plotHandler)
+
 		local plot = self:GetAvailablePlot()
 		if not plot then
 			warn(("No free plots for %s"):format(player.Name))
 			return
 		end
 
-		plot:Assign(player, getPlayerSlotCount(player))
+		plot:Assign(player, getPlayerSlotCount(player), Server_Data:GetValue(player, "Rebirths"))
 		self.PlayerToPlot[player] = plot
 
 		PlotPlacement.LoadPlotData(plot, Server_Data:GetValue(player, "Plot") or {})
@@ -398,6 +442,8 @@ function PlotService:AttachPlayer(player: Player)
 end
 
 function PlotService:DetachPlayer(player: Player)
+	PlotOfflineCash.OnPlayerLeave(player)
+
 	local plot = self.PlayerToPlot[player]
 	if not plot then
 		return
@@ -435,7 +481,7 @@ end
 function PlotService:Init()
 	self:LoadPlots()
 
-	local plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent
+	plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent
 	plotHandler.OnServerEvent:Connect(function(player: Player, action: string, slotId: any, inventoryIndex: any)
 		if action == "Place" then
 			if type(slotId) ~= "number" or type(inventoryIndex) ~= "number" then
@@ -538,6 +584,28 @@ function PlotService:Init()
 				return
 			end
 			setSlowMode(player, slotId)
+			return
+		end
+
+		if action == "CollectOfflineCash" then
+			PlotOfflineCash.Collect(player, plotHandler)
+			return
+		end
+
+		if action == "Rebirth" then
+			local rebirthed, reason, cost = tryRebirth(player)
+			if rebirthed then
+				local plot = self:GetPlotByPlayer(player)
+				if plot then
+					plot.Model:SetAttribute(
+						"OwnerRebirths",
+						Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
+					)
+				end
+				plotHandler:FireClient(player, "RebirthSuccess", cost)
+			else
+				plotHandler:FireClient(player, "RebirthFailed", reason, cost)
+			end
 		end
 	end)
 

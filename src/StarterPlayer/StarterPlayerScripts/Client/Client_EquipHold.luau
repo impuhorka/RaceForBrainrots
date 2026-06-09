@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Shared_BrainrotAnimations = require(ReplicatedStorage.Modules.Shared_BrainrotAnimations)
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
@@ -27,6 +28,10 @@ local holdTrack: AnimationTrack? = nil
 local holdAnimator: Animator? = nil
 local heldModel: Model? = nil
 local holdWatchdogConnection: RBXScriptConnection? = nil
+
+local function shouldPlayAnimations(): boolean
+	return Client_Data:GetValue("Animations") ~= false
+end
 
 local function getHoldAnimation(): Animation?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
@@ -125,10 +130,31 @@ local function playHoldAnimation(character: Model)
 	end)
 end
 
+local function refreshHeldAnimations()
+	local character = localPlayer.Character
+	if not character or not heldModel then
+		return
+	end
+
+	if not shouldPlayAnimations() then
+		stopHoldAnimation()
+		Shared_BrainrotAnimations.StopIdle(heldModel)
+		return
+	end
+
+	playHoldAnimation(character)
+
+	local configName = heldModel:GetAttribute("ConfigName")
+	if type(configName) == "string" and configName ~= "" then
+		Shared_BrainrotAnimations.PlayIdle(heldModel, configName)
+	end
+end
+
 local function clearHeldVisual()
 	stopHoldAnimation()
 
 	if heldModel then
+		Shared_BrainrotAnimations.StopIdle(heldModel)
 		heldModel:Destroy()
 		heldModel = nil
 	end
@@ -246,7 +272,13 @@ local function refreshHeldVisual()
 	if itemType == "Brainrot" then
 		Shared_BrainrotBillboard.Setup(model, configName, modifier, level)
 	end
-	playHoldAnimation(character)
+
+	if shouldPlayAnimations() then
+		playHoldAnimation(character)
+		if itemType == "Brainrot" then
+			Shared_BrainrotAnimations.PlayIdle(model, configName)
+		end
+	end
 end
 
 function Client_EquipHold.Init()
@@ -260,6 +292,8 @@ function Client_EquipHold.Init()
 	end)
 
 	refreshHeldVisual()
+
+	Client_Data:ListenToChange("Animations", refreshHeldAnimations)
 end
 
 return Client_EquipHold

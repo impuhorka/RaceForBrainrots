@@ -42,20 +42,12 @@ local activeMessages: { ActiveMessage } = {}
 local messagesByKey: { [string]: ActiveMessage } = {}
 local adminFeedbackConnected = false
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
-local function playSfx(soundId: string)
-	if soundId == "" or not shouldPlaySfx() then
+local function playSfx(soundId: string, volume: number)
+	if soundId == "" then
 		return
 	end
 
-	Client_SoundPreload.PlayUi(soundId, 1, 2)
+	Client_SoundPreload.PlayUi(soundId, volume, 2)
 end
 
 local function getMessageKey(color: string, text: string): string
@@ -305,9 +297,9 @@ function Client_Messaging.Show(message: string, color: string?)
 	end
 
 	if normalizedColor == "green" and type(Shared_Sounds.SFX.Success) == "string" then
-		playSfx(Shared_Sounds.SFX.Success)
+		playSfx(Shared_Sounds.SFX.Success, Shared_Sounds.SFXVolume.Success)
 	elseif normalizedColor == "red" and type(Shared_Sounds.SFX.Error) == "string" then
-		playSfx(Shared_Sounds.SFX.Error)
+		playSfx(Shared_Sounds.SFX.Error, Shared_Sounds.SFXVolume.Error)
 	end
 
 	local trimmedMessage = string.gsub(message, "^%s*(.-)%s*$", "%1")

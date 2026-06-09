@@ -12,7 +12,7 @@ local Client_Visuals = require(script.Parent.Client_Visuals)
 local Client_CashAddingPopups = {}
 
 local POPUP_COUNT = 3
-local SPIRAL_DEGREES_PER_SECOND = 90
+local SPIRAL_SWAY_AMPLITUDE = 18
 local POPUP_STAY_TIME = 1.5
 local POPUP_GROW_TIME = 0.18
 local POPUP_SHRINK_TIME = 0.22
@@ -28,20 +28,9 @@ local popupFrame: Frame?
 local template: GuiObject?
 local cashVisualFrame: GuiObject?
 
-local function shouldPlaySfx(): boolean
-	local value = Client_Data:GetValue("SFX")
-	if value == nil then
-		return true
-	end
-	return value == true
-end
-
 local function playCashAddSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.CashAdd or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, 1, 1)
@@ -52,18 +41,12 @@ local function playCashCollectSfx()
 	if type(soundId) ~= "string" or soundId == "" then
 		return
 	end
-	if not shouldPlaySfx() then
-		return
-	end
-	Client_SoundPreload.PlayUi(soundId, 1, 1, 0.3)
+	Client_SoundPreload.PlayUi(soundId, Shared_Sounds.SFXVolume.CashCollect, 1, 0.3)
 end
 
 local function playPopupAppearSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.CashPopupAppear or ""
 	if type(soundId) ~= "string" or soundId == "" then
-		return
-	end
-	if not shouldPlaySfx() then
 		return
 	end
 	Client_SoundPreload.PlayUi(soundId, 1, 1)
@@ -103,17 +86,21 @@ local function getCashTargetPosition(): UDim2?
 	return UDim2.fromOffset(localPos.X, localPos.Y)
 end
 
-local function startSpiralRotation(popup: GuiObject): RBXScriptConnection?
+local function startSpiralSway(popup: GuiObject): RBXScriptConnection?
 	local spiral = popup:FindFirstChild("Spiral", true)
 	if not spiral or not spiral:IsA("ImageLabel") then
 		return nil
 	end
 
-	return RunService.Heartbeat:Connect(function(dt)
+	local startPhase = math.random() * math.pi * 2
+	local startTime = os.clock()
+
+	return RunService.Heartbeat:Connect(function()
 		if not popup.Parent then
 			return
 		end
-		spiral.Rotation += SPIRAL_DEGREES_PER_SECOND * dt
+		local t = (os.clock() - startTime) * STATIC_PULSE_SPEED + startPhase
+		spiral.Rotation = math.sin(t) * SPIRAL_SWAY_AMPLITUDE
 	end)
 end
 
@@ -126,12 +113,7 @@ local function scaleUdim2(size: UDim2, factor: number): UDim2
 	)
 end
 
-local function startStaticPulse(
-	popup: GuiObject,
-	baseSize: UDim2,
-	rotationDirection: number,
-	startPhase: number
-): RBXScriptConnection
+local function startStaticPulse(popup: GuiObject, baseSize: UDim2, startPhase: number): RBXScriptConnection
 	local startTime = os.clock()
 	return RunService.Heartbeat:Connect(function()
 		if not popup.Parent then
@@ -139,10 +121,11 @@ local function startStaticPulse(
 		end
 
 		local t = (os.clock() - startTime) * STATIC_PULSE_SPEED + startPhase
-		local pulseAlpha = math.sin(t)
-		local scaleFactor = 1 + pulseAlpha * STATIC_PULSE_SCALE_AMPLITUDE
+		local scaleAlpha = math.sin(t)
+		local rotationAlpha = math.sin(t + math.pi * 0.5)
+		local scaleFactor = 1 + scaleAlpha * STATIC_PULSE_SCALE_AMPLITUDE
 		popup.Size = scaleUdim2(baseSize, scaleFactor)
-		popup.Rotation = pulseAlpha * STATIC_PULSE_ROTATION_AMPLITUDE * rotationDirection
+		popup.Rotation = rotationAlpha * STATIC_PULSE_ROTATION_AMPLITUDE
 	end)
 end
 
@@ -164,9 +147,8 @@ local function spawnPopup(amount: number, popupIndex: number)
 	end
 	setPopupAmountText(popup, amount)
 
-	local spinConn = startSpiralRotation(popup)
+	local spinConn = startSpiralSway(popup)
 	local pulseConn: RBXScriptConnection? = nil
-	local pulseRotationDirection = if math.random() < 0.5 then -1 else 1
 	local pulseStartPhase = math.random() * math.pi * 2
 	popup.Destroying:Once(function()
 		if spinConn then
@@ -195,7 +177,7 @@ local function spawnPopup(amount: number, popupIndex: number)
 	growTween:Play()
 	growTween.Completed:Once(function()
 		if popup.Parent then
-			pulseConn = startStaticPulse(popup, originSize, pulseRotationDirection, pulseStartPhase)
+			pulseConn = startStaticPulse(popup, originSize, pulseStartPhase)
 		end
 	end)
 
@@ -246,8 +228,13 @@ local function spawnPopup(amount: number, popupIndex: number)
 	end)
 end
 
-function Client_CashAddingPopups.Show(amount: number)
-	for index = 1, POPUP_COUNT do
+function Client_CashAddingPopups.Show(amount: number, popupCount: number?)
+	if Client_Data:GetValue("PopUps") == false then
+		return
+	end
+
+	local count = popupCount or POPUP_COUNT
+	for index = 1, count do
 		task.delay((index - 1) * POPUP_SPAWN_STAGGER, function()
 			spawnPopup(amount, index)
 		end)

@@ -9,6 +9,9 @@ local FRAME_FOV = 60
 
 local TWEEN_OPEN = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TWEEN_CLOSE = TweenInfo.new(0.15, Enum.EasingStyle.Linear)
+local TWEEN_PULSE_IN = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_PULSE_OUT = TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local PULSE_FOV_OFFSET = 18
 
 local Client_FOV = {}
 
@@ -46,6 +49,38 @@ function Client_FOV.init()
 				camera.FieldOfView = FRAME_FOV
 			else
 				baseFov = camera.FieldOfView
+			end
+		end)
+	end)
+end
+
+function Client_FOV.playPulse()
+	if not camera then
+		return
+	end
+
+	local returnFov = camera.FieldOfView
+	local pulseFov = math.max(40, returnFov - PULSE_FOV_OFFSET)
+
+	if activeTween then
+		activeTween:Cancel()
+		activeTween = nil
+	end
+
+	local inTween = TweenService:Create(camera, TWEEN_PULSE_IN, { FieldOfView = pulseFov })
+	activeTween = inTween
+	inTween:Play()
+	inTween.Completed:Once(function()
+		if not camera then
+			return
+		end
+
+		local outTween = TweenService:Create(camera, TWEEN_PULSE_OUT, { FieldOfView = returnFov })
+		activeTween = outTween
+		outTween:Play()
+		outTween.Completed:Once(function()
+			if activeTween == outTween then
+				activeTween = nil
 			end
 		end)
 	end)

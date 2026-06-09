@@ -139,6 +139,8 @@ local function hookPurchaseResponses()
 			local requiredCost = type(arg2) == "number" and arg2 or 0
 			if reason == "NotEnoughCash" and requiredCost > 0 then
 				Client_Messaging.Show("You need more cash to purchase this!", "red")
+			elseif reason == "AtCap" then
+				Client_Messaging.Show("Rebirth to raise your speed cap!", "red")
 			elseif reason == "InvalidAmount" then
 				Client_Messaging.Show("Invalid speed purchase amount.", "red")
 			else

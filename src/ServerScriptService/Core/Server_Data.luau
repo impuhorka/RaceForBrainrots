@@ -55,8 +55,9 @@ local DataTemplate = {
 	-- Index: collection/discovery tracker per modifier. {[Modifier] = {ConfigName, ...}}
 	Index = {},
 
-	Music = true,
-	SFX = true,
+	Music = 1,
+	SFX = 1,
+	Animations = true,
 	PopUps = true,
 	SlowMode = false,
 
@@ -64,6 +65,10 @@ local DataTemplate = {
 	DataGamepasses = {},
 
 	TutorialCompleted = false,
+
+	LastLeaveTime = 0,
+	PendingOfflineCash = 0,
+	PendingOfflineSeconds = 0,
 }
 
 local USE_TEST_INVENTORY = false

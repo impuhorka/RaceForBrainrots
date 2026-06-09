@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
 
+local Client_CashAddingPopups = require(script.Parent.Client_CashAddingPopups)
 local Client_PlotBrainrotJump = require(script.Parent.Client_PlotBrainrotJump)
 
 local localPlayer = Players.LocalPlayer
@@ -203,6 +204,7 @@ local function tryCollect(slotModel: Model, plotModel: Model, interactPart: Base
 	collectCooldowns[slotModel] = true
 	playCollectAnimation(interactPart)
 	playCollectVfx(interactPart)
+	Client_CashAddingPopups.Show(cashToCollect)
 
 	local brainrotModel = slotModel:FindFirstChild("PlacedBrainrot")
 	if brainrotModel and brainrotModel:IsA("Model") then

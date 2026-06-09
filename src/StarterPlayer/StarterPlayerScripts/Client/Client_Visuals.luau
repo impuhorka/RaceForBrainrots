@@ -16,6 +16,7 @@ local cashDecreaseGradient: UIGradient? = nil
 local cashValueObject = Instance.new("NumberValue")
 local cashTween: Tween? = nil
 local cashDecreaseVisualToken = 0
+local cashPulseToken = 0
 
 local function formatCash(value: number): string
 	return ("$%s"):format(Shared_Abbreviation:Number(value or 0))
@@ -135,6 +136,43 @@ local function updateCashStat(animate: boolean)
 	end)
 end
 
+local function playCashPulse()
+	local cashLabel = labels.Cash
+	if not cashLabel then
+		return
+	end
+
+	cashPulseToken += 1
+	local token = cashPulseToken
+
+	local uiScale = cashLabel:FindFirstChildOfClass("UIScale")
+	if not uiScale then
+		uiScale = Instance.new("UIScale")
+		uiScale.Scale = 1
+		uiScale.Parent = cashLabel
+	end
+
+	uiScale.Scale = 1
+	local popUp = TweenService:Create(
+		uiScale,
+		TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Scale = 1.08 }
+	)
+	local popDown = TweenService:Create(
+		uiScale,
+		TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Scale = 1 }
+	)
+
+	popUp:Play()
+	popUp.Completed:Once(function()
+		if token ~= cashPulseToken then
+			return
+		end
+		popDown:Play()
+	end)
+end
+
 local function updateStat(statName: string, animate: boolean?)
 	local label = labels[statName]
 	local formatter = FORMATTERS[statName]
@@ -192,6 +230,10 @@ function Client_Visuals.Init()
 			updateStat(statName, true)
 		end)
 	end
+end
+
+function Client_Visuals.PlayCashCollectPulse()
+	playCashPulse()
 end
 
 return Client_Visuals

@@ -1,7 +1,11 @@
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AnimationBase = require(script.Parent.AnimationBase)
 local ClickRipple = require(script.Parent.ClickRipple)
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_Data = require(script.Parent.Parent.Client.Client_Data)
+local Client_SoundPreload = require(script.Parent.Parent.Client.Client_SoundPreload)
 
 local TWEEN_INFO = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
@@ -47,6 +51,18 @@ end
 function AnimatedButton0:Setup()
 	local button = self.Instance :: ImageButton
 
+	local function playClickSfx()
+		local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.ImageButtonClick or ""
+		if type(soundId) ~= "string" or soundId == "" then
+			return
+		end
+		local sfxEnabled = Client_Data:GetValue("SFX")
+		if sfxEnabled == false then
+			return
+		end
+		Client_SoundPreload.PlayUi(soundId, 1, 0)
+	end
+
 	self:Connect(button.MouseEnter, function()
 		self:_tweenScale(self._originalScale * 1.1)
 	end)
@@ -62,6 +78,7 @@ function AnimatedButton0:Setup()
 	self:Connect(button.MouseButton1Click, function()
 		self:_tweenScale(self._originalScale * 1.1)
 		ClickRipple.play(button)
+		playClickSfx()
 	end)
 end
 

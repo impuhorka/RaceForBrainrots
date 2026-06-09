@@ -1,0 +1,16 @@
+local Shared_Sounds = {}
+
+Shared_Sounds.SFX = {
+	Success = "rbxassetid://136993031050456",
+	Error = "rbxassetid://128635936514965",
+	UiPop = "rbxassetid://140515349341063",
+	ImageButtonClick = "rbxassetid://135366639238389",
+	CashAdd = "rbxassetid://134583420216867",
+	CashPopupAppear = "rbxassetid://134637530898931",
+}
+
+Shared_Sounds.Music = {
+	Background = "rbxassetid://136703374512384",
+}
+
+return Shared_Sounds

@@ -58,6 +58,7 @@ local DataTemplate = {
 	Music = true,
 	SFX = true,
 	PopUps = true,
+	SlowMode = false,
 
 	PurchasesLogs = {},
 	DataGamepasses = {},
@@ -67,6 +68,41 @@ local DataTemplate = {
 
 local USE_TEST_INVENTORY = false
 local USE_MOCK_DATASTORE_IN_STUDIO = false
+local INVENTORY_MAX_SLOTS = 60
+local DEFAULT_WALK_SPEED = 16
+local SLOW_MODE_SPEED_CAP = 50
+
+local function resolveMaxSpeed(rawSpeed: any): number
+	local speed = tonumber(rawSpeed) or DEFAULT_WALK_SPEED
+	return math.max(1, math.floor(speed))
+end
+
+local function resolveSlowModeEnabled(rawSlowMode: any): boolean
+	return rawSlowMode == true
+end
+
+local function resolveAppliedWalkSpeed(rawMaxSpeed: any, rawSlowMode: any): number
+	local maxSpeed = resolveMaxSpeed(rawMaxSpeed)
+	if resolveSlowModeEnabled(rawSlowMode) then
+		return math.min(maxSpeed, SLOW_MODE_SPEED_CAP)
+	end
+	return maxSpeed
+end
+
+local function applyWalkSpeedToCharacter(character: Model, maxSpeed: any, slowMode: any)
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
+	if humanoid and humanoid:IsA("Humanoid") then
+		humanoid.WalkSpeed = resolveAppliedWalkSpeed(maxSpeed, slowMode)
+	end
+end
+
+local function applyWalkSpeed(player: Player, maxSpeed: any, slowMode: any)
+	local character = player.Character
+	if not character then
+		return
+	end
+	applyWalkSpeedToCharacter(character, maxSpeed, slowMode)
+end
 
 local Module = {}
 Module.Profiles = {}
@@ -205,10 +241,15 @@ function Module:SetValue(player, path, value)
 		if cash then
 			cash.Value = Shared_Abbreviation:Number(value)
 		end
-	elseif path == "Rebirths" then
-		local rebirths = leaderstats:FindFirstChild("Rebirths")
-		if rebirths then
-			rebirths.Value = value
+	elseif path == "Speed" then
+		local speed = leaderstats:FindFirstChild("Speed")
+		if speed and speed:IsA("IntValue") then
+			speed.Value = math.max(1, math.floor(tonumber(value) or 1))
+		end
+	elseif path == "Strength" then
+		local strength = leaderstats:FindFirstChild("Strength")
+		if strength and strength:IsA("IntValue") then
+			strength.Value = math.max(1, math.floor(tonumber(value) or 1))
 		end
 	end
 end
@@ -291,6 +332,10 @@ function Module:AddInventoryItem(player: Player, item: any): number?
 		data.Inventory = {}
 	end
 
+	if #data.Inventory >= INVENTORY_MAX_SLOTS then
+		return nil
+	end
+
 	table.insert(data.Inventory, item)
 	local newIndex = #data.Inventory
 	local indexChanged = addBrainrotToIndex(data, item)
@@ -346,7 +391,9 @@ function Module:ResetPlayerData(player: Player): boolean
 	end
 
 	self:SetValue(player, "Cash", data.Cash or 0)
-	self:SetValue(player, "Rebirths", data.Rebirths or 0)
+	self:SetValue(player, "Speed", data.Speed or 16)
+	self:SetValue(player, "Strength", data.Strength or 1)
+	self:SetValue(player, "SlowMode", data.SlowMode == true)
 
 	return true
 end
@@ -361,10 +408,15 @@ local function createLeaderstats(player, profile)
 	cash.Value = Shared_Abbreviation:Number(profile.Data.Cash or 0)
 	cash.Parent = leaderstats
 
-	local rebirths = Instance.new("IntValue")
-	rebirths.Name = "Rebirths"
-	rebirths.Value = profile.Data.Rebirths or 0
-	rebirths.Parent = leaderstats
+	local speed = Instance.new("IntValue")
+	speed.Name = "Speed"
+	speed.Value = math.max(1, math.floor(tonumber(profile.Data.Speed) or 16))
+	speed.Parent = leaderstats
+
+	local strength = Instance.new("IntValue")
+	strength.Name = "Strength"
+	strength.Value = math.max(1, math.floor(tonumber(profile.Data.Strength) or 1))
+	strength.Parent = leaderstats
 
 	local replica = Module.Replicas[player]
 	if not replica then
@@ -375,8 +427,12 @@ local function createLeaderstats(player, profile)
 		cash.Value = Shared_Abbreviation:Number(newValue)
 	end)
 
-	replica:ListenToChange({ "Rebirths" }, function(newValue)
-		rebirths.Value = newValue
+	replica:ListenToChange({ "Speed" }, function(newValue)
+		speed.Value = math.max(1, math.floor(tonumber(newValue) or 1))
+	end)
+
+	replica:ListenToChange({ "Strength" }, function(newValue)
+		strength.Value = math.max(1, math.floor(tonumber(newValue) or 1))
 	end)
 end
 
@@ -438,6 +494,37 @@ local function onPlayerAdded(player)
 	})
 
 	Module.Replicas[player] = replica
+
+	profile.Data.Speed = resolveMaxSpeed(profile.Data.Speed)
+	profile.Data.SlowMode = resolveSlowModeEnabled(profile.Data.SlowMode)
+	replica:SetValue({ "Speed" }, profile.Data.Speed)
+	replica:SetValue({ "SlowMode" }, profile.Data.SlowMode)
+
+	player.CharacterAdded:Connect(function(character)
+		local currentSpeed = Module:GetValue(player, "Speed") or profile.Data.Speed
+		local slowModeEnabled = Module:GetValue(player, "SlowMode")
+		if slowModeEnabled == nil then
+			slowModeEnabled = profile.Data.SlowMode
+		end
+		applyWalkSpeedToCharacter(character, currentSpeed, slowModeEnabled)
+	end)
+	if player.Character then
+		local currentSpeed = Module:GetValue(player, "Speed") or profile.Data.Speed
+		local slowModeEnabled = Module:GetValue(player, "SlowMode")
+		if slowModeEnabled == nil then
+			slowModeEnabled = profile.Data.SlowMode
+		end
+		task.defer(applyWalkSpeedToCharacter, player.Character, currentSpeed, slowModeEnabled)
+	end
+
+	replica:ListenToChange({ "Speed" }, function(newSpeed)
+		applyWalkSpeed(player, newSpeed, Module:GetValue(player, "SlowMode"))
+	end)
+
+	replica:ListenToChange({ "SlowMode" }, function(newSlowMode)
+		applyWalkSpeed(player, Module:GetValue(player, "Speed"), newSlowMode)
+	end)
+
 	createLeaderstats(player, profile)
 end
 

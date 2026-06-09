@@ -9,6 +9,9 @@ local Client_FOV = require(script.Parent.Client.Client_FOV)
 local Client_Messaging = require(script.Parent.Client.Client_Messaging)
 local Client_PlotBillboards = require(script.Parent.Client.Client_PlotBillboards)
 local Client_ProximityPrompts = require(script.Parent.Client.Client_ProximityPrompts)
+local Client_SoundPreload = require(script.Parent.Client.Client_SoundPreload)
+
+task.spawn(Client_SoundPreload.Init)
 
 Client_Messaging.Init()
 Client_ProximityPrompts.Init()
@@ -93,8 +96,14 @@ Client_PlotBrainrotAnimations.Init()
 local Client_PlotUpgradeVfx = require(script.Parent.Client.Client_PlotUpgradeVfx)
 Client_PlotUpgradeVfx.Init()
 
+local Client_CashAddingPopups = require(script.Parent.Client.Client_CashAddingPopups)
+Client_CashAddingPopups.Init()
+
 local Client_PlotCashCollect = require(script.Parent.Client.Client_PlotCashCollect)
 Client_PlotCashCollect.Init()
+
+local Client_PlotSpawnAnimation = require(script.Parent.Client.Client_PlotSpawnAnimation)
+Client_PlotSpawnAnimation.Init()
 
 local Client_SellBillboard = require(script.Parent.Client.Client_SellBillboard)
 Client_SellBillboard.Init()
@@ -104,6 +113,18 @@ Client_PlotUpgradeSign.Init()
 
 local Client_InteractStorePrompts = require(script.Parent.Client.Client_InteractStorePrompts)
 Client_InteractStorePrompts.Init()
+
+local Client_SpeedStore = require(script.Parent.Client.Client_SpeedStore)
+Client_SpeedStore.Init()
+
+local Client_StrengthStore = require(script.Parent.Client.Client_StrengthStore)
+Client_StrengthStore.Init()
+
+local Client_SlowModeButton = require(script.Parent.Client.Client_SlowModeButton)
+Client_SlowModeButton.Init()
+
+local Client_BackgroundMusic = require(script.Parent.Client.Client_BackgroundMusic)
+Client_BackgroundMusic.Init()
 
 local Client_LuckyBlockOpening = require(script.Parent.Client.Client_LuckyBlockOpening)
 Client_LuckyBlockOpening.Init()

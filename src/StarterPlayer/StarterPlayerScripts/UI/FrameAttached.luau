@@ -1,6 +1,10 @@
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_Data = require(script.Parent.Parent.Client.Client_Data)
+local Client_SoundPreload = require(script.Parent.Parent.Client.Client_SoundPreload)
 local FrameController = require(script.Parent.FrameController)
 local FrameRegistry = require(script.Parent.FrameRegistry)
 
@@ -12,6 +16,20 @@ local FrameAttached = {}
 local active: { [Instance]: RBXScriptConnection } = {}
 local inventoryButtons: { [ImageButton]: boolean } = {}
 local keyboardToggleConnection: RBXScriptConnection? = nil
+
+local function playHotkeyToggleSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.ImageButtonClick or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+
+	local sfxEnabled = Client_Data:GetValue("SFX")
+	if sfxEnabled == false then
+		return
+	end
+
+	Client_SoundPreload.PlayUi(soundId, 1, 0)
+end
 
 local function setInventoryStatus(button: ImageButton, isOpen: boolean)
 	local status = button:FindFirstChild("Status")
@@ -110,6 +128,7 @@ function FrameAttached.init()
 		end
 
 		if input.KeyCode == Enum.KeyCode.B then
+			playHotkeyToggleSfx()
 			FrameRegistry.toggle(INVENTORY_NAME)
 		end
 	end)

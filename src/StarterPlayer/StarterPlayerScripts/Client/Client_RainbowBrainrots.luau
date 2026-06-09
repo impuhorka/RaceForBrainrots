@@ -1,152 +1,89 @@
 local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local Client_RainbowBrainrots = {}
 
-local TAG = "Rainbow"
-local RAINBOW_MODEL_TAG = "RainbowModel"
+local RAINBOW_EFFECT_TAG = "RainbowEffect"
 local RAINBOW_PERIOD = 6
 local UPDATE_HZ = 12
 local UPDATE_DT = 1 / UPDATE_HZ
 
 local trackedSAs: { [SurfaceAppearance]: boolean } = {}
-local connsByRoot: { [Instance]: { RBXScriptConnection } } = {}
-local rainbowModelAncestryConns: { [Instance]: RBXScriptConnection } = {}
+local saCleanupConns: { [SurfaceAppearance]: RBXScriptConnection } = {}
 local heartbeatConnection: RBXScriptConnection? = nil
 local initialized = false
 local acc = 0
 local t = 0
+local localPlayer = Players.LocalPlayer
 
-local function syncRainbowTagFromRainbowModel(inst: Instance)
-	if not inst.Parent then
-		if CollectionService:HasTag(inst, TAG) then
-			CollectionService:RemoveTag(inst, TAG)
+local function getFrameVisible(frameName: string): boolean
+	local playerGui = localPlayer:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return false
+	end
+	local main = playerGui:FindFirstChild("Main")
+	local frames = main and main:FindFirstChild("Frames")
+	local frame = frames and frames:FindFirstChild(frameName)
+	return frame ~= nil and frame:IsA("GuiObject") and frame.Visible
+end
+
+local function shouldAnimateSurfaceAppearance(sa: SurfaceAppearance, indexVisible: boolean, inventoryVisible: boolean): boolean
+	local inViewport = false
+	local inIndex = false
+	local inInventory = false
+
+	local current: Instance? = sa
+	while current do
+		if current:IsA("ViewportFrame") then
+			inViewport = true
+		elseif current.Name == "Index" then
+			inIndex = true
+		elseif current.Name == "Inventory" then
+			inInventory = true
 		end
-		return
+		current = current.Parent
 	end
 
-	if inst:IsDescendantOf(ReplicatedStorage) then
-		if CollectionService:HasTag(inst, TAG) then
-			CollectionService:RemoveTag(inst, TAG)
-		end
-	else
-		if not CollectionService:HasTag(inst, TAG) then
-			CollectionService:AddTag(inst, TAG)
-		end
+	if not inViewport then
+		return true
+	end
+	if inIndex and not indexVisible then
+		return false
+	end
+	if inInventory and not inventoryVisible then
+		return false
+	end
+	return true
+end
+
+local function untrackSurfaceAppearance(sa: SurfaceAppearance)
+	trackedSAs[sa] = nil
+	local conn = saCleanupConns[sa]
+	if conn then
+		conn:Disconnect()
+		saCleanupConns[sa] = nil
 	end
 end
 
-local function hookRainbowModel(inst: Instance)
-	local old = rainbowModelAncestryConns[inst]
-	if old then
-		old:Disconnect()
+local function trackSurfaceAppearance(sa: SurfaceAppearance)
+	if trackedSAs[sa] then
+		return
 	end
 
-	syncRainbowTagFromRainbowModel(inst)
-	rainbowModelAncestryConns[inst] = inst.AncestryChanged:Connect(function()
-		syncRainbowTagFromRainbowModel(inst)
+	trackedSAs[sa] = true
+	saCleanupConns[sa] = sa.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			untrackSurfaceAppearance(sa)
+		end
 	end)
 end
 
-local function unhookRainbowModel(inst: Instance)
-	local c = rainbowModelAncestryConns[inst]
-	if c then
-		c:Disconnect()
-	end
-	rainbowModelAncestryConns[inst] = nil
-
-	if CollectionService:HasTag(inst, TAG) then
-		CollectionService:RemoveTag(inst, TAG)
-	end
-end
-
-local function isMesh(inst: Instance): boolean
-	return inst:IsA("MeshPart") or inst:IsA("SkinnedMeshPart")
-end
-
-local function ensureSA(mesh: Instance): SurfaceAppearance
-	local sa = mesh:FindFirstChildOfClass("SurfaceAppearance")
-	if not sa then
-		sa = Instance.new("SurfaceAppearance")
-		sa.Name = "AutoRainbowSA"
-		sa.Parent = mesh
-	end
-	return sa
-end
-
-local function trackSA(sa: SurfaceAppearance)
-	trackedSAs[sa] = true
-	if not connsByRoot[sa] then
-		connsByRoot[sa] = {}
-	end
-
-	table.insert(connsByRoot[sa], sa.AncestryChanged:Connect(function(_, parent)
-		if parent then
-			return
-		end
-
-		trackedSAs[sa] = nil
-		for _, c in connsByRoot[sa] or {} do
-			pcall(function()
-				c:Disconnect()
-			end)
-		end
-		connsByRoot[sa] = nil
-	end))
-end
-
-local function addMesh(mesh: Instance)
-	if not isMesh(mesh) then
+local function handleTaggedInstanceAdded(inst: Instance)
+	if not inst:IsA("SurfaceAppearance") then
 		return
 	end
-
-	local sa = ensureSA(mesh)
-	trackSA(sa)
-end
-
-local function startForModel(model: Model)
-	for _, inst in model:GetDescendants() do
-		if isMesh(inst) then
-			addMesh(inst)
-		end
-	end
-
-	if not connsByRoot[model] then
-		connsByRoot[model] = {}
-	end
-
-	table.insert(connsByRoot[model], model.DescendantAdded:Connect(function(inst)
-		if isMesh(inst) then
-			addMesh(inst)
-		end
-	end))
-
-	table.insert(connsByRoot[model], model.AncestryChanged:Connect(function(_, parent)
-		if parent then
-			return
-		end
-		for _, c in connsByRoot[model] or {} do
-			pcall(function()
-				c:Disconnect()
-			end)
-		end
-		connsByRoot[model] = nil
-	end))
-end
-
-local function stopForRoot(root: Instance)
-	for _, c in connsByRoot[root] or {} do
-		pcall(function()
-			c:Disconnect()
-		end)
-	end
-	connsByRoot[root] = nil
-
-	if root:IsA("SurfaceAppearance") then
-		root.Color = Color3.fromRGB(255, 255, 255)
-		trackedSAs[root] = nil
-	end
+	trackSurfaceAppearance(inst)
 end
 
 function Client_RainbowBrainrots.Init()
@@ -155,31 +92,15 @@ function Client_RainbowBrainrots.Init()
 	end
 	initialized = true
 
-	for _, inst in CollectionService:GetTagged(RAINBOW_MODEL_TAG) do
-		hookRainbowModel(inst)
+	for _, inst in CollectionService:GetTagged(RAINBOW_EFFECT_TAG) do
+		handleTaggedInstanceAdded(inst)
 	end
 
-	CollectionService:GetInstanceAddedSignal(RAINBOW_MODEL_TAG):Connect(hookRainbowModel)
-	CollectionService:GetInstanceRemovedSignal(RAINBOW_MODEL_TAG):Connect(unhookRainbowModel)
-
-	for _, inst in CollectionService:GetTagged(TAG) do
-		if inst:IsA("Model") then
-			startForModel(inst)
-		elseif isMesh(inst) then
-			addMesh(inst)
+	CollectionService:GetInstanceAddedSignal(RAINBOW_EFFECT_TAG):Connect(handleTaggedInstanceAdded)
+	CollectionService:GetInstanceRemovedSignal(RAINBOW_EFFECT_TAG):Connect(function(inst)
+		if inst:IsA("SurfaceAppearance") then
+			untrackSurfaceAppearance(inst)
 		end
-	end
-
-	CollectionService:GetInstanceAddedSignal(TAG):Connect(function(inst)
-		if inst:IsA("Model") then
-			startForModel(inst)
-		elseif isMesh(inst) then
-			addMesh(inst)
-		end
-	end)
-
-	CollectionService:GetInstanceRemovedSignal(TAG):Connect(function(inst)
-		stopForRoot(inst)
 	end)
 
 	heartbeatConnection = RunService.Heartbeat:Connect(function(dt)
@@ -196,12 +117,16 @@ function Client_RainbowBrainrots.Init()
 		acc = 0
 		local h = (t / RAINBOW_PERIOD) % 1
 		local tint = Color3.fromHSV(h, 1, 1)
+		local indexVisible = getFrameVisible("Index")
+		local inventoryVisible = getFrameVisible("Inventory")
 
 		for sa in trackedSAs do
 			if sa.Parent then
-				sa.Color = tint
+				if shouldAnimateSurfaceAppearance(sa, indexVisible, inventoryVisible) then
+					sa.Color = tint
+				end
 			else
-				trackedSAs[sa] = nil
+				untrackSurfaceAppearance(sa)
 			end
 		end
 	end)

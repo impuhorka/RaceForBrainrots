@@ -339,6 +339,7 @@ local function playOpening(data: {
 	pickedItemType: string,
 	pickedLevel: number?,
 	pickedModifier: string?,
+	_onRewardPoppedOut: (() -> ())?,
 })
 	local Assets = ReplicatedStorage:FindFirstChild("Assets")
 	if not Assets then return end
@@ -607,6 +608,11 @@ local function playOpening(data: {
 	end
 
 	if revealedModel then
+		if data._onRewardPoppedOut then
+			data._onRewardPoppedOut()
+			data._onRewardPoppedOut = nil
+		end
+
 		if not revealedModel.PrimaryPart then
 			revealedModel.PrimaryPart = revealedModel:FindFirstChildWhichIsA("BasePart", true)
 		end
@@ -768,13 +774,24 @@ function Client_LuckyBlockOpening.Init()
 
 		openingInProgress = true
 		task.spawn(function()
+			local rewardUnmasked = false
+			local function unmaskReward()
+				if rewardUnmasked then
+					return
+				end
+				rewardUnmasked = true
+				if type(rewardIndex) == "number" then
+					Client_LuckyBlockRevealState.UnmaskIndex(rewardIndex)
+				end
+			end
+
+			data._onRewardPoppedOut = unmaskReward
+
 			local ok, err = pcall(function()
 				playOpening(data :: any)
 			end)
 			openingInProgress = false
-			if type(rewardIndex) == "number" then
-				Client_LuckyBlockRevealState.UnmaskIndex(rewardIndex)
-			end
+			unmaskReward()
 			if not ok then
 				warn("[Client_LuckyBlockOpening] Animation failed:", err)
 			end

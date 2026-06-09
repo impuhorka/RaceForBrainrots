@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared_BrainrotAnimations = require(ReplicatedStorage.Modules.Shared_BrainrotAnimations)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
 local Shared_Rarities = require(ReplicatedStorage.Modules.Utilities.Shared_Rarities)
 local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 
@@ -137,6 +138,48 @@ local function setItemNameRarityGradient(itemName: TextLabel?, rarity: string?)
 	gradient.Rotation = rarityData.GradientRotation or 0
 end
 
+local function getModifierStroke(slotButton: ImageButton): UIStroke?
+	local stroke = slotButton:FindFirstChild("ModifierStroke", true)
+	if stroke and stroke:IsA("UIStroke") then
+		return stroke
+	end
+	return nil
+end
+
+local function getModifierGradient(stroke: UIStroke): UIGradient
+	local gradient = stroke:FindFirstChildWhichIsA("UIGradient")
+	if gradient then
+		return gradient
+	end
+
+	gradient = Instance.new("UIGradient")
+	gradient.Parent = stroke
+	return gradient
+end
+
+function Client_ItemDisplay.setModifierStroke(slotButton: ImageButton, modifier: string?)
+	local stroke = getModifierStroke(slotButton)
+	if not stroke then
+		return
+	end
+
+	local resolvedModifier = if type(modifier) == "string" and modifier ~= "" then modifier else "Normal"
+	local modifierConfig = Shared_Modifiers.Data[resolvedModifier]
+	local shouldEnable = resolvedModifier ~= "Normal" and modifierConfig ~= nil
+	stroke.Enabled = shouldEnable
+
+	if not shouldEnable or not modifierConfig then
+		return
+	end
+
+	local gradient = getModifierGradient(stroke)
+	if modifierConfig.ColorGradient then
+		gradient.Color = modifierConfig.ColorGradient
+	end
+	gradient.Rotation = modifierConfig.GradientRotation or 90
+	gradient.Enabled = true
+end
+
 function Client_ItemDisplay.setupViewport(
 	viewportFrame: ViewportFrame,
 	configName: string,
@@ -264,6 +307,7 @@ function Client_ItemDisplay.clearSlotButton(slotButton: ImageButton)
 	end
 
 	setItemNameRarityGradient(itemName :: TextLabel?, nil)
+	Client_ItemDisplay.setModifierStroke(slotButton, "Normal")
 end
 
 function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any, playAnimation: boolean?, inventoryIndex: number?)
@@ -273,6 +317,12 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 	end
 
 	local isMysteryReward = item.ItemType == "Brainrot" and Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex)
+	local modifier = item.Data and item.Data.Modifier or "Normal"
+	if isMysteryReward then
+		Client_ItemDisplay.setModifierStroke(slotButton, "Normal")
+	else
+		Client_ItemDisplay.setModifierStroke(slotButton, modifier)
+	end
 	local itemName = slotButton:FindFirstChild("ItemName")
 	if itemName and itemName:IsA("TextLabel") then
 		itemName.Visible = true
@@ -298,6 +348,7 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 			itemName.Text = ""
 			setItemNameRarityGradient(itemName, nil)
 		end
+		Client_ItemDisplay.setModifierStroke(slotButton, "Normal")
 		return
 	end
 
@@ -332,7 +383,6 @@ function Client_ItemDisplay.renderSlotButton(slotButton: ImageButton, item: any,
 	end
 
 	if viewportFrame then
-		local modifier = item.Data and item.Data.Modifier or "Normal"
 		local renderToken = ((slotButton:GetAttribute("_ViewportRenderToken") :: number?) or 0) + 1
 		slotButton:SetAttribute("_ViewportRenderToken", renderToken)
 		Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, playAnimation)

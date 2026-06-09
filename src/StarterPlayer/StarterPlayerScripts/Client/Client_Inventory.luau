@@ -2,6 +2,7 @@ local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
@@ -9,9 +10,12 @@ local Client_Hotbar = require(script.Parent.Client_Hotbar)
 local Client_ItemDisplay = require(script.Parent.Client_ItemDisplay)
 local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 local FrameController = require(script.Parent.Parent.UI.FrameController)
+local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 
 local HOLD_DRAG_TIME = 0.75
 local DRAG_FAILSAFE_TIMEOUT = 6
+local INVENTORY_MAX_SLOTS = 60
 
 local Client_Inventory = {}
 
@@ -19,6 +23,8 @@ local inventoryFrame: GuiObject?
 local scrollingFrame: ScrollingFrame?
 local itemTemplate: GuiObject?
 local dragLayer: GuiObject?
+local searchTextBox: TextBox?
+local slotsCountLabel: TextLabel?
 
 local function toGuiPos(position: Vector2): Vector2
 	local inset = GuiService:GetGuiInset()
@@ -103,6 +109,63 @@ local function setSlotIdVisible(button: ImageButton, visible: boolean)
 	end
 end
 
+local function normalizeSearchText(text: string): string
+	return string.lower(string.gsub(text, "^%s*(.-)%s*$", "%1"))
+end
+
+local function getItemRarity(item: any): string
+	if not item or type(item.ConfigName) ~= "string" then
+		return ""
+	end
+
+	if item.ItemType == "Brainrot" then
+		local config = Shared_Brainrots.Data[item.ConfigName]
+		return config and (config.Rarity or "") or ""
+	end
+
+	if item.ItemType == "LuckyBlock" then
+		local config = Shared_LuckyBlocks.Data[item.ConfigName]
+		return config and (config.Rarity or "") or ""
+	end
+
+	return ""
+end
+
+local function itemMatchesSearch(item: any, query: string): boolean
+	if query == "" then
+		return true
+	end
+
+	if not item then
+		return false
+	end
+
+	local modifier = if type(item.Data) == "table" and type(item.Data.Modifier) == "string" and item.Data.Modifier ~= ""
+		then item.Data.Modifier
+		else "Normal"
+	local itemType = if type(item.ItemType) == "string" then item.ItemType else ""
+	local configName = if type(item.ConfigName) == "string" then item.ConfigName else ""
+	local displayName = Client_ItemDisplay.getDisplayName(configName, itemType)
+	local rarity = getItemRarity(item)
+
+	local searchBlob = string.lower(table.concat({
+		displayName,
+		configName,
+		modifier,
+		rarity,
+		itemType,
+	}, " "))
+
+	return string.find(searchBlob, query, 1, true) ~= nil
+end
+
+local function updateSlotsCounter(inventory: { any })
+	if not slotsCountLabel then
+		return
+	end
+	slotsCountLabel.Text = ("%s/%s"):format(#inventory, INVENTORY_MAX_SLOTS)
+end
+
 local function createDragClone(original: ImageButton, item: any, playAnimation: boolean?)
 	local absSize = original.AbsoluteSize
 
@@ -132,6 +195,7 @@ local function createDragClone(original: ImageButton, item: any, playAnimation: 
 				local modifier = item.Data and item.Data.Modifier or "Normal"
 				local playIdle = playAnimation == true
 				Client_ItemDisplay.setupViewport(viewportFrame, item.ConfigName, modifier, playIdle)
+				Client_ItemDisplay.setModifierStroke(clone, modifier)
 
 				if playIdle then
 					task.defer(function()
@@ -156,6 +220,7 @@ local function createDragClone(original: ImageButton, item: any, playAnimation: 
 				itemName.Visible = true
 				itemName.Text = ""
 			end
+			Client_ItemDisplay.setModifierStroke(clone, "Normal")
 		end
 	end
 
@@ -555,13 +620,15 @@ local function refreshViewportAnimations()
 end
 
 function Client_Inventory.Render()
+	local inventory = Client_Data:GetValue("Inventory") or {}
+	updateSlotsCounter(inventory)
+
 	if not scrollingFrame or not itemTemplate then
 		return
 	end
 
 	clearInventorySlots()
-
-	local inventory = Client_Data:GetValue("Inventory") or {}
+	local searchQuery = normalizeSearchText(if searchTextBox then searchTextBox.Text else "")
 
 	for inventoryIndex = 1, #inventory do
 		if Client_Hotbar.IsInHotbar(inventoryIndex) then
@@ -569,6 +636,10 @@ function Client_Inventory.Render()
 		end
 
 		local item = inventory[inventoryIndex]
+		if not itemMatchesSearch(item, searchQuery) then
+			continue
+		end
+
 		local slot = itemTemplate:Clone()
 		slot.Name = "Item_" .. inventoryIndex
 		slot.Visible = true
@@ -602,10 +673,40 @@ function Client_Inventory.Init()
 	itemTemplate = scrollingFrame:WaitForChild("Template")
 	itemTemplate.Visible = false
 
+	local searchRoot = inventoryFrame:FindFirstChild("Search", true)
+	if searchRoot then
+		if searchRoot:IsA("TextBox") then
+			searchTextBox = searchRoot
+		else
+			local nestedSearch = searchRoot:FindFirstChildWhichIsA("TextBox", true)
+			if nestedSearch then
+				searchTextBox = nestedSearch
+			end
+		end
+	end
+
+	local slotsRoot = inventoryFrame:FindFirstChild("Slots", true)
+	if slotsRoot then
+		if slotsRoot:IsA("TextLabel") then
+			slotsCountLabel = slotsRoot
+		else
+			local nestedLabel = slotsRoot:FindFirstChildWhichIsA("TextLabel", true)
+			if nestedLabel then
+				slotsCountLabel = nestedLabel
+			end
+		end
+	end
+
 	Client_Equip.SetRefreshAll(function()
 		Client_Equip.Refresh(scrollingFrame, itemTemplate)
 		refreshViewportAnimations()
 	end)
+
+	if searchTextBox then
+		searchTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+			Client_Inventory.Render()
+		end)
+	end
 
 	for slotIndex = 1, Client_Hotbar.GetSize() do
 		local slotButton = Client_Hotbar.GetSlotButton(slotIndex)

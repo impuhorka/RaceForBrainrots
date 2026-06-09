@@ -4,11 +4,13 @@ local GuiService = game:GetService("GuiService")
 
 local UserInputService = game:GetService("UserInputService")
 
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
 local Client_LuckyBlockOpening = require(script.Parent.Client_LuckyBlockOpening)
 local Client_LuckyBlockRevealState = require(script.Parent.Client_LuckyBlockRevealState)
 local Client_Messaging = require(script.Parent.Client_Messaging)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
 
 local SLOT_KEY_CODES = {
 	Enum.KeyCode.One,
@@ -22,6 +24,13 @@ local SLOT_KEY_CODES = {
 	Enum.KeyCode.Nine,
 }
 
+local MOBILE_CONTROL_NAME_HINTS = {
+	"thumbstick",
+	"joystick",
+	"touchcontrol",
+	"jumpbutton",
+}
+
 local Client_Equip = {}
 local luckyBlockOpenCooldownUntil = 0
 local LUCKYBLOCK_OPEN_COOLDOWN = 0.35
@@ -31,6 +40,25 @@ local strokeTemplate: UIStroke?
 local slotStrokes: { [ImageButton]: UIStroke } = {}
 local equipListeners: { () -> () } = {}
 local refreshAll: (() -> ())?
+
+local function shouldPlaySfx(): boolean
+	local value = Client_Data:GetValue("SFX")
+	if value == nil then
+		return true
+	end
+	return value == true
+end
+
+local function playUiPopSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+	if not shouldPlaySfx() then
+		return
+	end
+	Client_SoundPreload.PlayUi(soundId, 1, 1)
+end
 
 local function notifyEquipChanged()
 	for _, listener in equipListeners do
@@ -188,11 +216,16 @@ function Client_Equip.Toggle(inventoryIndex: number?)
 	else
 		equippedInventoryIndex = inventoryIndex
 	end
+	playUiPopSfx()
 	notifyEquipChanged()
 end
 
 function Client_Equip.Unequip()
+	if not equippedInventoryIndex then
+		return
+	end
 	equippedInventoryIndex = nil
+	playUiPopSfx()
 	notifyEquipChanged()
 end
 
@@ -238,37 +271,81 @@ function Client_Equip.Init()
 			return false
 		end
 
-		local pointer = getPointerPosition(input)
-		local inset = GuiService:GetGuiInset()
-		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
-
-		local rawObjects = playerGui:GetGuiObjectsAtPosition(pointer.X, pointer.Y)
-		if #rawObjects > 0 then
-			-- On touch devices there are often fullscreen helper layers in PlayerGui.
-			-- Only block when touching actually interactive UI controls.
-			if input.UserInputType == Enum.UserInputType.Touch then
-				for _, gui in rawObjects do
-					if gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox") then
-						return true
-					end
-				end
-			else
-				return true
-			end
+		local function isInteractiveControl(gui: GuiObject): boolean
+			return gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox")
 		end
 
-		local insetObjects = playerGui:GetGuiObjectsAtPosition(guiPointer.X, guiPointer.Y)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			for _, gui in insetObjects do
-				if gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox") then
+		local function hasInteractiveControlAt(x: number, y: number): boolean
+			for _, gui in playerGui:GetGuiObjectsAtPosition(x, y) do
+				if isInteractiveControl(gui) then
 					return true
 				end
 			end
 			return false
 		end
-		if #insetObjects > 0 then
+
+		local pointer = getPointerPosition(input)
+		local inset = GuiService:GetGuiInset()
+		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+
+		if hasInteractiveControlAt(pointer.X, pointer.Y) then
 			return true
 		end
+
+		if hasInteractiveControlAt(guiPointer.X, guiPointer.Y) then
+			return true
+		end
+
+		return false
+	end
+
+	local function isTouchOnMobileMovementControl(input: InputObject): boolean
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return false
+		end
+
+		local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		if not playerGui then
+			return false
+		end
+
+		local pointer = getPointerPosition(input)
+		local inset = GuiService:GetGuiInset()
+		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+
+		local function hasControlHintsAt(x: number, y: number): boolean
+			for _, gui in playerGui:GetGuiObjectsAtPosition(x, y) do
+				local current: Instance? = gui
+				while current and current ~= playerGui do
+					local lowerName = string.lower(current.Name)
+					for _, hint in MOBILE_CONTROL_NAME_HINTS do
+						if string.find(lowerName, hint, 1, true) then
+							return true
+						end
+					end
+					current = current.Parent
+				end
+			end
+			return false
+		end
+
+		if hasControlHintsAt(pointer.X, pointer.Y) then
+			return true
+		end
+		if hasControlHintsAt(guiPointer.X, guiPointer.Y) then
+			return true
+		end
+
+		local character = Players.LocalPlayer.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.MoveDirection.Magnitude > 0 then
+			local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(0, 0)
+			-- Fallback for dynamic thumbstick: movement touch usually starts bottom-left.
+			if pointer.X <= viewport.X * 0.45 and pointer.Y >= viewport.Y * 0.5 then
+				return true
+			end
+		end
+
 		return false
 	end
 
@@ -288,6 +365,10 @@ function Client_Equip.Init()
 
 		if Client_LuckyBlockOpening.IsOpeningBusy() then
 			Client_Messaging.Show("Lucky block is already opening.", "red")
+			return
+		end
+
+		if inputType == Enum.UserInputType.Touch and isTouchOnMobileMovementControl(input) then
 			return
 		end
 

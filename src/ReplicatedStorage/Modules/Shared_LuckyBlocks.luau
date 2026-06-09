@@ -78,7 +78,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Common",
         
-        Image = "rbxassetid://133495849637215",
+        Image = "rbxassetid://78477350472889",
 
         MinLevel = 1,
         MaxLevel = 10,
@@ -89,7 +89,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Rare",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://89361878329509",
 
         MinLevel = 10,
         MaxLevel = 20,
@@ -100,7 +100,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Epic",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://97509263941551",
 
         MinLevel = 20,
         MaxLevel = 30,
@@ -111,7 +111,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Legendary",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://75895971800979",
 
         MinLevel = 30,
         MaxLevel = 40,
@@ -120,7 +120,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Mythical",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://121875813364809",
 
         MinLevel = 40,
         MaxLevel = 50,
@@ -129,7 +129,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Secret",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://114710058131467",
 
         MinLevel = 50,
         MaxLevel = 60,
@@ -138,7 +138,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Divine",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://90001956185589",
 
         MinLevel = 60,
         MaxLevel = 70,
@@ -147,7 +147,7 @@ LuckyBlocks.Data = {
         DisplayName = "Lucky Block",
         Rarity = "Superior",
         
-        Image = "rbxassetid://89530799088867",
+        Image = "rbxassetid://102574841893672",
 
         MinLevel = 70,
         MaxLevel = 80,

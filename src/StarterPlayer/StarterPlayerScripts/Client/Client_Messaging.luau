@@ -2,6 +2,10 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
+local Client_Data = require(script.Parent.Client_Data)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
+
 local Client_Messaging = {}
 
 local MAX_MESSAGES = 3
@@ -37,6 +41,22 @@ local messageTemplates: Folder?
 local activeMessages: { ActiveMessage } = {}
 local messagesByKey: { [string]: ActiveMessage } = {}
 local adminFeedbackConnected = false
+
+local function shouldPlaySfx(): boolean
+	local value = Client_Data:GetValue("SFX")
+	if value == nil then
+		return true
+	end
+	return value == true
+end
+
+local function playSfx(soundId: string)
+	if soundId == "" or not shouldPlaySfx() then
+		return
+	end
+
+	Client_SoundPreload.PlayUi(soundId, 1, 2)
+end
 
 local function getMessageKey(color: string, text: string): string
 	return color .. "\0" .. text
@@ -282,6 +302,12 @@ function Client_Messaging.Show(message: string, color: string?)
 	local normalizedColor = string.lower(color or "white")
 	if not COLOR_TEMPLATES[normalizedColor] then
 		normalizedColor = "white"
+	end
+
+	if normalizedColor == "green" and type(Shared_Sounds.SFX.Success) == "string" then
+		playSfx(Shared_Sounds.SFX.Success)
+	elseif normalizedColor == "red" and type(Shared_Sounds.SFX.Error) == "string" then
+		playSfx(Shared_Sounds.SFX.Error)
 	end
 
 	local trimmedMessage = string.gsub(message, "^%s*(.-)%s*$", "%1")

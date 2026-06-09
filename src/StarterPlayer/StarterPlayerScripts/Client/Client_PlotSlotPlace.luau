@@ -8,6 +8,7 @@ local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
 local Client_Hotbar = require(script.Parent.Client_Hotbar)
 local Client_Inventory = require(script.Parent.Client_Inventory)
+local Client_PlotSpawnAnimation = require(script.Parent.Client_PlotSpawnAnimation)
 
 local localPlayer = Players.LocalPlayer
 
@@ -47,6 +48,28 @@ local function getStandingPart(slotModel: Model): BasePart?
 	if standingPart and standingPart:IsA("BasePart") then
 		return standingPart
 	end
+	return nil
+end
+
+local function findOwnSlotModel(slotId: number): Model?
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local plotsFolder = gameFolder and gameFolder:FindFirstChild("Plots")
+	if not plotsFolder then
+		return nil
+	end
+
+	for _, plotModel in plotsFolder:GetChildren() do
+		if plotModel:IsA("Model") and getOwnerUserId(plotModel) == localPlayer.UserId then
+			local slotsFolder = plotModel:FindFirstChild("Slots")
+			if slotsFolder then
+				local slotModel = slotsFolder:FindFirstChild("Slot" .. slotId)
+				if slotModel and slotModel:IsA("Model") then
+					return slotModel
+				end
+			end
+		end
+	end
+
 	return nil
 end
 
@@ -203,8 +226,16 @@ function Client_PlotSlotPlace.Init()
 	local events = ReplicatedStorage:WaitForChild("Events")
 	local plotHandler = events:WaitForChild("PlotHandler") :: RemoteEvent
 
-	plotHandler.OnClientEvent:Connect(function(action: string, _payload: number)
+	plotHandler.OnClientEvent:Connect(function(action: string, payload: any, _payload2: any)
 		if action == "PlaceSuccess" then
+			if type(payload) == "number" then
+				task.defer(function()
+					local slotModel = findOwnSlotModel(payload)
+					if slotModel then
+						Client_PlotSpawnAnimation.AnimateSlotPlace(slotModel)
+					end
+				end)
+			end
 			Client_Equip.Unequip()
 			Client_Hotbar.Refresh()
 			Client_Inventory.Render()

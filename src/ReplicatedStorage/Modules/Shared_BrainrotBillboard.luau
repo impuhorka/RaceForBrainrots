@@ -28,6 +28,29 @@ local function setFrameTextLabel(billboard: Instance, frameName: string, text: s
 	end
 end
 
+local function getFrameTextLabel(billboard: Instance, frameName: string): TextLabel?
+	local frame = billboard:FindFirstChild(frameName, true)
+	if not frame then
+		return nil
+	end
+
+	if frame:IsA("TextLabel") then
+		return frame
+	end
+
+	local direct = frame:FindFirstChild("TextLabel")
+	if direct and direct:IsA("TextLabel") then
+		return direct
+	end
+
+	local nested = frame:FindFirstChildWhichIsA("TextLabel", true)
+	if nested and nested:IsA("TextLabel") then
+		return nested
+	end
+
+	return nil
+end
+
 local function setFrameVisible(billboard: Instance, frameName: string, visible: boolean)
 	local frame = billboard:FindFirstChild(frameName, true)
 	if frame and frame:IsA("GuiObject") then
@@ -44,6 +67,7 @@ local function applyTextLabelGradient(textLabel: TextLabel, colorGradient: Color
 
 	gradient.Color = colorGradient
 	gradient.Rotation = rotation
+	gradient.Enabled = true
 end
 
 function Shared_BrainrotBillboard.Setup(
@@ -94,8 +118,8 @@ function Shared_BrainrotBillboard.Setup(
 
 		if hasModifier then
 			local modifierConfig = Shared_Modifiers.Data[resolvedModifier]
-			local modifierLabel = modifierFrame:FindFirstChild("TextLabel")
-			if modifierLabel and modifierLabel:IsA("TextLabel") and modifierConfig then
+			local modifierLabel = getFrameTextLabel(billboard, "Modifier")
+			if modifierLabel and modifierConfig then
 				modifierLabel.Text = modifierConfig.DisplayName or resolvedModifier
 				if modifierConfig.ColorGradient then
 					applyTextLabelGradient(
@@ -113,8 +137,8 @@ function Shared_BrainrotBillboard.Setup(
 	if rarityFrame then
 		setFrameVisible(billboard, "Rarity", true)
 
-		local rarityLabel = rarityFrame:FindFirstChild("TextLabel")
-		if rarityLabel and rarityLabel:IsA("TextLabel") and rarityConfig then
+		local rarityLabel = getFrameTextLabel(billboard, "Rarity")
+		if rarityLabel and rarityConfig then
 			rarityLabel.Text = rarityConfig.DisplayName or config.Rarity
 			if rarityConfig.ColorGradient then
 				applyTextLabelGradient(

@@ -162,7 +162,7 @@ function PlotPlacement.PlaceBrainrot(player: Player, plot, slotId: number, inven
 
 	PlotPlacement.ApplySlotData(plot, slotId, slotModel, slotData)
 
-	getPlotHandlerEvent():FireClient(player, "PlaceSuccess", inventoryIndex)
+	getPlotHandlerEvent():FireClient(player, "PlaceSuccess", slotId, inventoryIndex)
 	finish()
 	return true
 end

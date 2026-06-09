@@ -12,6 +12,8 @@ local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
+local Shared_SpeedStore = require(ReplicatedStorage.Modules.Shared_SpeedStore)
+local Shared_StrengthStore = require(ReplicatedStorage.Modules.Shared_StrengthStore)
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
 
@@ -240,6 +242,55 @@ local function sellAllBrainrots(player: Player): (number, number)
 	return soldCount, totalWorth
 end
 
+local function tryBuySpeed(player: Player, amount: number): (boolean, string?, number?, number?)
+	local safeAmount = math.floor(amount)
+	if not Shared_SpeedStore.IsValidPurchaseAmount(safeAmount) then
+		return false, "InvalidAmount", nil, nil
+	end
+
+	local currentSpeed = math.max(1, math.floor(Server_Data:GetValue(player, "Speed") or Shared_SpeedStore.DefaultSpeed))
+	local cost = Shared_SpeedStore.GetPurchaseCost(currentSpeed, safeAmount)
+	local currentCash = Server_Data:GetValue(player, "Cash") or 0
+
+	if currentCash < cost then
+		return false, "NotEnoughCash", cost, currentSpeed
+	end
+
+	Server_Data:SubValue(player, "Cash", cost)
+
+	local newSpeed = Shared_SpeedStore.GetSpeedAfterPurchase(currentSpeed, safeAmount)
+	Server_Data:SetValue(player, "Speed", newSpeed)
+
+	return true, nil, cost, newSpeed
+end
+
+local function tryBuyStrength(player: Player, amount: number): (boolean, string?, number?, number?)
+	local safeAmount = math.floor(amount)
+	if not Shared_StrengthStore.IsValidPurchaseAmount(safeAmount) then
+		return false, "InvalidAmount", nil, nil
+	end
+
+	local currentStrength = math.max(1, math.floor(Server_Data:GetValue(player, "Strength") or Shared_StrengthStore.DefaultStrength))
+	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount)
+	local currentCash = Server_Data:GetValue(player, "Cash") or 0
+
+	if currentCash < cost then
+		return false, "NotEnoughCash", cost, currentStrength
+	end
+
+	Server_Data:SubValue(player, "Cash", cost)
+
+	local newStrength = Shared_StrengthStore.GetStrengthAfterPurchase(currentStrength, safeAmount)
+	Server_Data:SetValue(player, "Strength", newStrength)
+
+	return true, nil, cost, newStrength
+end
+
+local function setSlowMode(player: Player, enabled: boolean): boolean
+	Server_Data:SetValue(player, "SlowMode", enabled == true)
+	return true
+end
+
 local function getPlayerSlotCount(player: Player): number
 	return Server_Data:GetValue(player, "TotalPlotSlots") or PlotConfig.DefaultPlotSlots
 end
@@ -453,6 +504,40 @@ function PlotService:Init()
 			else
 				plotHandler:FireClient(player, "SellAllBrainrotsFailed")
 			end
+			return
+		end
+
+		if action == "BuySpeed" then
+			if type(slotId) ~= "number" then
+				return
+			end
+			local bought, reason, cost, newSpeed = tryBuySpeed(player, slotId)
+			if bought then
+				plotHandler:FireClient(player, "SpeedPurchaseSuccess", math.floor(slotId), cost, newSpeed)
+			else
+				plotHandler:FireClient(player, "SpeedPurchaseFailed", reason, cost)
+			end
+			return
+		end
+
+		if action == "BuyStrength" then
+			if type(slotId) ~= "number" then
+				return
+			end
+			local bought, reason, cost, newStrength = tryBuyStrength(player, slotId)
+			if bought then
+				plotHandler:FireClient(player, "StrengthPurchaseSuccess", math.floor(slotId), cost, newStrength)
+			else
+				plotHandler:FireClient(player, "StrengthPurchaseFailed", reason, cost)
+			end
+			return
+		end
+
+		if action == "SetSlowMode" then
+			if type(slotId) ~= "boolean" then
+				return
+			end
+			setSlowMode(player, slotId)
 		end
 	end)
 

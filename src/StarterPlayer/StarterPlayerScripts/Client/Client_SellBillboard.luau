@@ -6,9 +6,11 @@ local Workspace = game:GetService("Workspace")
 
 local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
 local Client_Messaging = require(script.Parent.Client_Messaging)
+local Client_SoundPreload = require(script.Parent.Client_SoundPreload)
 
 local Client_SellBillboard = {}
 
@@ -16,6 +18,7 @@ local ACTIVATE_DISTANCE = 20
 local CHECK_INTERVAL = 0.1
 local BUTTON_SLIDE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local BUTTON_STAGGER = 0.05
+local BUTTON_SFX_STAGGER = BUTTON_STAGGER * 2
 local SELL_ONE_HOLD_DURATION = 1.0
 local SELL_ALL_HOLD_DURATION = 1.5
 local SELL_ALL_PROGRESS_HEIGHT_SCALE = 1.05
@@ -41,6 +44,25 @@ local sellHoldStart = 0
 local sellAllHoldStart = 0
 local sellProgressFrame: Frame? = nil
 local sellAllProgressFrame: Frame? = nil
+
+local function shouldPlaySfx(): boolean
+	local value = Client_Data:GetValue("SFX")
+	if value == nil then
+		return true
+	end
+	return value == true
+end
+
+local function playUiPopSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+	if not shouldPlaySfx() then
+		return
+	end
+	Client_SoundPreload.PlayUi(soundId, 1, 1)
+end
 
 local function getAnimatedFrames(billboard: BillboardGui): { GuiObject }
 	local rootFrame = billboard:FindFirstChild("Frame")
@@ -83,6 +105,11 @@ local function animateBillboardButtonsIn(billboard: BillboardGui)
 	local animatedFrames = getAnimatedFrames(billboard)
 	for index, frameToTween in animatedFrames do
 		frameToTween.Position = UDim2.new(-1, frameToTween.Position.X.Offset, 0.5, frameToTween.Position.Y.Offset)
+		task.delay((index - 1) * BUTTON_SFX_STAGGER, function()
+			if frameToTween.Parent then
+				playUiPopSfx()
+			end
+		end)
 		task.delay((index - 1) * BUTTON_STAGGER, function()
 			if not frameToTween.Parent then
 				return

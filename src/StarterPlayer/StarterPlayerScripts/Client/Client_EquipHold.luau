@@ -4,8 +4,9 @@ local RunService = game:GetService("RunService")
 
 local Shared_BrainrotAnimations = require(ReplicatedStorage.Modules.Shared_BrainrotAnimations)
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_LuckyBlockBillboard = require(ReplicatedStorage.Modules.Shared_LuckyBlockBillboard)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 
 local Client_Data = require(script.Parent.Client_Data)
 local Client_Equip = require(script.Parent.Client_Equip)
@@ -160,7 +161,24 @@ local function clearHeldVisual()
 	end
 end
 
-local function attachBrainrotToTorso(model: Model, character: Model, forwardOffsetDelta: number?, heightOffsetDelta: number?): boolean
+local function getLuckyBlockHoldScaleRatio(model: Model): number
+	local originScale = Shared_Weight.GetLuckyBlockModelOriginScale(model)
+	local ok, currentScale = pcall(function()
+		return model:GetScale()
+	end)
+	if ok and type(currentScale) == "number" and originScale > 0 then
+		return math.max(1, currentScale / originScale)
+	end
+	return 1
+end
+
+local function attachBrainrotToTorso(
+	model: Model,
+	character: Model,
+	forwardOffsetDelta: number?,
+	heightOffsetDelta: number?,
+	useLuckyBlockSizing: boolean?
+): boolean
 	if not model.PrimaryPart then
 		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
 	end
@@ -188,13 +206,25 @@ local function attachBrainrotToTorso(model: Model, character: Model, forwardOffs
 		end
 	end
 
-	local resolvedForwardOffset = TORSO_FORWARD_OFFSET + (forwardOffsetDelta or 0)
-	local resolvedHeightOffset = TORSO_HEIGHT_OFFSET + (heightOffsetDelta or 0)
+	local scaleRatio = if useLuckyBlockSizing then getLuckyBlockHoldScaleRatio(model) else 1
+	local resolvedForwardOffset = (TORSO_FORWARD_OFFSET + (forwardOffsetDelta or 0)) * scaleRatio
+	local resolvedHeightOffset = (TORSO_HEIGHT_OFFSET + (heightOffsetDelta or 0)) * scaleRatio
+
+	local halfDepth: number
+	local heightLift: number
+	if useLuckyBlockSizing then
+		local _, boundsSize = model:GetBoundingBox()
+		halfDepth = boundsSize.Z * 0.5
+		heightLift = boundsSize.Y * 0.35
+	else
+		halfDepth = primaryPart.Size.Z / 2
+		heightLift = primaryPart.Size.Y * 0.3
+	end
 
 	local offset = CFrame.new(
 		0,
-		primaryPart.Size.Y * 0.3 + resolvedHeightOffset,
-		-primaryPart.Size.Z / 2 - resolvedForwardOffset
+		heightLift + resolvedHeightOffset,
+		-halfDepth - resolvedForwardOffset
 	)
 	model:PivotTo(attachPart.CFrame * offset)
 
@@ -258,10 +288,15 @@ local function refreshHeldVisual()
 	end
 
 	if itemType == "Brainrot" then
-		model:ScaleTo(Shared_Brainrots.GetScaleForLevel(level))
+		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(item.Data, configName)
+		Shared_Weight.ApplyBrainrotScale(model, baseWeight, rolledWeight)
+	elseif itemType == "LuckyBlock" then
+		local defaultBase = Shared_LuckyBlocks.GetBaseWeight(configName)
+		local baseWeight, weight = Shared_Weight.ResolveLuckyBlockWeights(item.Data, defaultBase)
+		Shared_Weight.ApplyLuckyBlockScale(model, baseWeight, weight)
 	end
 
-	if not attachBrainrotToTorso(model, character, forwardOffsetDelta, heightOffsetDelta) then
+	if not attachBrainrotToTorso(model, character, forwardOffsetDelta, heightOffsetDelta, itemType == "LuckyBlock") then
 		model:Destroy()
 		return
 	end
@@ -270,7 +305,12 @@ local function refreshHeldVisual()
 	model:SetAttribute("ConfigName", configName)
 
 	if itemType == "Brainrot" then
-		Shared_BrainrotBillboard.Setup(model, configName, modifier, level)
+		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(item.Data, configName)
+		Shared_BrainrotBillboard.Setup(model, configName, modifier, level, baseWeight, rolledWeight)
+	elseif itemType == "LuckyBlock" then
+		local defaultBase = Shared_LuckyBlocks.GetBaseWeight(configName)
+		local baseWeight, weight = Shared_Weight.ResolveLuckyBlockWeights(item.Data, defaultBase)
+		Shared_LuckyBlockBillboard.Setup(model, configName, baseWeight, weight)
 	end
 
 	if shouldPlayAnimations() then

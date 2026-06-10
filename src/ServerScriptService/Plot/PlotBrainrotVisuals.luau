@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
 
 local PlotBrainrotVisuals = {}
@@ -49,7 +49,12 @@ local function updateBillboardAttachment(brainrotModel: Model)
 	end
 end
 
-function PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel: Model, slotModel: Model, level: number)
+function PlotBrainrotVisuals.ApplyScaleAndPosition(
+	brainrotModel: Model,
+	slotModel: Model,
+	baseWeight: number?,
+	rolledWeight: number?
+)
 	local detachedBillboard: BillboardGui? = nil
 	local billboardAttachment: Attachment? = nil
 
@@ -65,8 +70,11 @@ function PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel: Model, slotMod
 		end
 	end
 
-	local scale = Shared_Brainrots.GetScaleForLevel(level)
-	brainrotModel:ScaleTo(scale)
+	local base, rolled = Shared_Weight.ResolveBrainrotWeights(
+		{ BaseWeight = baseWeight, Weight = rolledWeight },
+		""
+	)
+	Shared_Weight.ApplyBrainrotScale(brainrotModel, base, rolled)
 
 	local pivot = getStandingPivot(slotModel, brainrotModel)
 	if pivot then
@@ -84,18 +92,22 @@ function PlotBrainrotVisuals.SetupBillboard(
 	brainrotModel: Model,
 	configName: string,
 	modifier: string?,
-	level: number?
+	level: number?,
+	baseWeight: number?,
+	rolledWeight: number?
 )
-	Shared_BrainrotBillboard.Setup(brainrotModel, configName, modifier, level)
+	Shared_BrainrotBillboard.Setup(brainrotModel, configName, modifier, level, baseWeight, rolledWeight)
 end
 
 function PlotBrainrotVisuals.UpdateBillboardIncome(
 	brainrotModel: Model,
 	configName: string,
 	modifier: string?,
-	level: number?
+	level: number?,
+	baseWeight: number?,
+	rolledWeight: number?
 )
-	Shared_BrainrotBillboard.UpdateIncome(brainrotModel, configName, modifier, level)
+	Shared_BrainrotBillboard.UpdateIncome(brainrotModel, configName, modifier, level, baseWeight, rolledWeight)
 end
 
 function PlotBrainrotVisuals.ClearSlot(slotModel: Model)
@@ -137,6 +149,8 @@ function PlotBrainrotVisuals.PlaceOnSlot(
 	configName: string,
 	modifier: string?,
 	level: number?,
+	baseWeight: number?,
+	rolledWeight: number?,
 	onPickup: ((Player) -> ())?
 )
 	PlotBrainrotVisuals.ClearSlot(slotModel)
@@ -164,8 +178,17 @@ function PlotBrainrotVisuals.PlaceOnSlot(
 	brainrotModel:SetAttribute("ConfigName", configName)
 	brainrotModel.Parent = slotModel
 
-	PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel, slotModel, level or 1)
-	PlotBrainrotVisuals.SetupBillboard(brainrotModel, configName, modifier, level)
+	local resolvedBaseWeight, resolvedRolledWeight =
+		Shared_Weight.ResolveBrainrotWeights({ BaseWeight = baseWeight, Weight = rolledWeight }, configName)
+	PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel, slotModel, resolvedBaseWeight, resolvedRolledWeight)
+	PlotBrainrotVisuals.SetupBillboard(
+		brainrotModel,
+		configName,
+		modifier,
+		level,
+		resolvedBaseWeight,
+		resolvedRolledWeight
+	)
 
 	if onPickup then
 		PlotBrainrotVisuals.SetupPickupPrompt(brainrotModel, onPickup)

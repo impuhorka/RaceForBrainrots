@@ -26,7 +26,13 @@ local function getTotalCashPerSecond(player: Player): number
 
 		local level = slotData.Level or 1
 		local modifier = slotData.Modifier or "Normal"
-		total += Shared_Brainrots.GetCashPerSecond(configName, level, modifier)
+		total += Shared_Brainrots.GetCashPerSecond(
+			configName,
+			level,
+			modifier,
+			slotData.BaseWeight,
+			slotData.Weight
+		)
 	end
 
 	return total

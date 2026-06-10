@@ -16,7 +16,9 @@ end
 local function getIncomePerSecond(slotModel: Model, configName: string): number
 	local level = slotModel:GetAttribute("Level") or 1
 	local modifier = slotModel:GetAttribute("Modifier") or "Normal"
-	return Shared_Brainrots.GetCashPerSecond(configName, level, modifier)
+	local baseWeight = slotModel:GetAttribute("BaseWeight")
+	local weight = slotModel:GetAttribute("Weight")
+	return Shared_Brainrots.GetCashPerSecond(configName, level, modifier, baseWeight, weight)
 end
 
 function PlotCash.GetSlotId(slotModel: Model): number

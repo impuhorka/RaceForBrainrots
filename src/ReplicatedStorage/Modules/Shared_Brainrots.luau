@@ -1,9 +1,12 @@
 local Shared_Rarities = require(script.Parent.Utilities.Shared_Rarities)
 local Shared_Modifiers = require(script.Parent.Utilities.Shared_Modifiers)
+local Shared_Weight = require(script.Parent.Shared_Weight)
 
 local Brainrots = {}
 
 Brainrots.MaxLevel = 150
+
+Brainrots.DefaultBaseWeight = 15
 
 Brainrots.Balance = {
 	IncomeLevelMultiplier = 1.25,
@@ -107,18 +110,20 @@ function Brainrots.GetDisplayName(configName: string): string
 	return config.DispalayName or config.DisplayName or configName
 end
 
+function Brainrots.GetDefaultBaseWeight(_configName: string?): number
+	return Brainrots.DefaultBaseWeight or 15
+end
+
+function Brainrots.GetScaleForWeight(baseWeight: number?, rolledWeight: number?): number
+	local base, rolled = Shared_Weight.ResolveBrainrotWeights(
+		{ BaseWeight = baseWeight, Weight = rolledWeight },
+		""
+	)
+	return Shared_Weight.GetBrainrotScaleMultiplier(base, rolled)
+end
+
 function Brainrots.GetScaleForLevel(level: number): number
-	local minScale = Brainrots.Balance.MinPlotScale or 0.5
-	local maxScale = Brainrots.Balance.MaxPlotScale or 2
-	local maxLevel = Brainrots.MaxLevel or 150
-	local safeLevel = math.clamp(level or 1, 1, maxLevel)
-
-	if maxLevel <= 1 then
-		return minScale
-	end
-
-	local alpha = (safeLevel - 1) / (maxLevel - 1)
-	return minScale + (maxScale - minScale) * alpha
+	return Brainrots.GetScaleForWeight(Brainrots.DefaultBaseWeight, Brainrots.DefaultBaseWeight)
 end
 
 function Brainrots.GetBaseCashPerSecond(configName: string): number
@@ -140,8 +145,20 @@ function Brainrots.GetBaseCashPerSecond(configName: string): number
 	return math.floor(cashPerSecond)
 end
 
-function Brainrots.GetCashPerSecond(configName: string, level: number, modifier: string): number
-	return roundEconomy(getRawCashPerSecond(configName, level, modifier))
+function Brainrots.GetCashPerSecond(
+	configName: string,
+	level: number,
+	modifier: string,
+	baseWeight: number?,
+	rolledWeight: number?
+): number
+	local rawIncome = getRawCashPerSecond(configName, level, modifier)
+	local base, rolled = Shared_Weight.ResolveBrainrotWeights(
+		{ BaseWeight = baseWeight, Weight = rolledWeight },
+		configName
+	)
+	local weightMult = Shared_Weight.GetIncomeMultiplier(base, rolled)
+	return math.max(0, math.floor(rawIncome * weightMult + 0.5))
 end
 
 function Brainrots.GetUpgradePaybackSeconds(level: number): number
@@ -167,7 +184,13 @@ function Brainrots.GetUpgradePaybackSeconds(level: number): number
 	return base * levelFactor * stepFactor
 end
 
-function Brainrots.GetUpgradeCost(configName: string, currentLevel: number, modifier: string): number
+function Brainrots.GetUpgradeCost(
+	configName: string,
+	currentLevel: number,
+	modifier: string,
+	baseWeight: number?,
+	rolledWeight: number?
+): number
 	local config = Brainrots.Data[configName]
 	if not config then
 		return 0
@@ -178,13 +201,26 @@ function Brainrots.GetUpgradeCost(configName: string, currentLevel: number, modi
 		return 0
 	end
 
-	local incomeNow = getRawCashPerSecond(configName, safeLevel, modifier)
-	local incomeNext = getRawCashPerSecond(configName, safeLevel + 1, modifier)
+	local resolvedModifier = modifier or "Normal"
+	local incomeNow = Brainrots.GetCashPerSecond(
+		configName,
+		safeLevel,
+		resolvedModifier,
+		baseWeight,
+		rolledWeight
+	)
+	local incomeNext = Brainrots.GetCashPerSecond(
+		configName,
+		safeLevel + 1,
+		resolvedModifier,
+		baseWeight,
+		rolledWeight
+	)
 	local delta = math.max(0, incomeNext - incomeNow)
 
 	local paybackSeconds = Brainrots.GetUpgradePaybackSeconds(safeLevel)
 	paybackSeconds *= Shared_Rarities.GetPaybackMultiplier(config.Rarity)
-	paybackSeconds *= Shared_Modifiers.GetUpgradeCostMultiplier(modifier)
+	paybackSeconds *= Shared_Modifiers.GetUpgradeCostMultiplier(resolvedModifier)
 
 	return roundEconomy(delta * paybackSeconds)
 end

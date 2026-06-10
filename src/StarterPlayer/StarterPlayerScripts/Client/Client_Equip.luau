@@ -24,11 +24,10 @@ local SLOT_KEY_CODES = {
 	Enum.KeyCode.Nine,
 }
 
-local MOBILE_CONTROL_NAME_HINTS = {
-	"thumbstick",
-	"joystick",
-	"touchcontrol",
-	"jumpbutton",
+-- Never treat these UI roots as blocking lucky-block screen taps.
+local LUCKY_BLOCK_INPUT_BLACKLIST = {
+	CashAdding = true,
+	Messaging = true,
 }
 
 local Client_Equip = {}
@@ -245,18 +244,51 @@ function Client_Equip.Refresh(scrollingFrame: ScrollingFrame?, itemTemplate: Ins
 	end
 end
 
+local function isUnderBlacklistedUi(gui: Instance?): boolean
+	local current = gui
+	while current do
+		if LUCKY_BLOCK_INPUT_BLACKLIST[current.Name] then
+			return true
+		end
+		if current:GetAttribute("LuckyBlockInputBlacklist") == true then
+			return true
+		end
+		if cashAddingFrame ~= nil and (current == cashAddingFrame or current:IsDescendantOf(cashAddingFrame)) then
+			return true
+		end
+		current = current.Parent
+	end
+	return false
+end
+
+local function resolveCashAddingFrame()
+	local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return
+	end
+
+	local main = playerGui:FindFirstChild("Main")
+	if not main or not main:IsA("GuiObject") then
+		return
+	end
+
+	local foundCashAdding = main:FindFirstChild("CashAdding")
+	if foundCashAdding and foundCashAdding:IsA("GuiObject") then
+		cashAddingFrame = foundCashAdding
+	end
+end
+
 function Client_Equip.Init()
 	getStrokeTemplate()
-	local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
-	if playerGui then
-		local main = playerGui:FindFirstChild("Main")
-		if main and main:IsA("GuiObject") then
-			local foundCashAdding = main:FindFirstChild("CashAdding")
-			if foundCashAdding and foundCashAdding:IsA("GuiObject") then
-				cashAddingFrame = foundCashAdding
-			end
+	resolveCashAddingFrame()
+	task.defer(function()
+		local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+		local main = playerGui:WaitForChild("Main")
+		local foundCashAdding = main:WaitForChild("CashAdding", 10)
+		if foundCashAdding and foundCashAdding:IsA("GuiObject") then
+			cashAddingFrame = foundCashAdding
 		end
-	end
+	end)
 
 	local function getPointerPosition(input: InputObject): Vector2
 		if input.UserInputType == Enum.UserInputType.Touch then
@@ -283,7 +315,7 @@ function Client_Equip.Init()
 		end
 
 		local function isIgnorableUi(gui: GuiObject): boolean
-			if cashAddingFrame ~= nil and gui:IsDescendantOf(cashAddingFrame) then
+			if isUnderBlacklistedUi(gui) then
 				return true
 			end
 			if gui.Name == "TrackHit" then
@@ -292,82 +324,62 @@ function Client_Equip.Init()
 			return false
 		end
 
-		local function isInteractiveControl(gui: GuiObject): boolean
-			if not isGuiVisibleForInput(gui) or isIgnorableUi(gui) then
+		local function isBlockingInteractiveControl(gui: GuiObject): boolean
+			if isIgnorableUi(gui) then
+				return false
+			end
+			if not isGuiVisibleForInput(gui) then
+				return false
+			end
+			if not gui.Active then
 				return false
 			end
 			return gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox")
 		end
 
-		local function hasInteractiveControlAt(x: number, y: number): boolean
+		local function hasBlockingInteractiveControlAt(x: number, y: number): boolean
 			for _, gui in playerGui:GetGuiObjectsAtPosition(x, y) do
-				if isInteractiveControl(gui) then
+				if isUnderBlacklistedUi(gui) then
+					continue
+				end
+				if isBlockingInteractiveControl(gui) then
 					return true
 				end
 			end
 			return false
 		end
 
-		local pointer = getPointerPosition(input)
-		local inset = GuiService:GetGuiInset()
-		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+		local function isTapOnlyOverBlacklistedUi(x: number, y: number): boolean
+			local objects = playerGui:GetGuiObjectsAtPosition(x, y)
+			if #objects == 0 then
+				return false
+			end
 
-		if hasInteractiveControlAt(pointer.X, pointer.Y) then
-			return true
-		end
-
-		if hasInteractiveControlAt(guiPointer.X, guiPointer.Y) then
-			return true
-		end
-
-		return false
-	end
-
-	local function isTouchOnMobileMovementControl(input: InputObject): boolean
-		if input.UserInputType ~= Enum.UserInputType.Touch then
-			return false
-		end
-
-		local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
-		if not playerGui then
-			return false
-		end
-
-		local pointer = getPointerPosition(input)
-		local inset = GuiService:GetGuiInset()
-		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
-
-		local function hasControlHintsAt(x: number, y: number): boolean
-			for _, gui in playerGui:GetGuiObjectsAtPosition(x, y) do
-				local current: Instance? = gui
-				while current and current ~= playerGui do
-					local lowerName = string.lower(current.Name)
-					for _, hint in MOBILE_CONTROL_NAME_HINTS do
-						if string.find(lowerName, hint, 1, true) then
-							return true
-						end
-					end
-					current = current.Parent
+			for _, gui in objects do
+				if not isUnderBlacklistedUi(gui) then
+					return false
 				end
 			end
+			return true
+		end
+
+		local pointer = getPointerPosition(input)
+		local inset = GuiService:GetGuiInset()
+		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+
+		if isTapOnlyOverBlacklistedUi(pointer.X, pointer.Y) then
+			return false
+		end
+		if isTapOnlyOverBlacklistedUi(guiPointer.X, guiPointer.Y) then
 			return false
 		end
 
-		if hasControlHintsAt(pointer.X, pointer.Y) then
-			return true
-		end
-		if hasControlHintsAt(guiPointer.X, guiPointer.Y) then
+		if hasBlockingInteractiveControlAt(pointer.X, pointer.Y) then
 			return true
 		end
 
-		local character = Players.LocalPlayer.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		if humanoid and humanoid.MoveDirection.Magnitude > 0 then
-			local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(0, 0)
-			-- Fallback for dynamic thumbstick: movement touch usually starts bottom-left.
-			if pointer.X <= viewport.X * 0.45 and pointer.Y >= viewport.Y * 0.5 then
-				return true
-			end
+		if hasBlockingInteractiveControlAt(guiPointer.X, guiPointer.Y) then
+			return true
 		end
 
 		return false
@@ -383,14 +395,6 @@ function Client_Equip.Init()
 			return
 		end
 
-		if inputType == Enum.UserInputType.Touch and isTouchOnMobileMovementControl(input) then
-			return
-		end
-
-		if isClickOverAnyUi(input) then
-			return
-		end
-
 		local equippedIndex = equippedInventoryIndex
 		if not equippedIndex then
 			return
@@ -399,6 +403,12 @@ function Client_Equip.Init()
 		local inventory = Client_Data:GetValue("Inventory") or {}
 		local item = inventory[equippedIndex]
 		if not item or item.ItemType ~= "LuckyBlock" then
+			return
+		end
+
+		-- Mobile: tap anywhere opens the lucky block. CashAdding and other HUD overlays
+		-- must never block touch input for this flow.
+		if inputType ~= Enum.UserInputType.Touch and isClickOverAnyUi(input) then
 			return
 		end
 

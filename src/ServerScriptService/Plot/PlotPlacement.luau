@@ -4,6 +4,7 @@ local PlotBrainrotVisuals = require(script.Parent.PlotBrainrotVisuals)
 local PlotCash = require(script.Parent.PlotCash)
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 
 local PlotPlacement = {}
 
@@ -26,9 +27,17 @@ local function slotHasBrainrot(slotModel: Model): boolean
 end
 
 function PlotPlacement.ApplySlotData(plot, slotId: number, slotModel: Model, slotData: any)
+	if type(slotData.ConfigName) == "string" then
+		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(slotData, slotData.ConfigName)
+		slotData.BaseWeight = baseWeight
+		slotData.Weight = rolledWeight
+	end
+
 	slotModel:SetAttribute("ConfigName", slotData.ConfigName)
 	slotModel:SetAttribute("Level", slotData.Level or 1)
 	slotModel:SetAttribute("Modifier", slotData.Modifier or "Normal")
+	slotModel:SetAttribute("BaseWeight", slotData.BaseWeight)
+	slotModel:SetAttribute("Weight", slotData.Weight)
 	slotModel:SetAttribute("CashToCollect", slotData.CashToCollect or 0)
 
 	local function onPickup(triggerPlayer: Player)
@@ -40,6 +49,8 @@ function PlotPlacement.ApplySlotData(plot, slotId: number, slotModel: Model, slo
 		slotData.ConfigName,
 		slotData.Modifier or "Normal",
 		slotData.Level or 1,
+		slotData.BaseWeight,
+		slotData.Weight,
 		onPickup
 	)
 end
@@ -48,6 +59,8 @@ function PlotPlacement.ClearSlot(slotModel: Model)
 	slotModel:SetAttribute("ConfigName", nil)
 	slotModel:SetAttribute("Level", nil)
 	slotModel:SetAttribute("Modifier", nil)
+	slotModel:SetAttribute("BaseWeight", nil)
+	slotModel:SetAttribute("Weight", nil)
 	slotModel:SetAttribute("CashToCollect", nil)
 	PlotBrainrotVisuals.ClearSlot(slotModel)
 end
@@ -100,6 +113,8 @@ function PlotPlacement.PickupBrainrot(player: Player, plot, slotId: number): boo
 		Data = {
 			Level = slotData.Level or 1,
 			Modifier = slotData.Modifier or "Normal",
+			BaseWeight = slotData.BaseWeight,
+			Weight = slotData.Weight,
 		},
 	}
 
@@ -148,11 +163,14 @@ function PlotPlacement.PlaceBrainrot(player: Player, plot, slotId: number, inven
 		return false
 	end
 
+	local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(item.Data, item.ConfigName)
 	local slotData = {
 		CashToCollect = 0,
 		ConfigName = item.ConfigName,
 		Level = item.Data and item.Data.Level or 1,
 		Modifier = item.Data and item.Data.Modifier or "Normal",
+		BaseWeight = baseWeight,
+		Weight = rolledWeight,
 	}
 
 	if not Server_Data:SetPlotSlot(player, slotId, slotData) then
@@ -212,7 +230,13 @@ function PlotPlacement.UpgradeBrainrot(player: Player, plot, slotId: number): bo
 		return false
 	end
 
-	local upgradeCost = Shared_Brainrots.GetUpgradeCost(configName, level, modifier)
+	local upgradeCost = Shared_Brainrots.GetUpgradeCost(
+		configName,
+		level,
+		modifier,
+		slotData.BaseWeight,
+		slotData.Weight
+	)
 	if upgradeCost <= 0 then
 		finish()
 		return false
@@ -246,8 +270,14 @@ function PlotPlacement.UpgradeBrainrot(player: Player, plot, slotId: number): bo
 			if not brainrotModel.Parent then
 				return
 			end
-			PlotBrainrotVisuals.ApplyScaleAndPosition(brainrotModel, slotModel, newLevel)
-			PlotBrainrotVisuals.UpdateBillboardIncome(brainrotModel, configName, modifier, newLevel)
+			PlotBrainrotVisuals.UpdateBillboardIncome(
+				brainrotModel,
+				configName,
+				modifier,
+				newLevel,
+				slotData.BaseWeight,
+				slotData.Weight
+			)
 		end)
 	end
 

@@ -78,7 +78,10 @@ local function itemsMatch(a: any, b: any): boolean
 
 	local aData = a.Data or {}
 	local bData = b.Data or {}
-	return (aData.Level or 1) == (bData.Level or 1) and (aData.Modifier or "Normal") == (bData.Modifier or "Normal")
+	return (aData.Level or 1) == (bData.Level or 1)
+		and (aData.Modifier or "Normal") == (bData.Modifier or "Normal")
+		and (aData.BaseWeight or 0) == (bData.BaseWeight or 0)
+		and (aData.Weight or 0) == (bData.Weight or 0)
 end
 
 local function findItemIndex(inventory: { any }, item: any): number?

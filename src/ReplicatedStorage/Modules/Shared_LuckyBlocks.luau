@@ -74,84 +74,82 @@ LuckyBlocks.ModifierChancesByRarity = {
 }
 
 LuckyBlocks.Data = {
-    CommonLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Common",
-        
-        Image = "rbxassetid://78477350472889",
-
-        MinLevel = 1,
-        MaxLevel = 10,
-
-        Blacklist = {},
-    },
-    RareLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Rare",
-        
-        Image = "rbxassetid://89361878329509",
-
-        MinLevel = 10,
-        MaxLevel = 20,
-
-        Blacklist = {},
-    },
-    EpicLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Epic",
-        
-        Image = "rbxassetid://97509263941551",
-
-        MinLevel = 20,
-        MaxLevel = 30,
-
-        Blacklist = {},
-    },
-    LegendaryLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Legendary",
-        
-        Image = "rbxassetid://75895971800979",
-
-        MinLevel = 30,
-        MaxLevel = 40,
-    },
-    MythicalLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Mythical",
-        
-        Image = "rbxassetid://121875813364809",
-
-        MinLevel = 40,
-        MaxLevel = 50,
-    },
-    SecretLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Secret",
-        
-        Image = "rbxassetid://114710058131467",
-
-        MinLevel = 50,
-        MaxLevel = 60,
-    },
-    DivineLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Divine",
-        
-        Image = "rbxassetid://90001956185589",
-
-        MinLevel = 60,
-        MaxLevel = 70,
-    },
-    SuperiorLuckyBlock = {
-        DisplayName = "Lucky Block",
-        Rarity = "Superior",
-        
-        Image = "rbxassetid://102574841893672",
-
-        MinLevel = 70,
-        MaxLevel = 80,
-    },
+	CommonLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Common",
+		Image = "rbxassetid://78477350472889",
+		BaseWeight = 15,
+		MinLevel = 1,
+		MaxLevel = 10,
+		Blacklist = {},
+	},
+	RareLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Rare",
+		Image = "rbxassetid://89361878329509",
+		BaseWeight = 18,
+		MinLevel = 10,
+		MaxLevel = 20,
+		Blacklist = {},
+	},
+	EpicLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Epic",
+		Image = "rbxassetid://97509263941551",
+		BaseWeight = 22,
+		MinLevel = 20,
+		MaxLevel = 30,
+		Blacklist = {},
+	},
+	LegendaryLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Legendary",
+		Image = "rbxassetid://75895971800979",
+		BaseWeight = 26,
+		MinLevel = 30,
+		MaxLevel = 40,
+	},
+	MythicalLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Mythical",
+		Image = "rbxassetid://121875813364809",
+		BaseWeight = 30,
+		MinLevel = 40,
+		MaxLevel = 50,
+	},
+	SecretLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Secret",
+		Image = "rbxassetid://114710058131467",
+		BaseWeight = 35,
+		MinLevel = 50,
+		MaxLevel = 60,
+	},
+	DivineLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Divine",
+		Image = "rbxassetid://90001956185589",
+		BaseWeight = 40,
+		MinLevel = 60,
+		MaxLevel = 70,
+	},
+	SuperiorLuckyBlock = {
+		DisplayName = "Lucky Block",
+		Rarity = "Superior",
+		Image = "rbxassetid://102574841893672",
+		BaseWeight = 45,
+		MinLevel = 70,
+		MaxLevel = 80,
+	},
 }
+
+function LuckyBlocks.GetBaseWeight(configName: string): number
+	local config = LuckyBlocks.Data[configName]
+	local baseWeight = config and config.BaseWeight
+	if type(baseWeight) == "number" and baseWeight > 0 then
+		return baseWeight
+	end
+	return 15
+end
 
 return LuckyBlocks

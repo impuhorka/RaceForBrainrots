@@ -133,7 +133,9 @@ local function tryUpgrade(slotModel: Model)
 	end
 
 	local modifier = slotModel:GetAttribute("Modifier") or "Normal"
-	local upgradeCost = Shared_Brainrots.GetUpgradeCost(configName, level, modifier)
+	local baseWeight = slotModel:GetAttribute("BaseWeight")
+	local weight = slotModel:GetAttribute("Weight")
+	local upgradeCost = Shared_Brainrots.GetUpgradeCost(configName, level, modifier, baseWeight, weight)
 	local cash = Client_Data:GetValue("Cash") or 0
 
 	if cash < upgradeCost then
@@ -181,6 +183,8 @@ local function updateUpgradeLabels(slotModel: Model, upgradeGui: SurfaceGui?)
 
 	local level = getSlotLevel(slotModel)
 	local modifier = slotModel:GetAttribute("Modifier") or "Normal"
+	local baseWeight = slotModel:GetAttribute("BaseWeight")
+	local weight = slotModel:GetAttribute("Weight")
 	local maxLevel = Shared_Brainrots.MaxLevel or 150
 
 	if level >= maxLevel then
@@ -189,7 +193,7 @@ local function updateUpgradeLabels(slotModel: Model, upgradeGui: SurfaceGui?)
 		return
 	end
 
-	local upgradeCost = Shared_Brainrots.GetUpgradeCost(configName, level, modifier)
+	local upgradeCost = Shared_Brainrots.GetUpgradeCost(configName, level, modifier, baseWeight, weight)
 	costLabel.Text = ("$%s"):format(Shared_Abbreviation:Number(upgradeCost))
 	levelLabel.Text = ("Level %s -> %s"):format(level, level + 1)
 end

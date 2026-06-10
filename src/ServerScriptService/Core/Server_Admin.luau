@@ -103,6 +103,40 @@ local function resolveTargetPlayer(actor: Player, rawTarget: string?): (Player?,
 	return nil, ("Player not found: %s"):format(rawTarget)
 end
 
+local function executeSetStat(actor: Player, args: { string }, statName: string, usage: string, minValue: number): string
+	local target, targetError = resolveTargetPlayer(actor, args[1])
+	if not target then
+		return targetError or usage
+	end
+
+	local amount = tonumber(args[2])
+	if not amount then
+		return usage
+	end
+
+	local rounded = math.max(minValue, math.floor(amount))
+	Server_Data:SetValue(target, statName, rounded)
+	return ("Set %s to %d for %s"):format(statName, rounded, target.Name)
+end
+
+local function executeAddStat(actor: Player, args: { string }, statName: string, usage: string, minValue: number): string
+	local target, targetError = resolveTargetPlayer(actor, args[1])
+	if not target then
+		return targetError or usage
+	end
+
+	local amount = tonumber(args[2])
+	if not amount then
+		return usage
+	end
+
+	local rounded = math.floor(amount)
+	local current = math.max(minValue, math.floor(Server_Data:GetValue(target, statName) or minValue))
+	local nextValue = math.max(minValue, current + rounded)
+	Server_Data:SetValue(target, statName, nextValue)
+	return ("Added %d %s to %s (now %d)"):format(rounded, statName, target.Name, nextValue)
+end
+
 local function executeAddCash(actor: Player, args: { string }): string
 	local target, targetError = resolveTargetPlayer(actor, args[1])
 	if not target then
@@ -117,6 +151,26 @@ local function executeAddCash(actor: Player, args: { string }): string
 	local rounded = math.floor(amount)
 	Server_Data:AddValue(target, "Cash", rounded)
 	return ("Added $%d to %s"):format(rounded, target.Name)
+end
+
+local function executeSetCash(actor: Player, args: { string }): string
+	return executeSetStat(actor, args, "Cash", "Usage: /setcash [me|player] [amount]", 0)
+end
+
+local function executeSetSpeed(actor: Player, args: { string }): string
+	return executeSetStat(actor, args, "Speed", "Usage: /setspeed [me|player] [amount]", 1)
+end
+
+local function executeSetStrength(actor: Player, args: { string }): string
+	return executeSetStat(actor, args, "Strength", "Usage: /setstrength [me|player] [amount]", 1)
+end
+
+local function executeAddSpeed(actor: Player, args: { string }): string
+	return executeAddStat(actor, args, "Speed", "Usage: /addspeed [me|player] [amount]", 1)
+end
+
+local function executeAddStrength(actor: Player, args: { string }): string
+	return executeAddStat(actor, args, "Strength", "Usage: /addstrength [me|player] [amount]", 1)
 end
 
 local function executeAddBrainrot(actor: Player, args: { string }): string
@@ -268,7 +322,7 @@ local function executeAddLuckyBlock(actor: Player, args: { string }): string
 end
 
 local function executeHelp(): string
-	return "Commands: /addcash [me|player] [amount], /addbrainrot [me|player] [ConfigName|all] [Modifier=Normal] [Level=1] [Amount=1], /addluckyblock [me|player] [ConfigName|all] [Amount=1], /wipe-data [me|player]"
+	return "Commands: /addcash, /setcash, /addspeed, /setspeed, /addstrength, /setstrength [me|player] [amount], /addbrainrot [me|player] [ConfigName|all] [Modifier=Normal] [Level=1] [Amount=1], /addluckyblock [me|player] [ConfigName|all] [Amount=1], /wipe-data [me|player]"
 end
 
 local function executeWipeData(actor: Player, args: { string }): string
@@ -318,6 +372,16 @@ local function handleCommand(player: Player, message: string)
 	local result: string?
 	if command == "addcash" then
 		result = executeAddCash(player, parts)
+	elseif command == "setcash" then
+		result = executeSetCash(player, parts)
+	elseif command == "addspeed" then
+		result = executeAddSpeed(player, parts)
+	elseif command == "setspeed" then
+		result = executeSetSpeed(player, parts)
+	elseif command == "addstrength" then
+		result = executeAddStrength(player, parts)
+	elseif command == "setstrength" then
+		result = executeSetStrength(player, parts)
 	elseif command == "addbrainrot" then
 		result = executeAddBrainrot(player, parts)
 	elseif command == "addluckyblock" then
@@ -349,6 +413,11 @@ local function initTextChatCommands()
 
 	local commands = {
 		{ Name = "addcash", Alias = "/addcash" },
+		{ Name = "setcash", Alias = "/setcash" },
+		{ Name = "addspeed", Alias = "/addspeed" },
+		{ Name = "setspeed", Alias = "/setspeed" },
+		{ Name = "addstrength", Alias = "/addstrength" },
+		{ Name = "setstrength", Alias = "/setstrength" },
 		{ Name = "addbrainrot", Alias = "/addbrainrot" },
 		{ Name = "addluckyblock", Alias = "/addluckyblock" },
 		{ Name = "wipe_data", Alias = "/wipe-data" },

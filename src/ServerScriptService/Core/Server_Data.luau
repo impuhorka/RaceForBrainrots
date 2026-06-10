@@ -8,6 +8,8 @@ require(script.Parent.ReplicaServiceListeners)
 
 local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 
 local DataTemplate = {
 	Cash = 0,
@@ -22,6 +24,7 @@ local DataTemplate = {
 	-- ConfigName = string key from Shared_Brainrots / Shared_LuckyBlocks / etc.
 	-- Data.Level = brainrot level (and similar per-item stats)
 	-- Data.Modifier = variant string e.g. "Normal", "Golden"
+	-- Data.BaseWeight / Data.Weight = lucky block origin weight and rolled brainrot weight (kg)
 	-- Example entry:
 	-- {
 	--   ItemType = "Brainrot",
@@ -327,6 +330,41 @@ function Module:RemovePlotSlot(player: Player, slotId: number): boolean
 	return true
 end
 
+local function normalizeInventoryItem(item: any)
+	if type(item) ~= "table" or type(item.ConfigName) ~= "string" then
+		return
+	end
+
+	item.Data = if type(item.Data) == "table" then item.Data else {}
+
+	if item.ItemType == "LuckyBlock" then
+		if type(item.Data.BaseWeight) ~= "number" then
+			item.Data.BaseWeight = Shared_LuckyBlocks.GetBaseWeight(item.ConfigName)
+		end
+		if type(item.Data.Weight) ~= "number" then
+			item.Data.Weight = Shared_Weight.RollWeight(item.Data.BaseWeight)
+		end
+		return
+	end
+
+	if item.ItemType == "Brainrot" then
+		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(item.Data, item.ConfigName)
+		item.Data.BaseWeight = baseWeight
+		item.Data.Weight = rolledWeight
+	end
+end
+
+local function migrateInventoryWeights(profile)
+	local inventory = profile.Data.Inventory
+	if type(inventory) ~= "table" then
+		return
+	end
+
+	for _, item in inventory do
+		normalizeInventoryItem(item)
+	end
+end
+
 function Module:AddInventoryItem(player: Player, item: any): number?
 	local data = self:GetData(player)
 	if not data then
@@ -341,6 +379,7 @@ function Module:AddInventoryItem(player: Player, item: any): number?
 		return nil
 	end
 
+	normalizeInventoryItem(item)
 	table.insert(data.Inventory, item)
 	local newIndex = #data.Inventory
 	local indexChanged = addBrainrotToIndex(data, item)
@@ -456,6 +495,7 @@ local function onPlayerAdded(player)
 
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+	migrateInventoryWeights(profile)
 
 	if USE_TEST_INVENTORY then
 		local plot = profile.Data.Plot or {}

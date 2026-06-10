@@ -4,6 +4,7 @@ local Shared_Abbreviation = require(script.Parent.Utilities.Shared_Abbreviation)
 local Shared_Brainrots = require(script.Parent.Shared_Brainrots)
 local Shared_Modifiers = require(script.Parent.Utilities.Shared_Modifiers)
 local Shared_Rarities = require(script.Parent.Utilities.Shared_Rarities)
+local Shared_Weight = require(script.Parent.Shared_Weight)
 
 local Shared_BrainrotBillboard = {}
 
@@ -74,7 +75,9 @@ function Shared_BrainrotBillboard.Setup(
 	brainrotModel: Model,
 	configName: string,
 	modifier: string?,
-	level: number?
+	level: number?,
+	baseWeight: number?,
+	rolledWeight: number?
 )
 	local config = Shared_Brainrots.Data[configName]
 	if not config or not brainrotModel.PrimaryPart then
@@ -108,8 +111,18 @@ function Shared_BrainrotBillboard.Setup(
 
 	local resolvedModifier = modifier or "Normal"
 	local resolvedLevel = math.max(1, level or 1)
-	local income = Shared_Brainrots.GetCashPerSecond(configName, resolvedLevel, resolvedModifier)
+	local resolvedBaseWeight, resolvedRolledWeight =
+		Shared_Weight.ResolveBrainrotWeights({ BaseWeight = baseWeight, Weight = rolledWeight }, configName)
+	local income = Shared_Brainrots.GetCashPerSecond(
+		configName,
+		resolvedLevel,
+		resolvedModifier,
+		resolvedBaseWeight,
+		resolvedRolledWeight
+	)
 	setFrameTextLabel(billboard, "Income", ("$%s/s"):format(Shared_Abbreviation:Number(income)))
+	setFrameTextLabel(billboard, "Weight", Shared_Weight.FormatKg(resolvedRolledWeight))
+	setFrameVisible(billboard, "Weight", true)
 
 	local modifierFrame = billboard:FindFirstChild("Modifier", true)
 	if modifierFrame then
@@ -155,7 +168,9 @@ function Shared_BrainrotBillboard.UpdateIncome(
 	brainrotModel: Model,
 	configName: string,
 	modifier: string?,
-	level: number?
+	level: number?,
+	baseWeight: number?,
+	rolledWeight: number?
 )
 	if not brainrotModel.PrimaryPart then
 		return
@@ -173,8 +188,17 @@ function Shared_BrainrotBillboard.UpdateIncome(
 
 	local resolvedModifier = modifier or "Normal"
 	local resolvedLevel = math.max(1, level or 1)
-	local income = Shared_Brainrots.GetCashPerSecond(configName, resolvedLevel, resolvedModifier)
+	local resolvedBaseWeight, resolvedRolledWeight =
+		Shared_Weight.ResolveBrainrotWeights({ BaseWeight = baseWeight, Weight = rolledWeight }, configName)
+	local income = Shared_Brainrots.GetCashPerSecond(
+		configName,
+		resolvedLevel,
+		resolvedModifier,
+		resolvedBaseWeight,
+		resolvedRolledWeight
+	)
 	setFrameTextLabel(billboard, "Income", ("$%s/s"):format(Shared_Abbreviation:Number(income)))
+	setFrameTextLabel(billboard, "Weight", Shared_Weight.FormatKg(resolvedRolledWeight))
 end
 
 return Shared_BrainrotBillboard

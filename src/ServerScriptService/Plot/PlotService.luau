@@ -13,6 +13,7 @@ local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
 local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 local Shared_SpeedStore = require(ReplicatedStorage.Modules.Shared_SpeedStore)
 local Shared_StrengthStore = require(ReplicatedStorage.Modules.Shared_StrengthStore)
 local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
@@ -148,6 +149,9 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 	local maxLevel = math.max(minLevel, math.floor(luckyBlockData.MaxLevel or minLevel))
 	local rewardedLevel = math.random(minLevel, maxLevel)
 	local rewardedModifier = rollLuckyBlockModifier(luckyBlockData)
+	local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(luckyBlockConfigName)
+	local baseWeight, blockWeight =
+		Shared_Weight.ResolveLuckyBlockWeights(removedItem.Data, defaultBaseWeight)
 
 	local rewardIndex = Server_Data:AddInventoryItem(player, {
 		ItemType = "Brainrot",
@@ -155,6 +159,8 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 		Data = {
 			Level = rewardedLevel,
 			Modifier = rewardedModifier,
+			BaseWeight = baseWeight,
+			Weight = blockWeight,
 		},
 	})
 
@@ -190,6 +196,10 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 		pickedItemType = "Brainrot",
 		pickedLevel = rewardedLevel,
 		pickedModifier = rewardedModifier,
+		blockBaseWeight = baseWeight,
+		blockWeight = blockWeight,
+		pickedBaseWeight = baseWeight,
+		pickedWeight = blockWeight,
 		rewardInventoryIndex = rewardIndex,
 	}
 

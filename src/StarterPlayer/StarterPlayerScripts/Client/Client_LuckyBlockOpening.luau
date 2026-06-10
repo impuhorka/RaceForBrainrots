@@ -10,6 +10,10 @@
 	  landingPosition Vector3 - where the block lands
 	  pickedConfigName string  - brainrot/luckyblock rewarded (for show after)
 	  pickedItemType  string  - "Brainrot" | "LuckyBlock"
+	  blockBaseWeight number? - origin lucky block weight (kg)
+	  blockWeight     number? - lucky block weight when thrown (kg)
+	  pickedBaseWeight number? - brainrot origin weight (kg)
+	  pickedWeight    number? - brainrot weight from lucky block (kg)
 ]]
 
 local Players         = game:GetService("Players")
@@ -17,7 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService      = game:GetService("RunService")
 local TweenService    = game:GetService("TweenService")
 local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
-local Shared_Brainrots   = require(ReplicatedStorage.Modules.Shared_Brainrots)
+local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
 local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
 local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
 local Client_Data = require(script.Parent.Client_Data)
@@ -295,6 +299,12 @@ local function playOpening(data: {
 		lbModel.PrimaryPart = lbModel:FindFirstChildWhichIsA("BasePart", true)
 	end
 	prepareModel(lbModel)
+
+	local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(data.configName)
+	local blockBaseWeight = tonumber(data.blockBaseWeight) or tonumber(data.pickedBaseWeight) or defaultBaseWeight
+	local blockWeight = tonumber(data.blockWeight) or tonumber(data.pickedWeight) or blockBaseWeight
+	Shared_Weight.ApplyLuckyBlockScale(lbModel, blockBaseWeight, blockWeight)
+
 	lbModel.Parent = workspace
 	local primary = lbModel.PrimaryPart
 	if not primary then
@@ -309,8 +319,15 @@ local function playOpening(data: {
 	local revealedHalfHeight = primary.Size.Y * 0.5
 	if data.pickedItemType == "Brainrot" then
 		revealedModel = getBrainrotModel(data.pickedConfigName, data.pickedModifier or "Normal")
-		local pickedLevel = math.max(1, math.floor(data.pickedLevel or 1))
-		targetRevealScale = Shared_Brainrots.GetScaleForLevel(pickedLevel)
+		local pickedBaseWeight = tonumber(data.pickedBaseWeight)
+		local pickedWeight = tonumber(data.pickedWeight)
+		if revealedModel then
+			targetRevealScale = Shared_Weight.ApplyBrainrotScale(
+				revealedModel,
+				pickedBaseWeight or Shared_LuckyBlocks.GetBaseWeight(data.configName),
+				pickedWeight or pickedBaseWeight
+			)
+		end
 	elseif data.pickedItemType == "LuckyBlock" then
 		revealedModel = getRewardedLuckyBlockModel(data.pickedConfigName)
 	end
@@ -320,7 +337,7 @@ local function playOpening(data: {
 			revealedModel.PrimaryPart = revealedModel:FindFirstChildWhichIsA("BasePart", true)
 		end
 		if revealedModel.PrimaryPart then
-			revealedHalfHeight = revealedModel.PrimaryPart.Size.Y * 0.5 * targetRevealScale
+			revealedHalfHeight = revealedModel.PrimaryPart.Size.Y * 0.5
 		end
 	end
 
@@ -645,7 +662,14 @@ local function playOpening(data: {
 
 		if data.pickedItemType == "Brainrot" and revealedModel.Parent then
 			local pickedLevel = math.max(1, math.floor(data.pickedLevel or 1))
-			Shared_BrainrotBillboard.Setup(revealedModel, data.pickedConfigName, data.pickedModifier or "Normal", pickedLevel)
+			Shared_BrainrotBillboard.Setup(
+				revealedModel,
+				data.pickedConfigName,
+				data.pickedModifier or "Normal",
+				pickedLevel,
+				data.pickedBaseWeight,
+				data.pickedWeight
+			)
 		end
 	end)
 

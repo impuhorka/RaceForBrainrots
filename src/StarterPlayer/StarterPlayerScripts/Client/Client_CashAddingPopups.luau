@@ -28,6 +28,22 @@ local popupFrame: Frame?
 local template: GuiObject?
 local cashVisualFrame: GuiObject?
 
+local function disablePopupInput(root: GuiObject)
+	root.Active = false
+	if root:IsA("GuiButton") then
+		root.Selectable = false
+	end
+
+	for _, descendant in root:GetDescendants() do
+		if descendant:IsA("GuiObject") then
+			descendant.Active = false
+			if descendant:IsA("GuiButton") then
+				descendant.Selectable = false
+			end
+		end
+	end
+end
+
 local function playCashAddSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.CashAdd or ""
 	if type(soundId) ~= "string" or soundId == "" then
@@ -136,6 +152,7 @@ local function spawnPopup(amount: number, popupIndex: number)
 
 	local popup = template:Clone()
 	popup.Visible = true
+	disablePopupInput(popup)
 	popup.Parent = popupFrame
 
 	local originSize = template.Size
@@ -247,6 +264,16 @@ function Client_CashAddingPopups.Init()
 	popupFrame = main:WaitForChild("CashAdding") :: Frame
 	template = popupFrame:WaitForChild("Template") :: GuiObject
 	template.Visible = false
+	disablePopupInput(popupFrame)
+	disablePopupInput(template)
+	popupFrame:SetAttribute("LuckyBlockInputBlacklist", true)
+
+	popupFrame.DescendantAdded:Connect(function(descendant)
+		if descendant:IsA("GuiObject") then
+			disablePopupInput(descendant)
+		end
+	end)
+
 	cashVisualFrame = main:WaitForChild("Visuals"):WaitForChild("Cash") :: GuiObject
 end
 

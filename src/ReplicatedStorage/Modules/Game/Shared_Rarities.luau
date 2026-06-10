@@ -90,7 +90,7 @@ Shared_Rarities.Data = {
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 40)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 5, 0)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(98, 44, 44)),
 		}),
 		GradientRotation = 90,
 

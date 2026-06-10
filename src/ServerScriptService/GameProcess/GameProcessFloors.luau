@@ -46,25 +46,25 @@ local function getWallTemplate(): BasePart?
 	return nil
 end
 
-local function getLeavesTemplates(): { Model }
+local function getLianaTemplates(): { Model }
 	local gameProcessAssets = getGameProcessAssets()
-	local leavesRoot = gameProcessAssets and gameProcessAssets:FindFirstChild("Leaves")
-	if not leavesRoot then
+	local lianasFolder = gameProcessAssets and gameProcessAssets:FindFirstChild("Lianas")
+	if not lianasFolder then
 		return {}
 	end
 
 	local templates: { Model } = {}
-	if leavesRoot:IsA("Model") then
-		table.insert(templates, leavesRoot)
-	elseif leavesRoot:IsA("Folder") then
-		for _, child in leavesRoot:GetChildren() do
-			if child:IsA("Model") then
-				table.insert(templates, child)
-			end
+	for _, child in lianasFolder:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(templates, child)
 		end
 	end
 	return templates
 end
+
+local MINIMAP_TREE_NAMES = { "Tree1", "Tree2", "Tree3" }
+local MINIMAP_ROCK_NAMES = { "Rock1", "Rock2" }
+local MINIMAP_BUSH_NAMES = { "Bush1", "Bush2" }
 
 local function getDecorationTemplates(): { Model }
 	local gameProcessAssets = getGameProcessAssets()
@@ -82,6 +82,100 @@ local function getDecorationTemplates(): { Model }
 	return templates
 end
 
+local function findDecorationTemplate(templates: { Model }, name: string): Model?
+	for _, template in templates do
+		if template.Name == name then
+			return template
+		end
+	end
+	return nil
+end
+
+local function getMinimapDecorationTemplates(decorationTemplates: { Model }, names: { string }): { Model }
+	local templates: { Model } = {}
+	for _, decorationName in names do
+		local template = findDecorationTemplate(decorationTemplates, decorationName)
+		if template then
+			table.insert(templates, template)
+		end
+	end
+	return templates
+end
+
+local function getMinimapTreeTemplates(decorationTemplates: { Model }): { Model }
+	return getMinimapDecorationTemplates(decorationTemplates, MINIMAP_TREE_NAMES)
+end
+
+local function getMinimapRockTemplates(decorationTemplates: { Model }): { Model }
+	return getMinimapDecorationTemplates(decorationTemplates, MINIMAP_ROCK_NAMES)
+end
+
+local function getMinimapBushTemplates(decorationTemplates: { Model }): { Model }
+	return getMinimapDecorationTemplates(decorationTemplates, MINIMAP_BUSH_NAMES)
+end
+
+local function getFlowerTemplates(): { Model }
+	local gameProcessAssets = getGameProcessAssets()
+	local flowersFolder = gameProcessAssets and gameProcessAssets:FindFirstChild("Flowers")
+	if not flowersFolder then
+		return {}
+	end
+
+	local templates: { Model } = {}
+	for _, child in flowersFolder:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(templates, child)
+		end
+	end
+	return templates
+end
+
+local function getGrassTemplates(): { Model }
+	local gameProcessAssets = getGameProcessAssets()
+	local grassFolder = gameProcessAssets and gameProcessAssets:FindFirstChild("Grass")
+	if not grassFolder then
+		return {}
+	end
+
+	local templates: { Model } = {}
+	for _, child in grassFolder:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(templates, child)
+		end
+	end
+	return templates
+end
+
+local FLOWER_TOP_COLORS = {
+	Color3.fromRGB(255, 70, 70),
+	Color3.fromRGB(255, 220, 60),
+	Color3.fromRGB(255, 130, 210),
+	Color3.fromRGB(170, 90, 255),
+	Color3.fromRGB(255, 255, 255),
+	Color3.fromRGB(90, 150, 255),
+	Color3.fromRGB(255, 150, 40),
+}
+
+local function applyFlowerTopColor(flower: Model)
+	local colorPart = flower:FindFirstChild("ColorPart")
+	if colorPart and colorPart:IsA("BasePart") then
+		colorPart.Color = FLOWER_TOP_COLORS[math.random(1, #FLOWER_TOP_COLORS)]
+	end
+end
+
+local function applyLianaFlowerColors(liana: Model)
+	local flowersContainer = liana:FindFirstChild("Flowers")
+	if not flowersContainer then
+		return
+	end
+
+	for _, flower in flowersContainer:GetChildren() do
+		if flower:IsA("Model") then
+			applyFlowerTopColor(flower)
+		end
+	end
+end
+
 local function getDecorationExtents(decoration: Model): Vector3
 	local extents = decoration:GetExtentsSize()
 	if extents.Magnitude > 0 then
@@ -92,12 +186,46 @@ local function getDecorationExtents(decoration: Model): Vector3
 	return size
 end
 
-local function applyDecorationScale(decoration: Model)
-	local originScale = Shared_Weight.GetModelOriginScale(decoration)
-	local minScale = Shared_GameProcess.DecorationScaleMin
-	local maxScale = Shared_GameProcess.DecorationScaleMax
+local function applyModelScaleRange(model: Model, minScale: number, maxScale: number)
+	local originScale = Shared_Weight.GetModelOriginScale(model)
 	local scaleMultiplier = minScale + math.random() * (maxScale - minScale)
-	decoration:ScaleTo(originScale * scaleMultiplier)
+	model:ScaleTo(originScale * scaleMultiplier)
+end
+
+local function applyDecorationScale(decoration: Model)
+	applyModelScaleRange(decoration, Shared_GameProcess.DecorationScaleMin, Shared_GameProcess.DecorationScaleMax)
+end
+
+local function applyDecorationScaleKind(decoration: Model, scaleKind: string?)
+	if scaleKind == "rock" then
+		applyModelScaleRange(decoration, Shared_GameProcess.RockScaleMin, Shared_GameProcess.RockScaleMax)
+	elseif scaleKind == "bush" then
+		applyModelScaleRange(decoration, Shared_GameProcess.BushScaleMin, Shared_GameProcess.BushScaleMax)
+	elseif scaleKind == "tree" then
+		applyModelScaleRange(decoration, Shared_GameProcess.TreeScaleMin, Shared_GameProcess.TreeScaleMax)
+	else
+		applyDecorationScale(decoration)
+	end
+end
+
+local function applyLianaScale(liana: Model)
+	local originScale = Shared_Weight.GetModelOriginScale(liana)
+	local minScale = Shared_GameProcess.LianaScaleMin
+	local maxScale = Shared_GameProcess.LianaScaleMax
+	local scaleMultiplier = minScale + math.random() * (maxScale - minScale)
+	liana:ScaleTo(originScale * scaleMultiplier)
+end
+
+local function getLianaSpawnChance(wall: BasePart): number
+	local baseChance = Shared_GameProcess.LianasOnWallChance
+	local side = wall:GetAttribute("Side")
+	if side == "Left" or side == "Right" then
+		return math.min(baseChance * Shared_GameProcess.LianasRoadWallChanceMultiplier, 1)
+	end
+	if side == "Front" or side == "Back" or side == "Outer" then
+		return math.min(baseChance * Shared_GameProcess.LianasMinimapWallChanceMultiplier, 1)
+	end
+	return baseChance
 end
 
 local function prepareAnchoredModel(model: Model)
@@ -116,6 +244,68 @@ local function getModelFloorSpot(model: Model): PlacedSpot
 		HalfX = bboxSize.X / 2,
 		HalfZ = bboxSize.Z / 2,
 	}
+end
+
+local function getModelsClusterSpot(models: { Model }): PlacedSpot
+	local minX = math.huge
+	local maxX = -math.huge
+	local minZ = math.huge
+	local maxZ = -math.huge
+
+	for _, model in models do
+		local bboxCF, bboxSize = model:GetBoundingBox()
+		local halfX = bboxSize.X / 2
+		local halfZ = bboxSize.Z / 2
+		minX = math.min(minX, bboxCF.Position.X - halfX)
+		maxX = math.max(maxX, bboxCF.Position.X + halfX)
+		minZ = math.min(minZ, bboxCF.Position.Z - halfZ)
+		maxZ = math.max(maxZ, bboxCF.Position.Z + halfZ)
+	end
+
+	return {
+		X = (minX + maxX) / 2,
+		Z = (minZ + maxZ) / 2,
+		HalfX = (maxX - minX) / 2,
+		HalfZ = (maxZ - minZ) / 2,
+	}
+end
+
+local function getModelLowestWorldY(model: Model): number
+	local lowest = math.huge
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			local part = descendant :: BasePart
+			local cf = part.CFrame
+			local halfSize = part.Size / 2
+			for sx = -1, 1, 2 do
+				for sy = -1, 1, 2 do
+					for sz = -1, 1, 2 do
+						local cornerY = cf:PointToWorldSpace(
+							Vector3.new(halfSize.X * sx, halfSize.Y * sy, halfSize.Z * sz)
+						).Y
+						if cornerY < lowest then
+							lowest = cornerY
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if lowest == math.huge then
+		local bboxCF, bboxSize = model:GetBoundingBox()
+		return bboxCF.Position.Y - bboxSize.Y / 2
+	end
+
+	return lowest
+end
+
+local function snapModelBottomToY(model: Model, targetBottomY: number)
+	local lowestY = getModelLowestWorldY(model)
+	local lift = targetBottomY - lowestY
+	if math.abs(lift) > 1e-4 then
+		model:PivotTo(model:GetPivot() + Vector3.new(0, lift, 0))
+	end
 end
 
 local function spotsOverlap(a: PlacedSpot, b: PlacedSpot, padding: number): boolean
@@ -267,24 +457,71 @@ local function tryPlaceLuckyBlockOnHoleFloor(
 	return false
 end
 
+local function getFlowerStandRotation(model: Model, templateName: string): CFrame
+	local yaw = math.random() * math.pi * 2
+
+	if templateName == "GroundFlower" then
+		return CFrame.Angles(0, yaw, math.rad(-90))
+	end
+
+	local extents = model:GetExtentsSize()
+	local longestAxis = "Y"
+	local longestSize = extents.Y
+	if extents.X > longestSize then
+		longestAxis = "X"
+		longestSize = extents.X
+	end
+	if extents.Z > longestSize then
+		longestAxis = "Z"
+	end
+
+	local upright: CFrame
+	if longestAxis == "Y" then
+		upright = CFrame.Angles(0, yaw, 0)
+	elseif longestAxis == "X" then
+		upright = CFrame.Angles(0, yaw, math.rad(90))
+	else
+		upright = CFrame.Angles(math.rad(-90), yaw, 0)
+	end
+
+	return upright * CFrame.Angles(0, 0, math.rad(180))
+end
+
 local function tryPlaceModelOnHoleFloor(
 	holeFloor: BasePart,
 	model: Model,
-	placedSpots: { PlacedSpot }
+	placedSpots: { PlacedSpot },
+	flowerTemplateName: string?,
+	useWorldFootprint: boolean?,
+	overlapPaddingOverride: number?
 ): boolean
 	local halfHoleX = holeFloor.Size.X / 2
 	local halfHoleZ = holeFloor.Size.Z / 2
 	local edgeMargin = Shared_GameProcess.DecorationEdgeMargin
 	local floorTopY = holeFloor.Position.Y + holeFloor.Size.Y / 2
-	local overlapPadding = Shared_GameProcess.PlacementOverlapPadding
+	local overlapPadding = overlapPaddingOverride or Shared_GameProcess.PlacementOverlapPadding
 	local maxAttempts = Shared_GameProcess.PlacementMaxAttempts
-	local rotation = CFrame.Angles(0, math.random() * math.pi * 2, 0)
 
+	local function nextRotation(): CFrame
+		if flowerTemplateName then
+			return getFlowerStandRotation(model, flowerTemplateName)
+		end
+		return CFrame.Angles(0, math.random() * math.pi * 2, 0)
+	end
+
+	local rotation = nextRotation()
 	model:PivotTo(CFrame.new(holeFloor.Position) * rotation)
 
-	local modelSize = getDecorationExtents(model)
-	local halfModelX = modelSize.X / 2
-	local halfModelZ = modelSize.Z / 2
+	local function getWorldFootprintHalfSize(): (number, number)
+		if flowerTemplateName or useWorldFootprint then
+			local _, bboxSize = model:GetBoundingBox()
+			return bboxSize.X / 2, bboxSize.Z / 2
+		end
+		local modelSize = getDecorationExtents(model)
+		return modelSize.X / 2, modelSize.Z / 2
+	end
+
+	local halfModelX, halfModelZ = getWorldFootprintHalfSize()
 	local maxOffsetX = math.max(halfHoleX - halfModelX - edgeMargin, 0)
 	local maxOffsetZ = math.max(halfHoleZ - halfModelZ - edgeMargin, 0)
 
@@ -292,17 +529,21 @@ local function tryPlaceModelOnHoleFloor(
 		local offsetX = if maxOffsetX > 0 then (math.random() * 2 - 1) * maxOffsetX else 0
 		local offsetZ = if maxOffsetZ > 0 then (math.random() * 2 - 1) * maxOffsetZ else 0
 
+		rotation = nextRotation()
 		model:PivotTo(CFrame.new(holeFloor.Position) * rotation)
 
-		local bboxCF, bboxSize = model:GetBoundingBox()
-		local bboxBottomY = bboxCF.Position.Y - bboxSize.Y / 2
-		local yLift = floorTopY - bboxBottomY
+		local bboxCF, _bboxSize = model:GetBoundingBox()
 		local positionDelta = Vector3.new(
 			holeFloor.Position.X + offsetX - bboxCF.Position.X,
-			yLift,
+			0,
 			holeFloor.Position.Z + offsetZ - bboxCF.Position.Z
 		)
 		model:PivotTo(model:GetPivot() + positionDelta)
+		snapModelBottomToY(model, floorTopY)
+
+		halfModelX, halfModelZ = getWorldFootprintHalfSize()
+		maxOffsetX = math.max(halfHoleX - halfModelX - edgeMargin, 0)
+		maxOffsetZ = math.max(halfHoleZ - halfModelZ - edgeMargin, 0)
 
 		local spot = getModelFloorSpot(model)
 		if canPlaceSpot(spot, placedSpots, overlapPadding) then
@@ -338,21 +579,44 @@ local function placeDecorationOnHoleFloor(
 	holeSide: string,
 	index: number,
 	placedSpots: { PlacedSpot },
-	parent: Instance
+	parent: Instance,
+	overlapPadding: number?,
+	scaleKind: string?
 )
 	local decoration = template:Clone()
 	decoration.Name = `{rarityName}{holeSide}Decoration{index}`
 	prepareAnchoredModel(decoration)
-	applyDecorationScale(decoration)
+	applyDecorationScaleKind(decoration, scaleKind)
 
-	if not tryPlaceModelOnHoleFloor(holeFloor, decoration, placedSpots) then
+	if not tryPlaceModelOnHoleFloor(holeFloor, decoration, placedSpots, nil, nil, overlapPadding) then
 		decoration:Destroy()
-		return
+		return false
 	end
 
 	decoration:SetAttribute("Rarity", rarityName)
 	decoration:SetAttribute("HoleSide", holeSide)
 	decoration.Parent = parent
+	return true
+end
+
+local function pickDiverseTreeTemplate(
+	treeTemplates: { Model },
+	typeCounts: { [string]: number },
+	targetTreeCount: number,
+	maxPerType: number
+): Model?
+	local available: { Model } = {}
+	for _, template in treeTemplates do
+		if (typeCounts[template.Name] or 0) < maxPerType then
+			table.insert(available, template)
+		end
+	end
+
+	if #available == 0 then
+		return nil
+	end
+
+	return available[math.random(1, #available)]
 end
 
 local function placeLuckyBlockOnHoleFloor(
@@ -411,19 +675,377 @@ local function placeDecorationsForHoleFloor(
 	parent: Instance
 ): { PlacedSpot }
 	local placedSpots: { PlacedSpot } = {}
-	if #decorationTemplates == 0 then
-		return placedSpots
+	local decorationIndex = 0
+
+	local function placeRandomDecorations(
+		templates: { Model },
+		count: number,
+		overlapPadding: number?,
+		scaleKind: string?
+	)
+		for _ = 1, count do
+			if #templates == 0 then
+				break
+			end
+			decorationIndex += 1
+			local template = templates[math.random(1, #templates)]
+			placeDecorationOnHoleFloor(
+				holeFloor,
+				template,
+				rarityName,
+				holeSide,
+				decorationIndex,
+				placedSpots,
+				parent,
+				overlapPadding,
+				scaleKind
+			)
+		end
 	end
 
-	local decorationCountRange = Shared_GameProcess.DecorationsPerHole
-	local decorationCount = math.random(decorationCountRange.Min, decorationCountRange.Max)
+	placeRandomDecorations(
+		getMinimapRockTemplates(decorationTemplates),
+		Shared_GameProcess.MinRocksPerMinimap,
+		nil,
+		"rock"
+	)
+	placeRandomDecorations(
+		getMinimapBushTemplates(decorationTemplates),
+		Shared_GameProcess.MinBushesPerMinimap,
+		nil,
+		"bush"
+	)
 
-	for index = 1, decorationCount do
-		local template = decorationTemplates[math.random(1, #decorationTemplates)]
-		placeDecorationOnHoleFloor(holeFloor, template, rarityName, holeSide, index, placedSpots, parent)
+	local treeCountRange = Shared_GameProcess.TreesPerMinimap
+	local targetTreeCount = math.random(treeCountRange.Min, treeCountRange.Max)
+	local treeTemplates = getMinimapTreeTemplates(decorationTemplates)
+	local treeOverlapPadding = Shared_GameProcess.TreeOverlapPadding
+	local treesPlaced = 0
+	local treeTypeCounts: { [string]: number } = {}
+	local maxPerTreeType = if targetTreeCount >= 3 then 2 else targetTreeCount
+	local placementAttempts = 0
+	local maxTreePlacementAttempts = targetTreeCount * Shared_GameProcess.PlacementMaxAttempts
+
+	while treesPlaced < targetTreeCount and placementAttempts < maxTreePlacementAttempts do
+		if #treeTemplates == 0 then
+			break
+		end
+
+		placementAttempts += 1
+		local treeTemplate = pickDiverseTreeTemplate(
+			treeTemplates,
+			treeTypeCounts,
+			targetTreeCount,
+			maxPerTreeType
+		)
+		if not treeTemplate then
+			maxPerTreeType = targetTreeCount
+			treeTemplate = pickDiverseTreeTemplate(
+				treeTemplates,
+				treeTypeCounts,
+				targetTreeCount,
+				maxPerTreeType
+			)
+			if not treeTemplate then
+				break
+			end
+		end
+
+		decorationIndex += 1
+		local placed = placeDecorationOnHoleFloor(
+			holeFloor,
+			treeTemplate,
+			rarityName,
+			holeSide,
+			decorationIndex,
+			placedSpots,
+			parent,
+			treeOverlapPadding,
+			"tree"
+		)
+		if placed then
+			treesPlaced += 1
+			treeTypeCounts[treeTemplate.Name] = (treeTypeCounts[treeTemplate.Name] or 0) + 1
+		else
+			decorationIndex -= 1
+		end
 	end
 
 	return placedSpots
+end
+
+local GROUND_FLOWER_NAME = "GroundFlower"
+
+local function finalizeFlowerOnHoleFloor(
+	flower: Model,
+	rarityName: string,
+	holeSide: string,
+	index: number,
+	parent: Instance
+)
+	flower.Name = `{rarityName}{holeSide}Flower{index}`
+	flower:SetAttribute("Rarity", rarityName)
+	flower:SetAttribute("HoleSide", holeSide)
+	flower.Parent = parent
+end
+
+local function placeFlowerAt(
+	holeFloor: BasePart,
+	flower: Model,
+	templateName: string,
+	worldX: number,
+	worldZ: number
+)
+	local floorTopY = holeFloor.Position.Y + holeFloor.Size.Y / 2
+	local rotation = getFlowerStandRotation(flower, templateName)
+
+	flower:PivotTo(CFrame.new(worldX, holeFloor.Position.Y, worldZ) * rotation)
+
+	local bboxCF, _bboxSize = flower:GetBoundingBox()
+	flower:PivotTo(flower:GetPivot() + Vector3.new(worldX - bboxCF.Position.X, 0, worldZ - bboxCF.Position.Z))
+	snapModelBottomToY(flower, floorTopY)
+end
+
+local function placeFlowerOnHoleFloor(
+	holeFloor: BasePart,
+	template: Model,
+	rarityName: string,
+	holeSide: string,
+	index: number,
+	placedSpots: { PlacedSpot },
+	parent: Instance
+)
+	local flower = template:Clone()
+	prepareAnchoredModel(flower)
+	applyFlowerTopColor(flower)
+
+	if not tryPlaceModelOnHoleFloor(holeFloor, flower, placedSpots, template.Name) then
+		flower:Destroy()
+		return
+	end
+
+	finalizeFlowerOnHoleFloor(flower, rarityName, holeSide, index, parent)
+end
+
+local function getFlowerWorldFootprintHalfSize(flower: Model): (number, number)
+	local _, bboxSize = flower:GetBoundingBox()
+	return bboxSize.X / 2, bboxSize.Z / 2
+end
+
+local function tryPlaceGroundFlowerStack(
+	holeFloor: BasePart,
+	template: Model,
+	stackSize: number,
+	placedSpots: { PlacedSpot }
+): { Model }?
+	local overlapPadding = Shared_GameProcess.PlacementOverlapPadding
+	local stackSpread = Shared_GameProcess.GroundFlowerStackSpread
+	local maxAttempts = Shared_GameProcess.PlacementMaxAttempts
+
+	for _ = 1, maxAttempts do
+		local stackModels: { Model } = {}
+		local stackSpots: { PlacedSpot } = {}
+		local anchorFlower = template:Clone()
+		prepareAnchoredModel(anchorFlower)
+		applyFlowerTopColor(anchorFlower)
+
+		if not tryPlaceModelOnHoleFloor(holeFloor, anchorFlower, placedSpots, template.Name) then
+			anchorFlower:Destroy()
+			continue
+		end
+
+		table.insert(stackModels, anchorFlower)
+		local anchorSpot = getModelFloorSpot(anchorFlower)
+		table.insert(stackSpots, anchorSpot)
+
+		local stackComplete = true
+		for _ = 2, stackSize do
+			local flower = template:Clone()
+			prepareAnchoredModel(flower)
+			applyFlowerTopColor(flower)
+
+			local placedInStack = false
+			for _ = 1, maxAttempts do
+				placeFlowerAt(holeFloor, flower, template.Name, anchorSpot.X, anchorSpot.Z)
+				local flowerHalfX, flowerHalfZ = getFlowerWorldFootprintHalfSize(flower)
+				local spreadX = anchorSpot.HalfX + flowerHalfX + overlapPadding + stackSpread
+				local spreadZ = anchorSpot.HalfZ + flowerHalfZ + overlapPadding + stackSpread
+				local offsetX = (math.random() * 2 - 1) * spreadX
+				local offsetZ = (math.random() * 2 - 1) * spreadZ
+				placeFlowerAt(holeFloor, flower, template.Name, anchorSpot.X + offsetX, anchorSpot.Z + offsetZ)
+
+				local spot = getModelFloorSpot(flower)
+				if canPlaceSpot(spot, stackSpots, overlapPadding) then
+					table.insert(stackSpots, spot)
+					table.insert(stackModels, flower)
+					placedInStack = true
+					break
+				end
+			end
+
+			if not placedInStack then
+				flower:Destroy()
+				stackComplete = false
+				break
+			end
+		end
+
+		if not stackComplete then
+			for _, flower in stackModels do
+				flower:Destroy()
+			end
+			continue
+		end
+
+		table.remove(placedSpots, #placedSpots)
+
+		local clusterSpot = getModelsClusterSpot(stackModels)
+		if canPlaceSpot(clusterSpot, placedSpots, overlapPadding) then
+			table.insert(placedSpots, clusterSpot)
+			return stackModels
+		end
+
+		for _, flower in stackModels do
+			flower:Destroy()
+		end
+	end
+
+	return nil
+end
+
+local function placeFlowersForHoleFloor(
+	holeFloor: BasePart,
+	flowerTemplates: { Model },
+	rarityName: string,
+	holeSide: string,
+	placedSpots: { PlacedSpot },
+	parent: Instance
+)
+	if #flowerTemplates == 0 then
+		return
+	end
+
+	local flowerCountRange = Shared_GameProcess.FlowersPerMinimap
+	local flowerCount = math.random(flowerCountRange.Min, flowerCountRange.Max)
+	local stackSizeRange = Shared_GameProcess.GroundFlowersPerStack
+	local flowerIndex = 0
+
+	for _ = 1, flowerCount do
+		local template = flowerTemplates[math.random(1, #flowerTemplates)]
+
+		if template.Name == GROUND_FLOWER_NAME then
+			local stackSize = math.random(stackSizeRange.Min, stackSizeRange.Max)
+			local stackModels = tryPlaceGroundFlowerStack(holeFloor, template, stackSize, placedSpots)
+			if not stackModels then
+				continue
+			end
+
+			for _, flower in stackModels do
+				flowerIndex += 1
+				finalizeFlowerOnHoleFloor(flower, rarityName, holeSide, flowerIndex, parent)
+			end
+		else
+			flowerIndex += 1
+			placeFlowerOnHoleFloor(holeFloor, template, rarityName, holeSide, flowerIndex, placedSpots, parent)
+		end
+	end
+end
+
+local function placeGrassAt(holeFloor: BasePart, grass: Model, worldX: number, worldZ: number)
+	local floorTopY = holeFloor.Position.Y + holeFloor.Size.Y / 2
+	local rotation = CFrame.Angles(0, math.random() * math.pi * 2, 0)
+
+	grass:PivotTo(CFrame.new(worldX, holeFloor.Position.Y, worldZ) * rotation)
+
+	local bboxCF, _bboxSize = grass:GetBoundingBox()
+	grass:PivotTo(grass:GetPivot() + Vector3.new(worldX - bboxCF.Position.X, 0, worldZ - bboxCF.Position.Z))
+	snapModelBottomToY(grass, floorTopY)
+end
+
+local function tryPlaceGrassStack(
+	holeFloor: BasePart,
+	grassTemplates: { Model },
+	stackSize: number,
+	placedSpots: { PlacedSpot }
+): { Model }?
+	local overlapPadding = Shared_GameProcess.PlacementOverlapPadding
+	local stackSpread = Shared_GameProcess.GrassStackSpread
+	local maxAttempts = Shared_GameProcess.PlacementMaxAttempts
+
+	for _ = 1, maxAttempts do
+		local stackModels: { Model } = {}
+		local anchorTemplate = grassTemplates[math.random(1, #grassTemplates)]
+		local anchorGrass = anchorTemplate:Clone()
+		prepareAnchoredModel(anchorGrass)
+
+		if not tryPlaceModelOnHoleFloor(holeFloor, anchorGrass, placedSpots, nil, true) then
+			anchorGrass:Destroy()
+			continue
+		end
+
+		table.insert(stackModels, anchorGrass)
+		local anchorSpot = getModelFloorSpot(anchorGrass)
+		local anchorX = anchorSpot.X
+		local anchorZ = anchorSpot.Z
+
+		for _ = 2, stackSize do
+			local template = grassTemplates[math.random(1, #grassTemplates)]
+			local grass = template:Clone()
+			prepareAnchoredModel(grass)
+			local offsetX = (math.random() * 2 - 1) * stackSpread
+			local offsetZ = (math.random() * 2 - 1) * stackSpread
+			placeGrassAt(holeFloor, grass, anchorX + offsetX, anchorZ + offsetZ)
+			table.insert(stackModels, grass)
+		end
+
+		table.remove(placedSpots, #placedSpots)
+
+		local clusterSpot = getModelsClusterSpot(stackModels)
+		if canPlaceSpot(clusterSpot, placedSpots, overlapPadding) then
+			table.insert(placedSpots, clusterSpot)
+			return stackModels
+		end
+
+		for _, grass in stackModels do
+			grass:Destroy()
+		end
+	end
+
+	return nil
+end
+
+local function placeGrassForHoleFloor(
+	holeFloor: BasePart,
+	grassTemplates: { Model },
+	rarityName: string,
+	holeSide: string,
+	placedSpots: { PlacedSpot },
+	parent: Instance
+)
+	if #grassTemplates == 0 then
+		return
+	end
+
+	local stackCountRange = Shared_GameProcess.GrassStacksPerMinimap
+	local stackCount = math.random(stackCountRange.Min, stackCountRange.Max)
+	local stackSizeRange = Shared_GameProcess.GrassPerStack
+	local grassIndex = 0
+
+	for _ = 1, stackCount do
+		local stackSize = math.random(stackSizeRange.Min, stackSizeRange.Max)
+		local stackModels = tryPlaceGrassStack(holeFloor, grassTemplates, stackSize, placedSpots)
+		if not stackModels then
+			break
+		end
+
+		for _, grass in stackModels do
+			grassIndex += 1
+			grass.Name = `{rarityName}{holeSide}Grass{grassIndex}`
+			grass:SetAttribute("Rarity", rarityName)
+			grass:SetAttribute("HoleSide", holeSide)
+			grass.Parent = parent
+		end
+	end
 end
 
 local function placeLuckyBlocksForHoleFloor(
@@ -487,6 +1109,7 @@ local function placeWallsForFloor(
 	local frontOpening = Shared_GameProcess.WallFrontOpening
 	local wallLengthZ = floor.Size.Z - frontOpening
 	local wallSize = Vector3.new(originWallSize.X, originWallSize.Y, wallLengthZ)
+	local halfWallThicknessX = wallSize.X / 2
 	local halfWallY = wallSize.Y / 2
 	local wallY = floor.Position.Y - floor.Size.Y + halfWallY
 	local wallZ = floor.Position.Z + frontOpening / 2
@@ -495,7 +1118,7 @@ local function placeWallsForFloor(
 	leftWall.Name = `{rarityName}LeftWall`
 	leftWall.Size = wallSize
 	leftWall.Position = Vector3.new(
-		floor.Position.X - halfFloorX,
+		floor.Position.X - halfFloorX - halfWallThicknessX,
 		wallY,
 		wallZ
 	)
@@ -508,7 +1131,7 @@ local function placeWallsForFloor(
 	rightWall.Name = `{rarityName}RightWall`
 	rightWall.Size = wallSize
 	rightWall.Position = Vector3.new(
-		floor.Position.X + halfFloorX,
+		floor.Position.X + halfFloorX + halfWallThicknessX,
 		wallY,
 		wallZ
 	)
@@ -562,16 +1185,18 @@ local function getWallInteriorDirection(wall: BasePart): Vector3
 	return Vector3.new(1, 0, 0)
 end
 
-local function placeLeafOnWall(
+local function placeLianaOnWall(
 	wall: BasePart,
 	template: Model,
 	index: number,
 	rarityName: string,
 	parent: Instance
 )
-	local leaf = template:Clone()
-	leaf.Name = `{rarityName}WallLeaf{index}`
-	prepareAnchoredModel(leaf)
+	local liana = template:Clone()
+	liana.Name = `{rarityName}WallLiana{index}`
+	prepareAnchoredModel(liana)
+	applyLianaScale(liana)
+	applyLianaFlowerColors(liana)
 
 	local wallTopY = wall.Position.Y + wall.Size.Y / 2
 	local edgeMargin = 1.5
@@ -593,27 +1218,30 @@ local function placeLeafOnWall(
 	local wallHalfThickness = if runsAlongZ then wall.Size.X / 2 else wall.Size.Z / 2
 	local position = Vector3.new(worldX, wallTopY, worldZ) + interiorDir * wallHalfThickness
 	local lookTarget = position + interiorDir
-	leaf:PivotTo(CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, -math.pi / 2, 0))
+	liana:PivotTo(CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, -math.pi / 2, 0))
 
-	local bboxCF, bboxSize = leaf:GetBoundingBox()
+	local _bboxCF, bboxSize = liana:GetBoundingBox()
+	local lianaHalfThickness = if runsAlongZ then bboxSize.X / 2 else bboxSize.Z / 2
+	liana:PivotTo(liana:GetPivot() + interiorDir * lianaHalfThickness)
+
+	local bboxCF, bboxSize = liana:GetBoundingBox()
 	local targetBottomY = wallTopY - bboxSize.Y
 	local bboxBottomY = bboxCF.Position.Y - bboxSize.Y / 2
-	leaf:PivotTo(leaf:GetPivot() + Vector3.new(0, targetBottomY - bboxBottomY, 0))
-	leaf:SetAttribute("Rarity", rarityName)
-	leaf.Parent = parent
+	liana:PivotTo(liana:GetPivot() + Vector3.new(0, targetBottomY - bboxBottomY, 0))
+	liana:SetAttribute("Rarity", rarityName)
+	liana.Parent = parent
 end
 
-local function placeLeavesOnRarityWalls(
+local function placeLianasOnRarityWalls(
 	parent: Instance,
 	rarityName: string,
-	leavesTemplates: { Model }
+	lianaTemplates: { Model }
 )
-	if #leavesTemplates == 0 then
+	if #lianaTemplates == 0 then
 		return
 	end
 
-	local leafChance = Shared_GameProcess.LeavesOnWallChance
-	local leafIndex = 0
+	local lianaIndex = 0
 
 	for _, child in parent:GetChildren() do
 		if not child:IsA("BasePart") then
@@ -625,13 +1253,13 @@ local function placeLeavesOnRarityWalls(
 		if child:GetAttribute("Rarity") ~= rarityName then
 			continue
 		end
-		if math.random() > leafChance then
+		if math.random() > getLianaSpawnChance(child) then
 			continue
 		end
 
-		leafIndex += 1
-		local template = leavesTemplates[math.random(1, #leavesTemplates)]
-		placeLeafOnWall(child, template, leafIndex, rarityName, parent)
+		lianaIndex += 1
+		local template = lianaTemplates[math.random(1, #lianaTemplates)]
+		placeLianaOnWall(child, template, lianaIndex, rarityName, parent)
 	end
 end
 
@@ -744,6 +1372,8 @@ local function placeHoleFloorsForFloor(
 	floorTemplate: BasePart,
 	wallTemplate: BasePart,
 	decorationTemplates: { Model },
+	flowerTemplates: { Model },
+	grassTemplates: { Model },
 	rarityName: string,
 	parent: Instance
 ): (BasePart, BasePart)
@@ -823,6 +1453,12 @@ local function placeHoleFloorsForFloor(
 		parent
 	)
 
+	placeFlowersForHoleFloor(leftHoleFloor, flowerTemplates, rarityName, "Left", leftPlacedSpots, parent)
+	placeFlowersForHoleFloor(rightHoleFloor, flowerTemplates, rarityName, "Right", rightPlacedSpots, parent)
+
+	placeGrassForHoleFloor(leftHoleFloor, grassTemplates, rarityName, "Left", leftPlacedSpots, parent)
+	placeGrassForHoleFloor(rightHoleFloor, grassTemplates, rarityName, "Right", rightPlacedSpots, parent)
+
 	local luckyBlockConfigName = Shared_LuckyBlocks.GetConfigNameForRarity(rarityName)
 	local luckyBlockTemplate = if luckyBlockConfigName then getLuckyBlockTemplate(luckyBlockConfigName) else nil
 	if luckyBlockConfigName and not luckyBlockTemplate then
@@ -899,9 +1535,19 @@ function GameProcessFloors.Setup()
 		warn("Missing ReplicatedStorage.Assets.GameProcess.Decorations models")
 	end
 
-	local leavesTemplates = getLeavesTemplates()
-	if #leavesTemplates == 0 then
-		warn("Missing ReplicatedStorage.Assets.GameProcess.Leaves models")
+	local flowerTemplates = getFlowerTemplates()
+	if #flowerTemplates == 0 then
+		warn("Missing ReplicatedStorage.Assets.GameProcess.Flowers models")
+	end
+
+	local grassTemplates = getGrassTemplates()
+	if #grassTemplates == 0 then
+		warn("Missing ReplicatedStorage.Assets.GameProcess.Grass models")
+	end
+
+	local lianaTemplates = getLianaTemplates()
+	if #lianaTemplates == 0 then
+		warn("Missing ReplicatedStorage.Assets.GameProcess.Lianas models")
 	end
 
 	local floorsFolder = zones:FindFirstChild("Floors")
@@ -945,8 +1591,17 @@ function GameProcessFloors.Setup()
 		floor.Parent = floorsFolder
 
 		placeWallsForFloor(floor, wallTemplate, rarityName, floorsFolder)
-		placeHoleFloorsForFloor(floor, floorTemplate, wallTemplate, decorationTemplates, rarityName, floorsFolder)
-		placeLeavesOnRarityWalls(floorsFolder, rarityName, leavesTemplates)
+		placeHoleFloorsForFloor(
+			floor,
+			floorTemplate,
+			wallTemplate,
+			decorationTemplates,
+			flowerTemplates,
+			grassTemplates,
+			rarityName,
+			floorsFolder
+		)
+		placeLianasOnRarityWalls(floorsFolder, rarityName, lianaTemplates)
 
 		cursorZ -= floorSize
 	end

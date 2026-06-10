@@ -16,6 +16,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_Equip = root.Inventory.Client_Equip,
 	Client_EquipHold = root.Inventory.Client_EquipHold,
 	Client_FOV = root.Core.Client_FOV,
+	Client_GradientBar = root.World.Client_GradientBar,
 	Client_GameProcessLuckyBlocks = root.LuckyBlocks.Client_GameProcessLuckyBlocks,
 	Client_Hotbar = root.Inventory.Client_Hotbar,
 	Client_Index = root.World.Client_Index,

@@ -26,6 +26,7 @@ local PATHS: { [string]: ModuleScript } = {
 
 	-- GameProcess
 	Shared_GameProcess = root.GameProcess.Shared_GameProcess,
+	Shared_RoadGradient = root.GameProcess.Shared_RoadGradient,
 
 	-- Economy
 	Shared_SpeedStore = root.Economy.Shared_SpeedStore,

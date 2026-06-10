@@ -28,6 +28,7 @@ local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimatio
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
 local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_Data = ClientLoader.require("Client_Data")
+local Client_AudioSettings = ClientLoader.require("Client_AudioSettings")
 local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
 local Client_LuckyBlockRevealState = ClientLoader.require("Client_LuckyBlockRevealState")
 local Client_TadaEffect = ClientLoader.require("Client_TadaEffect")
@@ -129,9 +130,14 @@ local function bounceEase(t: number): number
 end
 
 local function playSound(parent: Instance, soundId: string, volume: number, playbackSpeed: number?)
+	local resolvedVolume = volume * Client_AudioSettings.GetSfxVolume()
+	if resolvedVolume <= 0 then
+		return nil
+	end
+
 	local s = Instance.new("Sound")
 	s.SoundId = soundId
-	s.Volume = volume
+	s.Volume = resolvedVolume
 	s.RollOffMinDistance = 20
 	s.RollOffMaxDistance = 180
 	if playbackSpeed then
@@ -146,7 +152,7 @@ local function playSound(parent: Instance, soundId: string, volume: number, play
 end
 
 local function playWiggleSoundLoop(parent: Instance, totalDuration: number)
-	if not WIGGLE_SOUND_ID or totalDuration <= 0 then
+	if not WIGGLE_SOUND_ID or totalDuration <= 0 or Client_AudioSettings.GetSfxVolume() <= 0 then
 		return
 	end
 
@@ -183,6 +189,9 @@ local function playSuccessRolloutSfx()
 		return
 	end
 	if type(extraRolloutId) ~= "string" or extraRolloutId == "" then
+		return
+	end
+	if Client_AudioSettings.GetSfxVolume() <= 0 then
 		return
 	end
 

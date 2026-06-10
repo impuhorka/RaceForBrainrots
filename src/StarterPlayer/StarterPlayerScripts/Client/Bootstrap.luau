@@ -78,6 +78,7 @@ local function runPostDataSystems()
 		{ "Client_BackgroundMusic" },
 		{ "Client_LuckyBlockOpening" },
 		{ "Client_GameProcessLuckyBlocks" },
+		{ "Client_GradientBar" },
 		{ "Client_Index" },
 		{ "Client_RainbowBrainrots" },
 		{ "Client_OfflineCash" },

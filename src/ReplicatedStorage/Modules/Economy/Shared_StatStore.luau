@@ -28,6 +28,7 @@ local function createStatStore(config: StatStoreConfig)
 				return true
 			end
 		end
+
 		return false
 	end
 
@@ -35,6 +36,7 @@ local function createStatStore(config: StatStoreConfig)
 		local economy = store.Economy
 		local valueDelta = math.max(0, math.floor(currentValue) - store.DefaultValue)
 		local rawCost = economy.BaseCostPerPoint * (economy.GrowthPerPoint ^ valueDelta)
+
 		return roundToStep(rawCost, economy.RoundTo)
 	end
 
@@ -42,9 +44,11 @@ local function createStatStore(config: StatStoreConfig)
 		local safeValue = math.max(1, math.floor(currentValue))
 		local safeAmount = math.max(1, math.floor(amount))
 		local totalCost = 0
+		
 		for index = 0, safeAmount - 1 do
 			totalCost += store.GetSinglePointCost(safeValue + index)
 		end
+
 		return math.max(1, math.floor(totalCost + 0.5))
 	end
 

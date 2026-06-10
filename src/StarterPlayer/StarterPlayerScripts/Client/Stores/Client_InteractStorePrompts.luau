@@ -15,9 +15,13 @@ local STORE_MODELS = {
 }
 
 local PROMPT_DISTANCE = 25
+local RESCAN_INTERVAL_SECONDS = 2
+
 local hookedStores: { [Model]: boolean } = {}
 local watchingStores: { [Model]: boolean } = {}
 local storeModels: { [string]: Model } = {}
+local boundInteractFolder: Instance?
+local lastRescanAt = 0
 
 local function getProximityPart(storeModel: Model): BasePart?
 	local proximityPart = storeModel:FindFirstChild("ProximityPart", true)
@@ -25,6 +29,32 @@ local function getProximityPart(storeModel: Model): BasePart?
 		return proximityPart
 	end
 	return nil
+end
+
+local function getStorePromptName(storeModel: Model): string
+	return storeModel.Name .. "Prompt"
+end
+
+local function getStorePrompt(storeModel: Model): ProximityPrompt?
+	local proximityPart = getProximityPart(storeModel)
+	if not proximityPart then
+		return nil
+	end
+
+	local prompt = proximityPart:FindFirstChild(getStorePromptName(storeModel))
+	if prompt and prompt:IsA("ProximityPrompt") then
+		return prompt
+	end
+
+	return nil
+end
+
+local function clearStoreHook(storeModel: Model)
+	hookedStores[storeModel] = nil
+	watchingStores[storeModel] = nil
+	if storeModels[storeModel.Name] == storeModel then
+		storeModels[storeModel.Name] = nil
+	end
 end
 
 local function openStoreFrame(storeName: string)
@@ -41,6 +71,14 @@ local function openStoreFrame(storeName: string)
 end
 
 local function setupStorePrompt(storeModel: Model)
+	if getStorePrompt(storeModel) and hookedStores[storeModel] then
+		return
+	end
+
+	if hookedStores[storeModel] and not getStorePrompt(storeModel) then
+		clearStoreHook(storeModel)
+	end
+
 	if hookedStores[storeModel] then
 		return
 	end
@@ -69,7 +107,7 @@ local function setupStorePrompt(storeModel: Model)
 			if connection then
 				connection:Disconnect()
 			end
-			watchingStores[storeModel] = nil
+			clearStoreHook(storeModel)
 		end)
 		return
 	end
@@ -78,7 +116,7 @@ local function setupStorePrompt(storeModel: Model)
 	storeModels[storeModel.Name] = storeModel
 
 	local prompt = Shared_ProximityPrompt.Create(proximityPart, {
-		Name = storeModel.Name .. "Prompt",
+		Name = getStorePromptName(storeModel),
 		ActionText = "Open!",
 		ObjectText = "",
 		HoldDuration = 0.5,
@@ -91,16 +129,63 @@ local function setupStorePrompt(storeModel: Model)
 		openStoreFrame(storeModel.Name)
 	end)
 
+	prompt.Destroying:Connect(function()
+		clearStoreHook(storeModel)
+		if storeModel.Parent then
+			task.defer(setupStorePrompt, storeModel)
+		end
+	end)
+
 	storeModel.Destroying:Connect(function()
-		hookedStores[storeModel] = nil
-		watchingStores[storeModel] = nil
-		storeModels[storeModel.Name] = nil
+		clearStoreHook(storeModel)
 	end)
 end
 
 local function tryHookStoreModel(instance: Instance)
 	if instance:IsA("Model") and STORE_MODELS[instance.Name] then
 		setupStorePrompt(instance)
+	end
+end
+
+local function scanInteractFolder(interactFolder: Instance)
+	for _, descendant in interactFolder:GetDescendants() do
+		tryHookStoreModel(descendant)
+	end
+end
+
+local function bindInteractFolder(interactFolder: Instance)
+	if boundInteractFolder == interactFolder then
+		scanInteractFolder(interactFolder)
+		return
+	end
+
+	boundInteractFolder = interactFolder
+	scanInteractFolder(interactFolder)
+	interactFolder.DescendantAdded:Connect(tryHookStoreModel)
+end
+
+local function tryBindInteractFolder()
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local interactFolder = gameFolder and gameFolder:FindFirstChild("Interact")
+	if interactFolder then
+		bindInteractFolder(interactFolder)
+	end
+end
+
+local function rescanStorePrompts()
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local interactFolder = gameFolder and gameFolder:FindFirstChild("Interact")
+	if not interactFolder then
+		return
+	end
+
+	for _, descendant in interactFolder:GetDescendants() do
+		if descendant:IsA("Model") and STORE_MODELS[descendant.Name] then
+			if not getStorePrompt(descendant) then
+				clearStoreHook(descendant)
+				setupStorePrompt(descendant)
+			end
+		end
 	end
 end
 
@@ -115,6 +200,13 @@ end
 
 local function watchStoreDistance()
 	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		if now - lastRescanAt >= RESCAN_INTERVAL_SECONDS then
+			lastRescanAt = now
+			tryBindInteractFolder()
+			rescanStorePrompts()
+		end
+
 		local playerPosition = getPlayerPosition()
 		if not playerPosition then
 			return
@@ -145,14 +237,13 @@ end
 
 function Client_InteractStorePrompts.Init()
 	local gameFolder = Workspace:WaitForChild("Game")
-	local interactFolder = gameFolder:WaitForChild("Interact")
+	gameFolder.ChildAdded:Connect(function(child)
+		if child.Name == "Interact" then
+			bindInteractFolder(child)
+		end
+	end)
 
-	for _, descendant in interactFolder:GetDescendants() do
-		tryHookStoreModel(descendant)
-	end
-
-	interactFolder.DescendantAdded:Connect(tryHookStoreModel)
-
+	tryBindInteractFolder()
 	watchStoreDistance()
 end
 

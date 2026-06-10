@@ -85,12 +85,14 @@ local function runPostDataSystems()
 		{ "Client_Settings" },
 	}
 
+	require(script.Parent.Parent.UI)
+	ClientLoader.require("Client_ProximityPrompts").refreshSuppression()
+
 	for _, entry in postDataModules do
 		initModule(entry[1], entry[2])
 	end
 
 	require(script.Parent.Parent.Animations)
-	require(script.Parent.Parent.UI)
 end
 
 function Bootstrap.start()

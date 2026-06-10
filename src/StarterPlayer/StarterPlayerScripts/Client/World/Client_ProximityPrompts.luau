@@ -10,7 +10,7 @@ local localPlayer = Players.LocalPlayer
 local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_Data = ClientLoader.require("Client_Data")
 local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
-local FrameController = require(script.Parent.Parent.UI.FrameController)
+local FrameController = require(script.Parent.Parent.Parent.UI.FrameController)
 
 local Client_ProximityPrompts = {}
 local progressGradientFuzz = 0.01
@@ -623,6 +623,10 @@ local function buildPromptGui(prompt: ProximityPrompt, inputType: Enum.Proximity
 		connections = connections,
 		popTween = popTween,
 	}
+end
+
+function Client_ProximityPrompts.refreshSuppression()
+	refreshSuppressionNow()
 end
 
 function Client_ProximityPrompts.Init()

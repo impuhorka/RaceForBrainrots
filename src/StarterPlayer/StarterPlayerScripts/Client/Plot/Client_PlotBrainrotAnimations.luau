@@ -1,5 +1,7 @@
-local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
 

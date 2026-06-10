@@ -7,7 +7,7 @@ local ClientLoader = require(script.Parent.Parent.Loader)
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local Client_CashAddingPopups = ClientLoader.require("Client_CashAddingPopups")
 local Client_Messaging = ClientLoader.require("Client_Messaging")
-local FrameController = require(script.Parent.Parent.UI.FrameController)
+local FrameController = require(script.Parent.Parent.Parent.UI.FrameController)
 local Client_OfflineCash = {}
 
 local OFFLINE_POPUP_COUNT = 12

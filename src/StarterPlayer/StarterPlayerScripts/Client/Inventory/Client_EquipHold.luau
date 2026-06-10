@@ -200,8 +200,7 @@ local function playHoldAnimation(character: Model, aggressiveForMovement: boolea
 		end)
 		state.stateConn = humanoid.StateChanged:Connect(function(_, newState)
 			if newState == Enum.HumanoidStateType.Running
-				or newState == Enum.HumanoidStateType.RunningNoPhysics
-				or newState == Enum.HumanoidStateType.Walking then
+				or newState == Enum.HumanoidStateType.RunningNoPhysics then
 				enforceHoldTrackPriority(state)
 			end
 		end)

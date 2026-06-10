@@ -24,6 +24,7 @@ local TweenService    = game:GetService("TweenService")
 local ClientLoader = require(script.Parent.Parent.Loader)
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 local Shared_Weight = SharedModules.require("Shared_Weight")
+local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimations")
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
 local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_Data = ClientLoader.require("Client_Data")
@@ -343,6 +344,18 @@ local function playOpening(data: {
 		end
 	end
 
+	local revealPreloadDone = data.pickedItemType ~= "Brainrot" or revealedModel == nil
+	if not revealPreloadDone and revealedModel then
+		task.spawn(function()
+			Shared_BrainrotAnimations.PreloadModelAssets(
+				revealedModel,
+				data.pickedConfigName,
+				data.pickedModifier or "Normal"
+			)
+			revealPreloadDone = true
+		end)
+	end
+
 	-- Find floor Y at landing
 	local rayResult = workspace:Raycast(
 		data.landingPosition + Vector3.new(0, 10, 0),
@@ -563,6 +576,10 @@ local function playOpening(data: {
 			):Play()
 		end
 		Client_TadaEffect.Play()
+	end
+
+	while not revealPreloadDone do
+		task.wait()
 	end
 
 	if revealedModel then

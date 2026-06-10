@@ -4,9 +4,13 @@ local CollectionService = game:GetService("CollectionService")
 
 local Shared_BrainrotAnimations = {}
 
+local Workspace = game:GetService("Workspace")
+
 local idleTracks: { [Model]: AnimationTrack } = {}
 local preloadedConfigNames: { [string]: boolean } = {}
+local preloadedModelKeys: { [string]: boolean } = {}
 local taggedAnimatedConfigNames: { [string]: boolean } = {}
+local preloadHost: Folder? = nil
 local TAG_NAME = "AnimatedBrainrot"
 
 local function rebuildAnimatedConfigNameCache()
@@ -43,6 +47,68 @@ function Shared_BrainrotAnimations.GetIdleAnimation(configName: string): Animati
 	end
 
 	return nil
+end
+
+local function getPreloadHost(): Folder
+	if preloadHost and preloadHost.Parent then
+		return preloadHost
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "_BrainrotAssetPreload"
+	folder.Parent = Workspace
+	preloadHost = folder
+	return folder
+end
+
+function Shared_BrainrotAnimations.PreloadModelAssets(model: Model, configName: string?, modifier: string?)
+	if not model or not model:IsA("Model") then
+		return
+	end
+
+	local cacheKey: string? = nil
+	if type(configName) == "string" and configName ~= "" then
+		cacheKey = `{configName}:{modifier or "Normal"}`
+		Shared_BrainrotAnimations.PreloadIdle(configName)
+		if cacheKey and preloadedModelKeys[cacheKey] then
+			return
+		end
+	end
+
+	if not model.PrimaryPart then
+		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	local previousParent = model.Parent
+	local previousPivot = model:GetPivot()
+	local hiddenTransparencies: { [BasePart]: number } = {}
+
+	model.Parent = getPreloadHost()
+	model:PivotTo(CFrame.new(0, -10_000, 0))
+
+	for _, inst in model:GetDescendants() do
+		if inst:IsA("BasePart") then
+			hiddenTransparencies[inst] = inst.Transparency
+			inst.Transparency = 1
+		end
+	end
+
+	pcall(function()
+		ContentProvider:PreloadAsync({ model })
+	end)
+
+	for part, transparency in hiddenTransparencies do
+		if part.Parent then
+			part.Transparency = transparency
+		end
+	end
+
+	model:PivotTo(previousPivot)
+	model.Parent = previousParent
+
+	if cacheKey then
+		preloadedModelKeys[cacheKey] = true
+	end
 end
 
 function Shared_BrainrotAnimations.PreloadIdle(configName: string)

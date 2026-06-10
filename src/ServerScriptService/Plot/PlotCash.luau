@@ -1,8 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
-local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
+local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local PlotCash = {}
 

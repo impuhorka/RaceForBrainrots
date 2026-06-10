@@ -1,10 +1,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local PlotBrainrotVisuals = require(script.Parent.PlotBrainrotVisuals)
 local PlotCash = require(script.Parent.PlotCash)
 local Server_Data = require(script.Parent.Parent.Core.Server_Data)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
-local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
+local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_Weight = SharedModules.require("Shared_Weight")
 
 local PlotPlacement = {}
 

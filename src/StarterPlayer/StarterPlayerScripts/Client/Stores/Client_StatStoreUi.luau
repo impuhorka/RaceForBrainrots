@@ -1,0 +1,163 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
+
+local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
+local ClientLoader = require(script.Parent.Parent.Loader)
+
+type StatStoreUiConfig = {
+	statName: string,
+	frameName: string,
+	sharedStore: any,
+	buyRemoteAction: string,
+	successRemoteAction: string,
+	failedRemoteAction: string,
+	successMessage: (addedAmount: number, paidCost: number) -> string,
+}
+
+type PurchaseUi = {
+	amount: number,
+	button: ImageButton,
+	costLabel: TextLabel?,
+	beforeLabel: TextLabel?,
+	afterLabel: TextLabel?,
+}
+
+local function findTextLabel(root: Instance, name: string): TextLabel?
+	local direct = root:FindFirstChild(name)
+	if direct and direct:IsA("TextLabel") then
+		return direct
+	end
+
+	local nested = root:FindFirstChild(name, true)
+	if nested and nested:IsA("TextLabel") then
+		return nested
+	end
+
+	return nil
+end
+
+local function createStatStoreUi(config: StatStoreUiConfig)
+	local Client_Data = ClientLoader.require("Client_Data")
+	local Client_Messaging = ClientLoader.require("Client_Messaging")
+
+	local purchaseUis: { PurchaseUi } = {}
+	local plotHandler: RemoteEvent?
+
+	local function getCurrentValue(): number
+		local defaultValue = config.sharedStore.DefaultValue
+		return math.max(1, math.floor(Client_Data:GetValue(config.statName) or defaultValue))
+	end
+
+	local function renderOption(option: PurchaseUi, currentValue: number)
+		local nextValue = config.sharedStore.GetValueAfterPurchase(currentValue, option.amount)
+		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount)
+
+		if option.costLabel then
+			option.costLabel.Text = ("$%s"):format(Shared_Abbreviation:Number(cost))
+		end
+		if option.beforeLabel then
+			option.beforeLabel.Text = tostring(currentValue)
+		end
+		if option.afterLabel then
+			option.afterLabel.Text = tostring(nextValue)
+		end
+	end
+
+	local function renderAll()
+		local currentValue = getCurrentValue()
+		for _, option in purchaseUis do
+			renderOption(option, currentValue)
+		end
+	end
+
+	local function setupPurchaseUi(amount: number, root: Instance)
+		local buttonRoot = root:FindFirstChild("Button")
+		local imageButton = if buttonRoot then buttonRoot:FindFirstChildWhichIsA("ImageButton", true) else nil
+		if not imageButton then
+			return
+		end
+
+		local numbersRoot = root:FindFirstChild("Numbers")
+		local option: PurchaseUi = {
+			amount = amount,
+			button = imageButton,
+			costLabel = findTextLabel(imageButton, "Cost")
+				or (if buttonRoot then findTextLabel(buttonRoot, "Cost") else nil),
+			beforeLabel = if numbersRoot then findTextLabel(numbersRoot, "Before") else nil,
+			afterLabel = if numbersRoot then findTextLabel(numbersRoot, "After") else nil,
+		}
+
+		table.insert(purchaseUis, option)
+		imageButton.MouseButton1Click:Connect(function()
+			if plotHandler then
+				plotHandler:FireServer(config.buyRemoteAction, amount)
+			end
+		end)
+	end
+
+	local function setupUi()
+		local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+		local frames = playerGui:WaitForChild("Main"):WaitForChild("Frames")
+		local storeFrame = frames:WaitForChild(config.frameName)
+		local holder = storeFrame:WaitForChild("Holder")
+
+		table.clear(purchaseUis)
+		for _, amount in config.sharedStore.PurchaseOptions do
+			local frame = holder:FindFirstChild(tostring(amount))
+			if frame then
+				setupPurchaseUi(amount, frame)
+			end
+		end
+
+		renderAll()
+	end
+
+	local function hookPurchaseResponses()
+		if not plotHandler then
+			return
+		end
+
+		plotHandler.OnClientEvent:Connect(function(action: string, arg1: any, arg2: any)
+			if action == config.successRemoteAction then
+				local addedAmount = type(arg1) == "number" and math.floor(arg1) or 0
+				local paidCost = type(arg2) == "number" and arg2 or 0
+				if addedAmount > 0 and paidCost > 0 then
+					Client_Messaging.Show(config.successMessage(addedAmount, paidCost), "green")
+				end
+				return
+			end
+
+			if action == config.failedRemoteAction then
+				local reason = type(arg1) == "string" and arg1 or ""
+				local requiredCost = type(arg2) == "number" and arg2 or 0
+				if reason == "NotEnoughCash" and requiredCost > 0 then
+					Client_Messaging.Show("You need more cash to purchase this!", "red")
+				elseif reason == "AtCap" then
+					Client_Messaging.Show("Rebirth to raise your cap!", "red")
+				elseif reason == "InvalidAmount" then
+					Client_Messaging.Show("Invalid purchase amount.", "red")
+				else
+					Client_Messaging.Show("Could not complete purchase right now.", "red")
+				end
+			end
+		end)
+	end
+
+	return {
+		Init = function()
+			Client_Data.WaitUntilReady()
+
+			local events = ReplicatedStorage:WaitForChild("Events")
+			plotHandler = events:WaitForChild("PlotHandler") :: RemoteEvent
+
+			setupUi()
+			Client_Data:ListenToChange(config.statName, renderAll)
+			hookPurchaseResponses()
+		end,
+	}
+end
+
+return {
+	create = createStatStoreUi,
+}

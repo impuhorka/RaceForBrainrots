@@ -1,10 +1,12 @@
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local AnimationBase = require(script.Parent.AnimationBase)
 local ClickRipple = require(script.Parent.ClickRipple)
-local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
-local Client_SoundPreload = require(script.Parent.Parent.Client.Client_SoundPreload)
+local Shared_Sounds = SharedModules.require("Shared_Sounds")
+local ClientLoader = require(script.Parent.Parent.Client.Loader)
+local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
 
 local TWEEN_INFO = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 

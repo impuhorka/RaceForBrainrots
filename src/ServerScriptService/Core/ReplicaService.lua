@@ -173,11 +173,10 @@ do
 	Madwork = {
 		GetShared = function(package_name, item_name)
 			-- Ignoring package_name as we're working without Madwork framework
-			-- Updated to use new Dependencies folder structure
 			local ReplicatedStorage = game:GetService("ReplicatedStorage")
-			local Dependencies = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Dependencies")
-			if Dependencies then
-				return Dependencies:FindFirstChild(item_name, true)
+			local Vendor = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Vendor")
+			if Vendor then
+				return Vendor:FindFirstChild(item_name, true)
 			end
 			return WaitForDescendant(ReplicatedStorage, item_name, "module")
 		end,
@@ -198,7 +197,7 @@ do
 	}
 
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local MadworkScriptSignal = require(ReplicatedStorage.Modules.Dependencies.MadworkScriptSignal)
+	local MadworkScriptSignal = require(ReplicatedStorage.Modules.Vendor.MadworkScriptSignal)
 	Madwork.NewScriptSignal = MadworkScriptSignal.NewScriptSignal
 	Madwork.NewArrayScriptConnection = MadworkScriptSignal.NewArrayScriptConnection
 end
@@ -258,8 +257,8 @@ local ReplicaService = {
 ----- Loaded Services & Modules -----
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RateLimiter = require(ReplicatedStorage.Modules.Dependencies.RateLimiter)
-local MadworkMaid = require(ReplicatedStorage.Modules.Dependencies.MadworkMaid)
+local RateLimiter = require(ReplicatedStorage.Modules.Vendor.RateLimiter)
+local MadworkMaid = require(ReplicatedStorage.Modules.Vendor.MadworkMaid)
 
 ----- Private Variables -----
 

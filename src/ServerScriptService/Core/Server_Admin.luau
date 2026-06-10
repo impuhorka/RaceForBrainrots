@@ -1,11 +1,12 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
 
 local Server_Data = require(script.Parent.Server_Data)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
-local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
+local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 
 local Server_Admin = {}
 local plotServiceRef = nil

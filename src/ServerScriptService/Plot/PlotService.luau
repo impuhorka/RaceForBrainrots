@@ -1,25 +1,66 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Plot = require(script.Parent.Plot)
-local PlotConfig = require(script.Parent.PlotConfig)
+local Shared_PlotConfig = SharedModules.require("Shared_PlotConfig")
 local PlotCash = require(script.Parent.PlotCash)
 local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
-local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
-local Shared_Modifiers = require(ReplicatedStorage.Modules.Utilities.Shared_Modifiers)
-local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
-local Shared_SpeedStore = require(ReplicatedStorage.Modules.Shared_SpeedStore)
-local Shared_StrengthStore = require(ReplicatedStorage.Modules.Shared_StrengthStore)
-local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
+local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
+local Shared_Modifiers = SharedModules.require("Shared_Modifiers")
+local Shared_Weight = SharedModules.require("Shared_Weight")
+local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
+local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
+local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
 local plotHandler: RemoteEvent
+
+local function clearEquippedVisual(player: Player)
+	player:SetAttribute("EquippedItemType", nil)
+	player:SetAttribute("EquippedConfigName", nil)
+	player:SetAttribute("EquippedModifier", nil)
+	player:SetAttribute("EquippedLevel", nil)
+	player:SetAttribute("EquippedBaseWeight", nil)
+	player:SetAttribute("EquippedWeight", nil)
+end
+
+local function setEquippedVisual(player: Player, inventoryIndex: any)
+	if inventoryIndex == nil then
+		clearEquippedVisual(player)
+		return
+	end
+
+	if type(inventoryIndex) ~= "number" then
+		return
+	end
+
+	local inventory = Server_Data:GetValue(player, "Inventory") or {}
+	local item = inventory[inventoryIndex]
+	if not item or type(item.ConfigName) ~= "string" then
+		clearEquippedVisual(player)
+		return
+	end
+
+	if item.ItemType ~= "Brainrot" and item.ItemType ~= "LuckyBlock" then
+		clearEquippedVisual(player)
+		return
+	end
+
+	local data = item.Data or {}
+	player:SetAttribute("EquippedItemType", item.ItemType)
+	player:SetAttribute("EquippedConfigName", item.ConfigName)
+	player:SetAttribute("EquippedModifier", data.Modifier or "Normal")
+	player:SetAttribute("EquippedLevel", math.max(1, tonumber(data.Level) or 1))
+	player:SetAttribute("EquippedBaseWeight", tonumber(data.BaseWeight))
+	player:SetAttribute("EquippedWeight", tonumber(data.Weight))
+end
 
 local function normalizeName(name: string): string
 	return string.lower(string.gsub(name, "[^%w]", ""))
@@ -344,7 +385,7 @@ local function tryRebirth(player: Player): (boolean, string?, number?)
 end
 
 local function getPlayerSlotCount(player: Player): number
-	return Server_Data:GetValue(player, "TotalPlotSlots") or PlotConfig.DefaultPlotSlots
+	return Server_Data:GetValue(player, "TotalPlotSlots") or Shared_PlotConfig.DefaultPlotSlots
 end
 
 local PlotService = {}
@@ -529,13 +570,19 @@ function PlotService:Init()
 			return
 		end
 
+		if action == "SetEquipped" then
+			setEquippedVisual(player, slotId)
+			return
+		end
+
 		if action == "OpenLuckyBlock" then
 			if type(slotId) ~= "number" then
 				return
 			end
 			local animationData = openLuckyBlock(player, slotId)
 			if animationData then
-				plotHandler:FireClient(player, "LuckyBlockOpen", animationData)
+				clearEquippedVisual(player)
+				plotHandler:FireAllClients("LuckyBlockOpen", animationData)
 			end
 			return
 		end

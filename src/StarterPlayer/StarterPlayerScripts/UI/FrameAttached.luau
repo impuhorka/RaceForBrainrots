@@ -1,9 +1,11 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local UserInputService = game:GetService("UserInputService")
 
-local Shared_Sounds = require(ReplicatedStorage.Modules.Shared_Sounds)
-local Client_SoundPreload = require(script.Parent.Parent.Client.Client_SoundPreload)
+local Shared_Sounds = SharedModules.require("Shared_Sounds")
+local ClientLoader = require(script.Parent.Parent.Client.Loader)
+local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
 local FrameController = require(script.Parent.FrameController)
 local FrameRegistry = require(script.Parent.FrameRegistry)
 

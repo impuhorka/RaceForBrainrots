@@ -2,7 +2,8 @@ local Players = game:GetService("Players")
 
 local BlurController = require(script.Parent.BlurController)
 local FrameController = require(script.Parent.FrameController)
-local Client_FOV = require(script.Parent.Parent.Client.Client_FOV)
+local ClientLoader = require(script.Parent.Parent.Client.Loader)
+local Client_FOV = ClientLoader.require("Client_FOV")
 
 local FrameRegistry = {}
 

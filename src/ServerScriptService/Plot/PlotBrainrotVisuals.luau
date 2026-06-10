@@ -1,8 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
-local Shared_BrainrotBillboard = require(ReplicatedStorage.Modules.Shared_BrainrotBillboard)
-local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
-local Shared_ProximityPrompt = require(ReplicatedStorage.Modules.Shared_ProximityPrompt)
+local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
+local Shared_Weight = SharedModules.require("Shared_Weight")
+local Shared_ProximityPrompt = SharedModules.require("Shared_ProximityPrompt")
 
 local PlotBrainrotVisuals = {}
 

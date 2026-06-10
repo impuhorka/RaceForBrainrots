@@ -1,8 +1,9 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
-local PlotConfig = require(script.Parent.PlotConfig)
-local Shared_Rebirth = require(ReplicatedStorage.Modules.Shared_Rebirth)
+local Shared_PlotConfig = SharedModules.require("Shared_PlotConfig")
+local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local Plot = {}
 Plot.__index = Plot
@@ -280,8 +281,8 @@ function Plot:EnsureAdditionalFloor(floorIndex: number, additionalFloorTemplate:
 	floorModel.Name = "Floor" .. floorIndex
 	floorModel.Parent = map
 
-	local yOffset = PlotConfig.getAdditionalFloorYOffset(floorIndex)
-	local rotation = PlotConfig.getFloorRotation(floorIndex)
+	local yOffset = Shared_PlotConfig.getAdditionalFloorYOffset(floorIndex)
+	local rotation = Shared_PlotConfig.getFloorRotation(floorIndex)
 	floorModel:PivotTo(floor0:GetPivot() * CFrame.new(0, yOffset, 0) * rotation)
 
 	self.Floors[floorIndex] = floorModel
@@ -291,7 +292,7 @@ function Plot:CleanupUnusedFloors()
 	local usedFloors: { [number]: boolean } = { [0] = true }
 
 	for slotId in self.Slots do
-		local floorIndex = math.floor((slotId - 1) / PlotConfig.SlotsPerFloor)
+		local floorIndex = math.floor((slotId - 1) / Shared_PlotConfig.SlotsPerFloor)
 		usedFloors[floorIndex] = true
 	end
 
@@ -326,7 +327,7 @@ function Plot:CreateSlot(slotId: number): Model?
 		return nil
 	end
 
-	local floorIndex = math.floor((slotId - 1) / PlotConfig.SlotsPerFloor)
+	local floorIndex = math.floor((slotId - 1) / Shared_PlotConfig.SlotsPerFloor)
 
 	if floorIndex >= 1 and additionalFloorTemplate then
 		self:EnsureAdditionalFloor(floorIndex, additionalFloorTemplate)
@@ -397,15 +398,15 @@ function Plot:RemoveSlot(slotId: number): boolean
 end
 
 function Plot:GetSlotCFrame(slotId: number): CFrame?
-	local slotRelativeId = ((slotId - 1) % PlotConfig.SlotsPerFloor) + 1
-	local floorIndex = math.floor((slotId - 1) / PlotConfig.SlotsPerFloor)
-	local relative = PlotConfig.SlotRelativeCFrames[slotRelativeId]
+	local slotRelativeId = ((slotId - 1) % Shared_PlotConfig.SlotsPerFloor) + 1
+	local floorIndex = math.floor((slotId - 1) / Shared_PlotConfig.SlotsPerFloor)
+	local relative = Shared_PlotConfig.SlotRelativeCFrames[slotRelativeId]
 
 	if not relative then
 		return nil
 	end
 
-	local yOffset = PlotConfig.getSlotFloorYOffset(floorIndex)
+	local yOffset = Shared_PlotConfig.getSlotFloorYOffset(floorIndex)
 	local baseCFrame = self.TeleportPart.CFrame * relative
 
 	if yOffset == 0 then

@@ -1,15 +1,16 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local RunService = game:GetService("RunService")
 
 local ProfileStore = require(ReplicatedStorage.Core.ProfileStore)
 local ReplicaService = require(script.Parent.ReplicaService)
 require(script.Parent.ReplicaServiceListeners)
 
-local Shared_Abbreviation = require(ReplicatedStorage.Modules.Utilities.Shared_Abbreviation)
-local Shared_Brainrots = require(ReplicatedStorage.Modules.Shared_Brainrots)
-local Shared_LuckyBlocks = require(ReplicatedStorage.Modules.Shared_LuckyBlocks)
-local Shared_Weight = require(ReplicatedStorage.Modules.Shared_Weight)
+local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
+local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
+local Shared_Weight = SharedModules.require("Shared_Weight")
 
 local DataTemplate = {
 	Cash = 0,

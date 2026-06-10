@@ -393,7 +393,7 @@ function Client_PlotSlotSurfaces.Init()
 			end
 		end
 
-		Client_Messaging.Show(("You've upgraded brainrot's level to %s!"):format(level), "green")
+		Client_Messaging.Show("You've upgraded your brainrot!", "green")
 	end)
 
 	local gameFolder = Workspace:WaitForChild("Game")

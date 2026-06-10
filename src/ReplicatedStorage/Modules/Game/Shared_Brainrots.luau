@@ -13,12 +13,12 @@ Brainrots.Balance = {
 	MinPlotScale = 0.5,
 	MaxPlotScale = 2,
 	UpgradePayback = {
-		BaseSeconds = 15,
-		PerLevelMultiplier = 1.04,
-		StepLevels = 10,
-		StepMultiplierPhase1 = 1.5,
-		StepMultiplierPhase2 = 2,
-		Phase1StepCount = 8,
+		BaseSeconds = 50,
+		PerLevelMultiplier = 1.058,
+		StepLevels = 5,
+		StepMultiplierPhase1 = 1.45,
+		StepMultiplierPhase2 = 1.85,
+		Phase1StepCount = 16,
 	},
 	SellWorthSeconds = 10,
 }

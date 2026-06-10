@@ -9,13 +9,19 @@ require(script.Parent.ReplicaServiceListeners)
 
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
+local Shared_Carry = SharedModules.require("Shared_Carry")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
+local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 
-local DataTemplate = {
-	Cash = 0,
+local Module = {}
+Module.Profiles = {}
+Module.Replicas = {}
 
-	Speed = 16,
+local DataTemplate = {
+	Cash = 150,
+
+	Speed = Shared_SpeedStore.DefaultSpeed,
 	Strength = 1,
 
 	Rebirths = 0,
@@ -78,7 +84,7 @@ local DataTemplate = {
 local USE_TEST_INVENTORY = false
 local USE_MOCK_DATASTORE_IN_STUDIO = false
 local INVENTORY_MAX_SLOTS = 60
-local DEFAULT_WALK_SPEED = 16
+local DEFAULT_WALK_SPEED = Shared_SpeedStore.DefaultSpeed
 local SLOW_MODE_SPEED_CAP = 50
 
 local function resolveMaxSpeed(rawSpeed: any): number
@@ -90,18 +96,39 @@ local function resolveSlowModeEnabled(rawSlowMode: any): boolean
 	return rawSlowMode == true
 end
 
-local function resolveAppliedWalkSpeed(rawMaxSpeed: any, rawSlowMode: any): number
+local function getPlayerStrength(player: Player): number
+	local profile = Module.Profiles[player]
+	if profile then
+		return math.max(1, math.floor(tonumber(profile.Data.Strength) or 1))
+	end
+
+	local replica = Module.Replicas[player]
+	if replica and type(replica.Data) == "table" then
+		return math.max(1, math.floor(tonumber(replica.Data.Strength) or 1))
+	end
+
+	return 1
+end
+
+local function resolveAppliedWalkSpeed(player: Player, rawMaxSpeed: any, rawSlowMode: any): number
 	local maxSpeed = resolveMaxSpeed(rawMaxSpeed)
 	if resolveSlowModeEnabled(rawSlowMode) then
-		return math.min(maxSpeed, SLOW_MODE_SPEED_CAP)
+		maxSpeed = math.min(maxSpeed, SLOW_MODE_SPEED_CAP)
 	end
+
+	local carryWeight = player:GetAttribute("CarriedLuckyBlockWeight")
+	if type(carryWeight) == "number" and carryWeight > 0 then
+		local strength = getPlayerStrength(player)
+		return Shared_Carry.GetCarryWalkSpeed(maxSpeed, carryWeight, strength, maxSpeed)
+	end
+
 	return maxSpeed
 end
 
-local function applyWalkSpeedToCharacter(character: Model, maxSpeed: any, slowMode: any)
+local function applyWalkSpeedToCharacter(character: Model, player: Player, maxSpeed: any, slowMode: any)
 	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
 	if humanoid and humanoid:IsA("Humanoid") then
-		humanoid.WalkSpeed = resolveAppliedWalkSpeed(maxSpeed, slowMode)
+		humanoid.WalkSpeed = resolveAppliedWalkSpeed(player, maxSpeed, slowMode)
 	end
 end
 
@@ -110,12 +137,8 @@ local function applyWalkSpeed(player: Player, maxSpeed: any, slowMode: any)
 	if not character then
 		return
 	end
-	applyWalkSpeedToCharacter(character, maxSpeed, slowMode)
+	applyWalkSpeedToCharacter(character, player, maxSpeed, slowMode)
 end
-
-local Module = {}
-Module.Profiles = {}
-Module.Replicas = {}
 
 local PlayerStore = ProfileStore.New("RunForBrainrots_v1", DataTemplate)
 local ReplicaClassToken = ReplicaService.NewClassToken("PlayerData")
@@ -221,6 +244,10 @@ end
 
 function Module:GetValue(player, path)
 	return getValueByPath(self:GetData(player), path)
+end
+
+function Module:RefreshWalkSpeed(player: Player)
+	applyWalkSpeed(player, self:GetValue(player, "Speed"), self:GetValue(player, "SlowMode"))
 end
 
 function Module:SetValue(player, path, value)
@@ -436,9 +463,19 @@ function Module:ResetPlayerData(player: Player): boolean
 	end
 
 	self:SetValue(player, "Cash", data.Cash or 0)
-	self:SetValue(player, "Speed", data.Speed or 16)
+	self:SetValue(player, "Speed", data.Speed or Shared_SpeedStore.DefaultSpeed)
 	self:SetValue(player, "Strength", data.Strength or 1)
 	self:SetValue(player, "SlowMode", data.SlowMode == true)
+
+	player:SetAttribute("CarryingLuckyBlock", nil)
+	player:SetAttribute("CarriedLuckyBlockConfigName", nil)
+	player:SetAttribute("CarriedLuckyBlockBaseWeight", nil)
+	player:SetAttribute("CarriedLuckyBlockWeight", nil)
+	player:SetAttribute("CarriedLuckyBlockRarity", nil)
+
+	local resetSpeed = resolveMaxSpeed(data.Speed)
+	local slowMode = resolveSlowModeEnabled(data.SlowMode)
+	applyWalkSpeed(player, resetSpeed, slowMode)
 
 	return true
 end
@@ -455,7 +492,7 @@ local function createLeaderstats(player, profile)
 
 	local speed = Instance.new("IntValue")
 	speed.Name = "Speed"
-	speed.Value = math.max(1, math.floor(tonumber(profile.Data.Speed) or 16))
+	speed.Value = math.max(1, math.floor(tonumber(profile.Data.Speed) or Shared_SpeedStore.DefaultSpeed))
 	speed.Parent = leaderstats
 
 	local strength = Instance.new("IntValue")
@@ -552,7 +589,7 @@ local function onPlayerAdded(player)
 		if slowModeEnabled == nil then
 			slowModeEnabled = profile.Data.SlowMode
 		end
-		applyWalkSpeedToCharacter(character, currentSpeed, slowModeEnabled)
+		applyWalkSpeedToCharacter(character, player, currentSpeed, slowModeEnabled)
 	end)
 	if player.Character then
 		local currentSpeed = Module:GetValue(player, "Speed") or profile.Data.Speed
@@ -560,11 +597,19 @@ local function onPlayerAdded(player)
 		if slowModeEnabled == nil then
 			slowModeEnabled = profile.Data.SlowMode
 		end
-		task.defer(applyWalkSpeedToCharacter, player.Character, currentSpeed, slowModeEnabled)
+		task.defer(applyWalkSpeedToCharacter, player.Character, player, currentSpeed, slowModeEnabled)
 	end
+
+	player:GetAttributeChangedSignal("CarriedLuckyBlockWeight"):Connect(function()
+		Module:RefreshWalkSpeed(player)
+	end)
 
 	replica:ListenToChange({ "Speed" }, function(newSpeed)
 		applyWalkSpeed(player, newSpeed, Module:GetValue(player, "SlowMode"))
+	end)
+
+	replica:ListenToChange({ "Strength" }, function()
+		Module:RefreshWalkSpeed(player)
 	end)
 
 	replica:ListenToChange({ "SlowMode" }, function(newSlowMode)

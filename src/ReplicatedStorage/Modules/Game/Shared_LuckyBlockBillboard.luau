@@ -6,6 +6,8 @@ local Shared_Weight = require(script.Parent.Shared_Weight)
 
 local Shared_LuckyBlockBillboard = {}
 
+local DESPAWN_TIME_FORMAT = "%d seconds"
+
 local function getBillboardAttachmentYOffset(primaryPart: BasePart): number
 	return primaryPart.Size.Y * 0.5 + 0.5
 end
@@ -50,6 +52,20 @@ local function setFrameVisible(billboard: Instance, frameName: string, visible: 
 	if frame and frame:IsA("GuiObject") then
 		frame.Visible = visible
 	end
+end
+
+local function getBillboardFromModel(luckyBlockModel: Model): BillboardGui?
+	local primaryPart = luckyBlockModel.PrimaryPart
+	if not primaryPart then
+		return nil
+	end
+
+	local attachment = primaryPart:FindFirstChild("BillboardAttachment")
+	if not attachment then
+		return nil
+	end
+
+	return attachment:FindFirstChildWhichIsA("BillboardGui")
 end
 
 local function applyTextLabelGradient(textLabel: TextLabel, colorGradient: ColorSequence, rotation: number)
@@ -119,6 +135,23 @@ function Shared_LuckyBlockBillboard.Setup(
 				)
 			end
 		end
+	end
+
+	setFrameVisible(billboard, "DespawnTime", false)
+end
+
+function Shared_LuckyBlockBillboard.UpdateDespawnCountdown(luckyBlockModel: Model, seconds: number?)
+	local billboard = getBillboardFromModel(luckyBlockModel)
+	if not billboard then
+		return
+	end
+
+	if type(seconds) == "number" and seconds > 0 then
+		billboard.Enabled = true
+		setFrameVisible(billboard, "DespawnTime", true)
+		setFrameTextLabel(billboard, "DespawnTime", string.format(DESPAWN_TIME_FORMAT, seconds))
+	else
+		setFrameVisible(billboard, "DespawnTime", false)
 	end
 end
 

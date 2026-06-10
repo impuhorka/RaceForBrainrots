@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
@@ -340,6 +341,9 @@ local function executeWipeData(actor: Player, args: { string }): string
 	if not success then
 		return ("Failed to wipe data for %s"):format(target.Name)
 	end
+
+	local GameProcessService = require(ServerScriptService.GameProcess.GameProcessService)
+	GameProcessService.ForfeitCarriedLuckyBlock(target)
 
 	local teleported = false
 	if plotServiceRef and plotServiceRef.ResetPlayerPlotFromData then

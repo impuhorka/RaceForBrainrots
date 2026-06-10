@@ -15,6 +15,11 @@ Shared_Weight.Balance = {
 	SizeReferenceBase = 15,
 	SizeRatioSlope = 0.425,
 	MaxSizeMultiplier = 2.5,
+	-- Lucky block kg (10-1000) is for economy/carry; visual size uses this spread instead.
+	LuckyBlockMinKg = 10,
+	LuckyBlockMaxKg = 1000,
+	LuckyBlockMinVisualScale = 1,
+	LuckyBlockMaxVisualScale = 2.5,
 	-- Brainrots only scale from the weight roll, not lucky-block base tier.
 	BrainrotSizeRatioSlope = 0.25,
 	BrainrotMaxSizeMultiplier = 1.5,
@@ -58,16 +63,28 @@ local function getSublinearScale(ratio: number, slope: number): number
 	return 1 + (ratio - 1) * slope
 end
 
+local function getLuckyBlockTierVisualScale(baseWeight: number): number
+	local balance = Shared_Weight.Balance
+	local minKg = balance.LuckyBlockMinKg or 10
+	local maxKg = balance.LuckyBlockMaxKg or 1000
+	local minScale = balance.LuckyBlockMinVisualScale or 1
+	local maxScale = balance.LuckyBlockMaxVisualScale or 2.5
+	local span = math.max(maxKg - minKg, 0.01)
+
+	local safeBase = math.clamp(tonumber(baseWeight) or minKg, minKg, maxKg)
+	local alpha = (safeBase - minKg) / span
+	return minScale + alpha * (maxScale - minScale)
+end
+
 local function getWeightedSizeMultiplier(baseWeight: number, rolledWeight: number): number
 	local balance = Shared_Weight.Balance
-	local referenceBase = balance.SizeReferenceBase or 15
 	local slope = balance.SizeRatioSlope or 0.425
 	local maxScale = balance.MaxSizeMultiplier or 2.5
 
-	local safeBase = math.max(0.01, tonumber(baseWeight) or referenceBase)
+	local safeBase = math.max(0.01, tonumber(baseWeight) or balance.LuckyBlockMinKg or 10)
 	local safeWeight = math.max(safeBase, tonumber(rolledWeight) or safeBase)
 
-	local tierScale = getSublinearScale(safeBase / referenceBase, slope)
+	local tierScale = getLuckyBlockTierVisualScale(safeBase)
 	local rollScale = getSublinearScale(safeWeight / safeBase, slope)
 
 	return math.min(maxScale, tierScale * rollScale)
@@ -160,6 +177,40 @@ end
 
 function Shared_Weight.ApplyLuckyBlockScale(model: Model, baseWeight: number, rolledWeight: number): number
 	return Shared_Weight.ApplyWeightedScale(model, baseWeight, rolledWeight)
+end
+
+function Shared_Weight.EnsureLuckyBlockPrimaryPart(model: Model): BasePart?
+	if not model.PrimaryPart then
+		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return model.PrimaryPart
+end
+
+local function resetPivotToPrimaryPart(model: Model, primaryPart: BasePart)
+	local savedWorldCFrames: { [BasePart]: CFrame } = {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			savedWorldCFrames[descendant] = descendant.CFrame
+		end
+	end
+
+	model:PivotTo(primaryPart.CFrame)
+
+	for part, worldCFrame in savedWorldCFrames do
+		if part.Parent then
+			part.CFrame = worldCFrame
+		end
+	end
+end
+
+function Shared_Weight.SyncLuckyBlockPivot(model: Model): BasePart?
+	local primaryPart = Shared_Weight.EnsureLuckyBlockPrimaryPart(model)
+	if not primaryPart then
+		return nil
+	end
+
+	resetPivotToPrimaryPart(model, primaryPart)
+	return primaryPart
 end
 
 function Shared_Weight.GetScaleMultiplier(baseWeight: number, rolledWeight: number): number

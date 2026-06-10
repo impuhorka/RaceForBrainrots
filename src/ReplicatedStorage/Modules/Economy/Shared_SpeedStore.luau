@@ -1,12 +1,12 @@
 local Shared_StatStore = require(script.Parent.Shared_StatStore)
 
 local Shared_SpeedStore = Shared_StatStore.create({
-	DefaultValue = 16,
+	DefaultValue = 26,
 	PurchaseOptions = { 1, 5, 10 },
 	Economy = {
-		BaseCostPerPoint = 50,
-		GrowthPerPoint = 1.07,
-		RoundTo = 10,
+		BaseCostPerPoint = 280,
+		GrowthPerPoint = 1.088,
+		RoundTo = 50,
 	},
 })
 

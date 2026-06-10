@@ -193,6 +193,17 @@ function Client_Hotbar.GetHotbarItem(slotIndex: number): any?
 	return inventory[inventoryIndex]
 end
 
+function Client_Hotbar.AssignItemToHotbar(inventoryIndex: number): number?
+	if inventoryIndex < 1 then
+		return nil
+	end
+
+	local emptySlot = findFirstEmptyHotbarSlot()
+	local slotIndex = emptySlot or 1
+	Client_Hotbar.SetHotbarSlot(slotIndex, inventoryIndex)
+	return slotIndex
+end
+
 function Client_Hotbar.SetHotbarSlot(slotIndex: number, inventoryIndex: number?)
 	if slotIndex < 1 or slotIndex > hotbarSize then
 		return

@@ -12,6 +12,17 @@ local Client_InteractStorePrompts = {}
 local STORE_MODELS = {
 	StrengthStore = true,
 	SpeedStore = true,
+	Rebirth = true,
+}
+
+local CLOSE_ON_WALK_AWAY = {
+	StrengthStore = true,
+	SpeedStore = true,
+}
+
+local PROXIMITY_PART_NAMES = {
+	ProximityPart = true,
+	ProximityPrompt = true,
 }
 
 local PROMPT_DISTANCE = 25
@@ -23,10 +34,24 @@ local storeModels: { [string]: Model } = {}
 local boundInteractFolder: Instance?
 local lastRescanAt = 0
 
+local function isProximityAnchorPart(instance: Instance): boolean
+	return instance:IsA("BasePart") and PROXIMITY_PART_NAMES[instance.Name] == true
+end
+
 local function getProximityPart(storeModel: Model): BasePart?
-	local proximityPart = storeModel:FindFirstChild("ProximityPart", true)
-	if proximityPart and proximityPart:IsA("BasePart") then
-		return proximityPart
+	for _, descendant in storeModel:GetDescendants() do
+		if isProximityAnchorPart(descendant) then
+			return descendant
+		end
+	end
+	return nil
+end
+
+local function findExistingPrompt(proximityPart: BasePart): ProximityPrompt?
+	for _, child in proximityPart:GetChildren() do
+		if child:IsA("ProximityPrompt") then
+			return child
+		end
 	end
 	return nil
 end
@@ -92,7 +117,7 @@ local function setupStorePrompt(storeModel: Model)
 
 		local connection: RBXScriptConnection?
 		connection = storeModel.DescendantAdded:Connect(function(descendant)
-			if descendant.Name ~= "ProximityPart" or not descendant:IsA("BasePart") then
+			if not isProximityAnchorPart(descendant) then
 				return
 			end
 			if connection then
@@ -115,7 +140,7 @@ local function setupStorePrompt(storeModel: Model)
 	hookedStores[storeModel] = true
 	storeModels[storeModel.Name] = storeModel
 
-	local prompt = Shared_ProximityPrompt.Create(proximityPart, {
+	local promptOptions = {
 		Name = getStorePromptName(storeModel),
 		ActionText = "Open!",
 		ObjectText = "",
@@ -123,7 +148,14 @@ local function setupStorePrompt(storeModel: Model)
 		MaxActivationDistance = PROMPT_DISTANCE,
 		RequiresLineOfSight = false,
 		Enabled = true,
-	})
+	}
+
+	local prompt = findExistingPrompt(proximityPart)
+	if prompt then
+		Shared_ProximityPrompt.Apply(prompt, promptOptions)
+	else
+		prompt = Shared_ProximityPrompt.Create(proximityPart, promptOptions)
+	end
 
 	prompt.Triggered:Connect(function()
 		openStoreFrame(storeModel.Name)
@@ -213,6 +245,10 @@ local function watchStoreDistance()
 		end
 
 		for storeName in pairs(STORE_MODELS) do
+			if not CLOSE_ON_WALK_AWAY[storeName] then
+				continue
+			end
+
 			local frame = FrameController.getFrame(storeName)
 			if not frame or not frame.Visible then
 				continue

@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local Workspace = game:GetService("Workspace")
 
@@ -60,6 +61,15 @@ local function getLianaTemplates(): { Model }
 		end
 	end
 	return templates
+end
+
+local function getLilyTemplate(): Model?
+	local gameProcessAssets = getGameProcessAssets()
+	local lily = gameProcessAssets and gameProcessAssets:FindFirstChild("Lily")
+	if lily and lily:IsA("Model") then
+		return lily
+	end
+	return nil
 end
 
 local MINIMAP_TREE_NAMES = { "Tree1", "Tree2", "Tree3" }
@@ -146,6 +156,22 @@ local function getGrassTemplates(): { Model }
 	return templates
 end
 
+local function getMushroomTemplates(): { Model }
+	local gameProcessAssets = getGameProcessAssets()
+	local mushroomsFolder = gameProcessAssets and gameProcessAssets:FindFirstChild("Mushrooms")
+	if not mushroomsFolder then
+		return {}
+	end
+
+	local templates: { Model } = {}
+	for _, child in mushroomsFolder:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(templates, child)
+		end
+	end
+	return templates
+end
+
 local FLOWER_TOP_COLORS = {
 	Color3.fromRGB(255, 70, 70),
 	Color3.fromRGB(255, 220, 60),
@@ -216,16 +242,164 @@ local function applyLianaScale(liana: Model)
 	liana:ScaleTo(originScale * scaleMultiplier)
 end
 
-local function getLianaSpawnChance(wall: BasePart): number
-	local baseChance = Shared_GameProcess.LianasOnWallChance
+local function applyLilyScale(lily: Model)
+	applyModelScaleRange(lily, Shared_GameProcess.LilyScaleMin, Shared_GameProcess.LilyScaleMax)
+end
+
+local function getWallRunLength(wall: BasePart): number
+	if wall.Size.Z > wall.Size.X then
+		return wall.Size.Z
+	end
+	return wall.Size.X
+end
+
+local function wallRunsAlongZ(wall: BasePart): boolean
+	return wall.Size.Z > wall.Size.X
+end
+
+local function isRoadWall(wall: BasePart): boolean
 	local side = wall:GetAttribute("Side")
-	if side == "Left" or side == "Right" then
-		return math.min(baseChance * Shared_GameProcess.LianasRoadWallChanceMultiplier, 1)
+	return side == "Left" or side == "Right"
+end
+
+local function getWallAttachmentCount(
+	wall: BasePart,
+	roadSegmentLength: number,
+	minimapSegmentLength: number,
+	roadMaxCount: number,
+	minimapMaxCount: number
+): number
+	local runLength = getWallRunLength(wall)
+	local segmentLength = if isRoadWall(wall) then roadSegmentLength else minimapSegmentLength
+	local maxCount = if isRoadWall(wall) then roadMaxCount else minimapMaxCount
+
+	if segmentLength <= 0 or runLength <= 0 then
+		return 0
 	end
-	if side == "Front" or side == "Back" or side == "Outer" then
-		return math.min(baseChance * Shared_GameProcess.LianasMinimapWallChanceMultiplier, 1)
+
+	local count = math.floor(runLength / segmentLength)
+	local remainder = runLength - count * segmentLength
+	if remainder >= segmentLength * 0.45 and math.random() < remainder / segmentLength then
+		count += 1
 	end
-	return baseChance
+
+	return math.clamp(count, 0, maxCount)
+end
+
+local function getLianaCountForWall(wall: BasePart): number
+	return getWallAttachmentCount(
+		wall,
+		Shared_GameProcess.LianasRoadWallSegmentLength,
+		Shared_GameProcess.LianasMinimapWallSegmentLength,
+		Shared_GameProcess.LianasMaxPerRoadWall,
+		Shared_GameProcess.LianasMaxPerMinimapWall
+	)
+end
+
+local function getLilyCountForWall(wall: BasePart): number
+	return getWallAttachmentCount(
+		wall,
+		Shared_GameProcess.LiliesRoadWallSegmentLength,
+		Shared_GameProcess.LiliesMinimapWallSegmentLength,
+		Shared_GameProcess.LiliesMaxPerRoadWall,
+		Shared_GameProcess.LiliesMaxPerMinimapWall
+	)
+end
+
+local function pickAlongWallOffsets(wall: BasePart, count: number, minSpacing: number): { number }
+	local edgeMargin = Shared_GameProcess.LianaWallEdgeMargin
+	local runLength = getWallRunLength(wall)
+	local halfRun = math.max(runLength / 2 - edgeMargin, 0)
+	if count <= 0 or halfRun <= 0 then
+		return {}
+	end
+
+	if count == 1 then
+		return { (math.random() * 2 - 1) * halfRun }
+	end
+
+	local maxFitCount = math.max(1, math.floor((halfRun * 2) / minSpacing) + 1)
+	local targetCount = math.min(count, maxFitCount)
+	local offsets: { number } = {}
+	local maxAttempts = targetCount * 25
+
+	for _ = 1, maxAttempts do
+		if #offsets >= targetCount then
+			break
+		end
+
+		local offset = (math.random() * 2 - 1) * halfRun
+		local isFarEnough = true
+		for _, existingOffset in offsets do
+			if math.abs(offset - existingOffset) < minSpacing then
+				isFarEnough = false
+				break
+			end
+		end
+
+		if isFarEnough then
+			table.insert(offsets, offset)
+		end
+	end
+
+	return offsets
+end
+
+local function forEachRarityWall(
+	parent: Instance,
+	rarityName: string,
+	callback: (wall: BasePart) -> ()
+)
+	for _, child in parent:GetChildren() do
+		if child:IsA("BasePart")
+			and child:GetAttribute("IsGameProcessWall") == true
+			and child:GetAttribute("Rarity") == rarityName
+		then
+			callback(child)
+		end
+	end
+end
+
+local function getWallAlongWallOffsetPosition(wall: BasePart, alongWallOffset: number?): (number, number)
+	local edgeMargin = Shared_GameProcess.LianaWallEdgeMargin
+	local runsAlongZ = wallRunsAlongZ(wall)
+	local halfRun = math.max(getWallRunLength(wall) / 2 - edgeMargin, 0)
+	local offset = if alongWallOffset
+		then math.clamp(alongWallOffset, -halfRun, halfRun)
+		else (math.random() * 2 - 1) * halfRun
+
+	if runsAlongZ then
+		return wall.Position.X, wall.Position.Z + offset
+	end
+	return wall.Position.X + offset, wall.Position.Z
+end
+
+local function getWallInteriorDirection(wall: BasePart): Vector3
+	local side = wall:GetAttribute("Side")
+	if side == "Left" then
+		return Vector3.new(1, 0, 0)
+	elseif side == "Right" then
+		return Vector3.new(-1, 0, 0)
+	elseif side == "Front" then
+		return Vector3.new(0, 0, -1)
+	elseif side == "Back" then
+		return Vector3.new(0, 0, 1)
+	elseif side == "Outer" then
+		if string.find(wall.Name, "LeftHole", 1, true) then
+			return Vector3.new(1, 0, 0)
+		end
+		if string.find(wall.Name, "RightHole", 1, true) then
+			return Vector3.new(-1, 0, 0)
+		end
+	end
+	return Vector3.new(1, 0, 0)
+end
+
+local function getWallInteriorSurfacePosition(wall: BasePart, worldX: number, worldY: number, worldZ: number): (Vector3, Vector3)
+	local interiorDir = getWallInteriorDirection(wall)
+	local wallHalfThickness = if wallRunsAlongZ(wall) then wall.Size.X / 2 else wall.Size.Z / 2
+	local surfacePosition = Vector3.new(worldX, worldY, worldZ) + interiorDir * wallHalfThickness
+	return surfacePosition, interiorDir
 end
 
 local function prepareAnchoredModel(model: Model)
@@ -401,6 +575,7 @@ local function placeModelOnHoleFloorAt(
 	worldZ: number
 ): PlacedSpot
 	local floorTopY = holeFloor.Position.Y + holeFloor.Size.Y / 2
+	Shared_Weight.SyncLuckyBlockPivot(model)
 	local rotation = CFrame.Angles(0, math.random() * math.pi * 2, 0)
 
 	model:PivotTo(CFrame.new(worldX, holeFloor.Position.Y, worldZ) * rotation)
@@ -425,7 +600,7 @@ local function tryPlaceLuckyBlockOnHoleFloor(
 	local halfHoleZ = holeFloor.Size.Z / 2
 	local edgeMargin = Shared_GameProcess.DecorationEdgeMargin
 
-	model:PivotTo(CFrame.new(holeFloor.Position))
+	Shared_Weight.SyncLuckyBlockPivot(model)
 	local modelSize = getDecorationExtents(model)
 	local halfModelX = modelSize.X / 2
 	local halfModelZ = modelSize.Z / 2
@@ -566,9 +741,7 @@ local function getLuckyBlockTemplate(configName: string): Model?
 end
 
 local function prepareLuckyBlockModel(model: Model)
-	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-	end
+	Shared_Weight.SyncLuckyBlockPivot(model)
 	prepareAnchoredModel(model)
 end
 
@@ -638,6 +811,7 @@ local function placeLuckyBlockOnHoleFloor(
 	local baseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
 	local rolledWeight = Shared_Weight.RollWeight(baseWeight)
 	Shared_Weight.ApplyLuckyBlockScale(luckyBlock, baseWeight, rolledWeight)
+	Shared_Weight.SyncLuckyBlockPivot(luckyBlock)
 
 	if not tryPlaceLuckyBlockOnHoleFloor(
 		holeFloor,
@@ -654,7 +828,9 @@ local function placeLuckyBlockOnHoleFloor(
 	local floatHeight = Shared_GameProcess.GetWorldLuckyBlockFloatHeight(bboxSize.Y)
 	local spawnLift = Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
 	luckyBlock:PivotTo(luckyBlock:GetPivot() + Vector3.new(0, spawnLift, 0))
+	luckyBlock:SetAttribute("WorldFloatBasePosition", luckyBlock:GetPivot().Position)
 	luckyBlock:SetAttribute("FloatHeight", floatHeight)
+	luckyBlock:SetAttribute("FloatSpinDirection", if math.random() < 0.5 then -1 else 1)
 
 	luckyBlock:SetAttribute("Rarity", rarityName)
 	luckyBlock:SetAttribute("HoleSide", holeSide)
@@ -712,7 +888,7 @@ local function placeDecorationsForHoleFloor(
 	placeRandomDecorations(
 		getMinimapBushTemplates(decorationTemplates),
 		Shared_GameProcess.MinBushesPerMinimap,
-		nil,
+		Shared_GameProcess.BushOverlapPadding,
 		"bush"
 	)
 
@@ -1048,6 +1224,55 @@ local function placeGrassForHoleFloor(
 	end
 end
 
+local function placeMushroomOnHoleFloor(
+	holeFloor: BasePart,
+	template: Model,
+	rarityName: string,
+	holeSide: string,
+	index: number,
+	placedSpots: { PlacedSpot },
+	parent: Instance
+)
+	local mushroom = template:Clone()
+	prepareAnchoredModel(mushroom)
+	applyDecorationScale(mushroom)
+
+	if not tryPlaceModelOnHoleFloor(holeFloor, mushroom, placedSpots) then
+		mushroom:Destroy()
+		return false
+	end
+
+	mushroom.Name = `{rarityName}{holeSide}Mushroom{index}`
+	mushroom:SetAttribute("Rarity", rarityName)
+	mushroom:SetAttribute("HoleSide", holeSide)
+	mushroom.Parent = parent
+	return true
+end
+
+local function placeMushroomsForHoleFloor(
+	holeFloor: BasePart,
+	mushroomTemplates: { Model },
+	rarityName: string,
+	holeSide: string,
+	placedSpots: { PlacedSpot },
+	parent: Instance
+)
+	if #mushroomTemplates == 0 then
+		return
+	end
+
+	local mushroomCountRange = Shared_GameProcess.MushroomsPerMinimap
+	local mushroomCount = math.random(mushroomCountRange.Min, mushroomCountRange.Max)
+	local mushroomIndex = 0
+
+	for _ = 1, mushroomCount do
+		local template = mushroomTemplates[math.random(1, #mushroomTemplates)]
+		if placeMushroomOnHoleFloor(holeFloor, template, rarityName, holeSide, mushroomIndex + 1, placedSpots, parent) then
+			mushroomIndex += 1
+		end
+	end
+end
+
 local function placeLuckyBlocksForHoleFloor(
 	holeFloor: BasePart,
 	luckyBlockTemplate: Model,
@@ -1161,28 +1386,8 @@ local function placeWall(
 	wall:SetAttribute("Rarity", rarityName)
 	wall:SetAttribute("Side", side)
 	wall:SetAttribute("IsGameProcessWall", true)
+	wall:SetAttribute("IsMinimapWall", true)
 	wall.Parent = parent
-end
-
-local function getWallInteriorDirection(wall: BasePart): Vector3
-	local side = wall:GetAttribute("Side")
-	if side == "Left" then
-		return Vector3.new(1, 0, 0)
-	elseif side == "Right" then
-		return Vector3.new(-1, 0, 0)
-	elseif side == "Front" then
-		return Vector3.new(0, 0, -1)
-	elseif side == "Back" then
-		return Vector3.new(0, 0, 1)
-	elseif side == "Outer" then
-		if string.find(wall.Name, "LeftHole", 1, true) then
-			return Vector3.new(1, 0, 0)
-		end
-		if string.find(wall.Name, "RightHole", 1, true) then
-			return Vector3.new(-1, 0, 0)
-		end
-	end
-	return Vector3.new(1, 0, 0)
 end
 
 local function placeLianaOnWall(
@@ -1190,7 +1395,8 @@ local function placeLianaOnWall(
 	template: Model,
 	index: number,
 	rarityName: string,
-	parent: Instance
+	parent: Instance,
+	alongWallOffset: number?
 )
 	local liana = template:Clone()
 	liana.Name = `{rarityName}WallLiana{index}`
@@ -1199,29 +1405,13 @@ local function placeLianaOnWall(
 	applyLianaFlowerColors(liana)
 
 	local wallTopY = wall.Position.Y + wall.Size.Y / 2
-	local edgeMargin = 1.5
-	local runsAlongZ = wall.Size.Z > wall.Size.X
-	local worldX: number
-	local worldZ: number
-
-	if runsAlongZ then
-		worldX = wall.Position.X
-		local halfRun = math.max(wall.Size.Z / 2 - edgeMargin, 0)
-		worldZ = wall.Position.Z + (math.random() * 2 - 1) * halfRun
-	else
-		worldZ = wall.Position.Z
-		local halfRun = math.max(wall.Size.X / 2 - edgeMargin, 0)
-		worldX = wall.Position.X + (math.random() * 2 - 1) * halfRun
-	end
-
-	local interiorDir = getWallInteriorDirection(wall)
-	local wallHalfThickness = if runsAlongZ then wall.Size.X / 2 else wall.Size.Z / 2
-	local position = Vector3.new(worldX, wallTopY, worldZ) + interiorDir * wallHalfThickness
+	local worldX, worldZ = getWallAlongWallOffsetPosition(wall, alongWallOffset)
+	local position, interiorDir = getWallInteriorSurfacePosition(wall, worldX, wallTopY, worldZ)
 	local lookTarget = position + interiorDir
 	liana:PivotTo(CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, -math.pi / 2, 0))
 
 	local _bboxCF, bboxSize = liana:GetBoundingBox()
-	local lianaHalfThickness = if runsAlongZ then bboxSize.X / 2 else bboxSize.Z / 2
+	local lianaHalfThickness = if wallRunsAlongZ(wall) then bboxSize.X / 2 else bboxSize.Z / 2
 	liana:PivotTo(liana:GetPivot() + interiorDir * lianaHalfThickness)
 
 	local bboxCF, bboxSize = liana:GetBoundingBox()
@@ -1243,24 +1433,136 @@ local function placeLianasOnRarityWalls(
 
 	local lianaIndex = 0
 
-	for _, child in parent:GetChildren() do
-		if not child:IsA("BasePart") then
-			continue
-		end
-		if child:GetAttribute("IsGameProcessWall") ~= true then
-			continue
-		end
-		if child:GetAttribute("Rarity") ~= rarityName then
-			continue
-		end
-		if math.random() > getLianaSpawnChance(child) then
-			continue
+	forEachRarityWall(parent, rarityName, function(wall)
+		local lianaCount = getLianaCountForWall(wall)
+		if lianaCount <= 0 then
+			return
 		end
 
-		lianaIndex += 1
-		local template = lianaTemplates[math.random(1, #lianaTemplates)]
-		placeLianaOnWall(child, template, lianaIndex, rarityName, parent)
+		local alongWallOffsets = pickAlongWallOffsets(wall, lianaCount, Shared_GameProcess.LianaMinSpacing)
+		for _, alongWallOffset in alongWallOffsets do
+			lianaIndex += 1
+			local template = lianaTemplates[math.random(1, #lianaTemplates)]
+			placeLianaOnWall(wall, template, lianaIndex, rarityName, parent, alongWallOffset)
+		end
+	end)
+end
+
+local LILY_BASE_ROTATIONS: { [string]: CFrame } = {
+	Front = CFrame.Angles(math.rad(90), math.rad(180), 0),
+	Back = CFrame.Angles(math.rad(-90), 0, 0),
+	Left = CFrame.Angles(0, 0, math.rad(-90)),
+	Right = CFrame.Angles(0, 0, math.rad(90)),
+}
+
+local function getLilyBaseRotation(wall: BasePart): CFrame
+	local side = wall:GetAttribute("Side")
+	if side == "Outer" then
+		if getWallInteriorDirection(wall).X > 0 then
+			return CFrame.Angles(0, 0, math.rad(90))
+		end
+		return CFrame.Angles(0, 0, math.rad(-90))
 	end
+
+	local rotation = LILY_BASE_ROTATIONS[side :: string]
+	if rotation then
+		return rotation
+	end
+	return CFrame.identity
+end
+
+local function getLilyPivotRotation(wall: BasePart): CFrame
+	local rotation = getLilyBaseRotation(wall)
+	if wall:GetAttribute("IsMinimapWall") == true then
+		local yawFlip = math.rad(Shared_GameProcess.MinimapLilyYawFlipDegrees)
+		rotation = CFrame.Angles(0, yawFlip, 0) * rotation
+	end
+	return rotation
+end
+
+local function flushModelToInteriorWallSurface(
+	model: Model,
+	surfacePosition: Vector3,
+	interiorDir: Vector3,
+	clearance: number
+)
+	local interior = interiorDir.Unit
+	local bboxCF, bboxSize = model:GetBoundingBox()
+	local half = bboxSize / 2
+	local minOffset = math.huge
+
+	for sx = -1, 1, 2 do
+		for sy = -1, 1, 2 do
+			for sz = -1, 1, 2 do
+				local corner = bboxCF.Position
+					+ bboxCF.RightVector * half.X * sx
+					+ bboxCF.UpVector * half.Y * sy
+					+ bboxCF.LookVector * half.Z * sz
+				local offset = (corner - surfacePosition):Dot(interior)
+				minOffset = math.min(minOffset, offset)
+			end
+		end
+	end
+
+	if minOffset == math.huge then
+		return
+	end
+
+	local shift = clearance - minOffset
+	if math.abs(shift) > 0.001 then
+		model:PivotTo(model:GetPivot() + interior * shift)
+	end
+end
+
+local function placeLilyOnWall(
+	wall: BasePart,
+	template: Model,
+	index: number,
+	rarityName: string,
+	parent: Instance,
+	alongWallOffset: number?
+)
+	local lily = template:Clone()
+	lily.Name = `{rarityName}WallLily{index}`
+	prepareAnchoredModel(lily)
+	applyLilyScale(lily)
+	applyFlowerTopColor(lily)
+
+	local worldX, worldZ = getWallAlongWallOffsetPosition(wall, alongWallOffset)
+	local wallBottomY = wall.Position.Y - wall.Size.Y / 2
+	local attachY = wallBottomY + wall.Size.Y * (0.25 + math.random() * 0.5)
+	local surfacePosition, interiorDir = getWallInteriorSurfacePosition(wall, worldX, attachY, worldZ)
+
+	lily:PivotTo(CFrame.new(surfacePosition) * getLilyPivotRotation(wall))
+	flushModelToInteriorWallSurface(lily, surfacePosition, interiorDir, Shared_GameProcess.LilyWallClearance)
+
+	lily:SetAttribute("Rarity", rarityName)
+	lily.Parent = parent
+end
+
+local function placeLiliesOnRarityWalls(
+	parent: Instance,
+	rarityName: string,
+	lilyTemplate: Model?
+)
+	if not lilyTemplate then
+		return
+	end
+
+	local lilyIndex = 0
+
+	forEachRarityWall(parent, rarityName, function(wall)
+		local lilyCount = getLilyCountForWall(wall)
+		if lilyCount <= 0 then
+			return
+		end
+
+		local alongWallOffsets = pickAlongWallOffsets(wall, lilyCount, Shared_GameProcess.LilyMinSpacing)
+		for _, alongWallOffset in alongWallOffsets do
+			lilyIndex += 1
+			placeLilyOnWall(wall, lilyTemplate, lilyIndex, rarityName, parent, alongWallOffset)
+		end
+	end)
 end
 
 local function placeHoleFloor(
@@ -1367,16 +1669,20 @@ local function placeWallsForHoleFloor(
 	)
 end
 
-local function placeHoleFloorsForFloor(
+type HoleFloorLayout = {
+	leftHoleFloor: BasePart,
+	rightHoleFloor: BasePart,
+	leftFootprintCenterX: number,
+	rightFootprintCenterX: number,
+	holeWidthX: number,
+}
+
+local function placeHoleFloorsAndEntrancesForFloor(
 	floor: BasePart,
 	floorTemplate: BasePart,
-	wallTemplate: BasePart,
-	decorationTemplates: { Model },
-	flowerTemplates: { Model },
-	grassTemplates: { Model },
 	rarityName: string,
 	parent: Instance
-): (BasePart, BasePart)
+): HoleFloorLayout
 	local holeWidthX = Shared_GameProcess.HoleFloorSize
 	local entranceDepth = Shared_GameProcess.EntranceDepth
 	local mainHoleWidthX = holeWidthX - entranceDepth
@@ -1403,15 +1709,6 @@ local function placeHoleFloorsForFloor(
 		mainHoleFloorSize,
 		parent
 	)
-	placeWallsForHoleFloor(
-		leftHoleFloor,
-		wallTemplate,
-		rarityName,
-		"Left",
-		leftFootprintCenterX,
-		holeWidthX,
-		parent
-	)
 	placeEntranceFloor(leftHoleFloor, floorTemplate, rarityName, "Left", parent)
 
 	local rightFootprintCenterX = floor.Position.X + halfFloorX + halfHoleWidthX
@@ -1427,16 +1724,54 @@ local function placeHoleFloorsForFloor(
 		mainHoleFloorSize,
 		parent
 	)
+	placeEntranceFloor(rightHoleFloor, floorTemplate, rarityName, "Right", parent)
+
+	return {
+		leftHoleFloor = leftHoleFloor,
+		rightHoleFloor = rightHoleFloor,
+		leftFootprintCenterX = leftFootprintCenterX,
+		rightFootprintCenterX = rightFootprintCenterX,
+		holeWidthX = holeWidthX,
+	}
+end
+
+local function placeHoleFloorWallsForFloor(
+	wallTemplate: BasePart,
+	rarityName: string,
+	layout: HoleFloorLayout,
+	parent: Instance
+)
 	placeWallsForHoleFloor(
-		rightHoleFloor,
+		layout.leftHoleFloor,
+		wallTemplate,
+		rarityName,
+		"Left",
+		layout.leftFootprintCenterX,
+		layout.holeWidthX,
+		parent
+	)
+	placeWallsForHoleFloor(
+		layout.rightHoleFloor,
 		wallTemplate,
 		rarityName,
 		"Right",
-		rightFootprintCenterX,
-		holeWidthX,
+		layout.rightFootprintCenterX,
+		layout.holeWidthX,
 		parent
 	)
-	placeEntranceFloor(rightHoleFloor, floorTemplate, rarityName, "Right", parent)
+end
+
+local function placeHoleFloorDecorationsForFloor(
+	layout: HoleFloorLayout,
+	decorationTemplates: { Model },
+	flowerTemplates: { Model },
+	grassTemplates: { Model },
+	mushroomTemplates: { Model },
+	rarityName: string,
+	parent: Instance
+)
+	local leftHoleFloor = layout.leftHoleFloor
+	local rightHoleFloor = layout.rightHoleFloor
 
 	local leftPlacedSpots = placeDecorationsForHoleFloor(
 		leftHoleFloor,
@@ -1458,6 +1793,9 @@ local function placeHoleFloorsForFloor(
 
 	placeGrassForHoleFloor(leftHoleFloor, grassTemplates, rarityName, "Left", leftPlacedSpots, parent)
 	placeGrassForHoleFloor(rightHoleFloor, grassTemplates, rarityName, "Right", rightPlacedSpots, parent)
+
+	placeMushroomsForHoleFloor(leftHoleFloor, mushroomTemplates, rarityName, "Left", leftPlacedSpots, parent)
+	placeMushroomsForHoleFloor(rightHoleFloor, mushroomTemplates, rarityName, "Right", rightPlacedSpots, parent)
 
 	local luckyBlockConfigName = Shared_LuckyBlocks.GetConfigNameForRarity(rarityName)
 	local luckyBlockTemplate = if luckyBlockConfigName then getLuckyBlockTemplate(luckyBlockConfigName) else nil
@@ -1483,8 +1821,31 @@ local function placeHoleFloorsForFloor(
 			parent
 		)
 	end
+end
 
-	return leftHoleFloor, rightHoleFloor
+local function placeHoleFloorsForFloor(
+	floor: BasePart,
+	floorTemplate: BasePart,
+	wallTemplate: BasePart,
+	decorationTemplates: { Model },
+	flowerTemplates: { Model },
+	grassTemplates: { Model },
+	mushroomTemplates: { Model },
+	rarityName: string,
+	parent: Instance
+): (BasePart, BasePart)
+	local layout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, rarityName, parent)
+	placeHoleFloorWallsForFloor(wallTemplate, rarityName, layout, parent)
+	placeHoleFloorDecorationsForFloor(
+		layout,
+		decorationTemplates,
+		flowerTemplates,
+		grassTemplates,
+		mushroomTemplates,
+		rarityName,
+		parent
+	)
+	return layout.leftHoleFloor, layout.rightHoleFloor
 end
 
 local function getSortedRarities(): { string }
@@ -1510,24 +1871,89 @@ local function getSortedRarities(): { string }
 	return orderedNames
 end
 
-function GameProcessFloors.Setup()
+local function getFloorsFolder(): Folder
+	local gameFolder = Workspace:FindFirstChild("Game")
+	if not gameFolder then
+		gameFolder = Instance.new("Folder")
+		gameFolder.Name = "Game"
+		gameFolder.Parent = Workspace
+	end
+
+	local mapFolder = gameFolder:FindFirstChild("Map")
+	if not mapFolder then
+		mapFolder = Instance.new("Folder")
+		mapFolder.Name = "Map"
+		mapFolder.Parent = gameFolder
+	end
+
+	local floorsFolder = mapFolder:FindFirstChild("Floors")
+	if not floorsFolder then
+		floorsFolder = Instance.new("Folder")
+		floorsFolder.Name = "Floors"
+		floorsFolder.Parent = mapFolder
+	end
+
+	return floorsFolder
+end
+
+local MAP_BUILD_STAGING_NAME = "GameProcessMapBuild"
+
+local function getMapBuildStagingFolder(): Folder
+	local stagingFolder = ServerStorage:FindFirstChild(MAP_BUILD_STAGING_NAME)
+	if not stagingFolder then
+		stagingFolder = Instance.new("Folder")
+		stagingFolder.Name = MAP_BUILD_STAGING_NAME
+		stagingFolder.Parent = ServerStorage
+	end
+	return stagingFolder
+end
+
+local function clearMapBuildStaging()
+	local stagingFolder = getMapBuildStagingFolder()
+	for _, child in stagingFolder:GetChildren() do
+		child:Destroy()
+	end
+end
+
+local function revealBuiltMap()
+	local stagingFolder = getMapBuildStagingFolder()
+	local floorsFolder = getFloorsFolder()
+	for _, child in stagingFolder:GetChildren() do
+		child.Parent = floorsFolder
+	end
+end
+
+type RarityBuildEntry = {
+	floor: BasePart,
+	rarityName: string,
+	holeLayout: HoleFloorLayout,
+}
+
+local function waitBuildYield(buildDuration: number, index: number, count: number)
+	if buildDuration <= 0 or count <= 1 or index >= count then
+		return
+	end
+	task.wait(buildDuration / count)
+end
+
+local function getBuildContext()
 	local zones = Workspace:FindFirstChild("Zones")
 	local enterPart = zones and zones:FindFirstChild("EnterPart")
 	if not enterPart or not enterPart:IsA("BasePart") then
 		warn("Missing workspace.Zones.EnterPart")
-		return
+		return nil
 	end
 
 	local floorTemplate = getFloorTemplate()
 	if not floorTemplate then
 		warn("Missing ReplicatedStorage.Assets.GameProcess.FloorPart")
-		return
+		return nil
 	end
 
 	local wallTemplate = getWallTemplate()
 	if not wallTemplate then
 		warn("Missing ReplicatedStorage.Assets.GameProcess.Wall")
-		return
+		return nil
 	end
 
 	local decorationTemplates = getDecorationTemplates()
@@ -1545,28 +1971,77 @@ function GameProcessFloors.Setup()
 		warn("Missing ReplicatedStorage.Assets.GameProcess.Grass models")
 	end
 
+	local mushroomTemplates = getMushroomTemplates()
+	if #mushroomTemplates == 0 then
+		warn("Missing ReplicatedStorage.Assets.GameProcess.Mushrooms models")
+	end
+
 	local lianaTemplates = getLianaTemplates()
 	if #lianaTemplates == 0 then
 		warn("Missing ReplicatedStorage.Assets.GameProcess.Lianas models")
 	end
 
-	local floorsFolder = zones:FindFirstChild("Floors")
-	if not floorsFolder then
-		floorsFolder = Instance.new("Folder")
-		floorsFolder.Name = "Floors"
-		floorsFolder.Parent = zones
+	local lilyTemplate = getLilyTemplate()
+	if not lilyTemplate then
+		warn("Missing ReplicatedStorage.Assets.GameProcess.Lily model")
 	end
 
+	return {
+		enterPart = enterPart,
+		floorTemplate = floorTemplate,
+		wallTemplate = wallTemplate,
+		decorationTemplates = decorationTemplates,
+		flowerTemplates = flowerTemplates,
+		grassTemplates = grassTemplates,
+		mushroomTemplates = mushroomTemplates,
+		lianaTemplates = lianaTemplates,
+		lilyTemplate = lilyTemplate,
+	}
+end
+
+function GameProcessFloors.ClearMap()
+	local floorsFolder = getFloorsFolder()
 	for _, child in floorsFolder:GetChildren() do
 		child:Destroy()
+	end
+	clearMapBuildStaging()
+end
+
+function GameProcessFloors.RevealBuiltMap()
+	revealBuiltMap()
+end
+
+function GameProcessFloors.BuildMapAsync(buildDuration: number)
+	local context = getBuildContext()
+	if not context then
+		return
+	end
+
+	local enterPart = context.enterPart
+	local floorTemplate = context.floorTemplate
+	local wallTemplate = context.wallTemplate
+	local decorationTemplates = context.decorationTemplates
+	local flowerTemplates = context.flowerTemplates
+	local grassTemplates = context.grassTemplates
+	local mushroomTemplates = context.mushroomTemplates
+	local lianaTemplates = context.lianaTemplates
+	local lilyTemplate = context.lilyTemplate
+	local buildParent = getMapBuildStagingFolder()
+
+	clearMapBuildStaging()
+
+	local rarities = getSortedRarities()
+	if #rarities == 0 then
+		return
 	end
 
 	local enterPosition = enterPart.Position
 	local enterSize = enterPart.Size
 	local originFloorHeight = floorTemplate.Size.Y
 	local cursorZ = enterPosition.Z + enterSize.Z / 2
+	local buildEntries: { RarityBuildEntry } = {}
 
-	for _, rarityName in getSortedRarities() do
+	for _, rarityName in rarities do
 		local floorSize = Shared_GameProcess.GetFloorSize(rarityName)
 		if not floorSize then
 			warn(`Missing floor size for rarity {rarityName}`)
@@ -1588,23 +2063,46 @@ function GameProcessFloors.Setup()
 			floor.Color = rarityColor
 		end
 		floor:SetAttribute("Rarity", rarityName)
-		floor.Parent = floorsFolder
+		floor.Parent = buildParent
 
-		placeWallsForFloor(floor, wallTemplate, rarityName, floorsFolder)
-		placeHoleFloorsForFloor(
-			floor,
-			floorTemplate,
-			wallTemplate,
-			decorationTemplates,
-			flowerTemplates,
-			grassTemplates,
-			rarityName,
-			floorsFolder
-		)
-		placeLianasOnRarityWalls(floorsFolder, rarityName, lianaTemplates)
+		local holeLayout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, rarityName, buildParent)
+		table.insert(buildEntries, {
+			floor = floor,
+			rarityName = rarityName,
+			holeLayout = holeLayout,
+		})
 
 		cursorZ -= floorSize
 	end
+
+	for _, entry in buildEntries do
+		placeWallsForFloor(entry.floor, wallTemplate, entry.rarityName, buildParent)
+		placeHoleFloorWallsForFloor(wallTemplate, entry.rarityName, entry.holeLayout, buildParent)
+	end
+
+	for entryIndex, entry in buildEntries do
+		placeHoleFloorDecorationsForFloor(
+			entry.holeLayout,
+			decorationTemplates,
+			flowerTemplates,
+			grassTemplates,
+			mushroomTemplates,
+			entry.rarityName,
+			buildParent
+		)
+		waitBuildYield(buildDuration, entryIndex, #buildEntries)
+	end
+
+	for _, entry in buildEntries do
+		placeLianasOnRarityWalls(buildParent, entry.rarityName, lianaTemplates)
+		placeLiliesOnRarityWalls(buildParent, entry.rarityName, lilyTemplate)
+	end
+end
+
+function GameProcessFloors.Setup()
+	GameProcessFloors.ClearMap()
+	GameProcessFloors.BuildMapAsync(0)
+	GameProcessFloors.RevealBuiltMap()
 end
 
 return GameProcessFloors

@@ -54,7 +54,20 @@ function Client_FOV.init()
 	end)
 end
 
-function Client_FOV.playPulse()
+local function getPulseTweenInfo(baseInfo: TweenInfo, durationScale: number): TweenInfo
+	return TweenInfo.new(
+		baseInfo.Time * durationScale,
+		baseInfo.EasingStyle,
+		baseInfo.EasingDirection,
+		baseInfo.RepeatCount,
+		baseInfo.Reverses,
+		baseInfo.DelayTime
+	)
+end
+
+function Client_FOV.playPulse(durationScale: number?)
+	local scale = if type(durationScale) == "number" and durationScale > 0 then durationScale else 1
+
 	if not camera then
 		return
 	end
@@ -67,7 +80,11 @@ function Client_FOV.playPulse()
 		activeTween = nil
 	end
 
-	local inTween = TweenService:Create(camera, TWEEN_PULSE_IN, { FieldOfView = pulseFov })
+	local inTween = TweenService:Create(
+		camera,
+		getPulseTweenInfo(TWEEN_PULSE_IN, scale),
+		{ FieldOfView = pulseFov }
+	)
 	activeTween = inTween
 	inTween:Play()
 	inTween.Completed:Once(function()
@@ -75,7 +92,11 @@ function Client_FOV.playPulse()
 			return
 		end
 
-		local outTween = TweenService:Create(camera, TWEEN_PULSE_OUT, { FieldOfView = returnFov })
+		local outTween = TweenService:Create(
+			camera,
+			getPulseTweenInfo(TWEEN_PULSE_OUT, scale),
+			{ FieldOfView = returnFov }
+		)
 		activeTween = outTween
 		outTween:Play()
 		outTween.Completed:Once(function()

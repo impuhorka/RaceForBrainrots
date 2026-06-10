@@ -15,12 +15,14 @@ Shared_GameProcess.BushScaleMax = 1.15
 Shared_GameProcess.TreeScaleMin = 0.85
 Shared_GameProcess.TreeScaleMax = 1.1
 Shared_GameProcess.MinBushesPerMinimap = 3
+Shared_GameProcess.BushOverlapPadding = 10
 Shared_GameProcess.FlowersPerMinimap = { Min = 8, Max = 10 }
 Shared_GameProcess.GroundFlowersPerStack = { Min = 2, Max = 5 }
 Shared_GameProcess.GroundFlowerStackSpread = 2
 Shared_GameProcess.GrassStacksPerMinimap = { Min = 14, Max = 22 }
 Shared_GameProcess.GrassPerStack = { Min = 2, Max = 5 }
 Shared_GameProcess.GrassStackSpread = 2
+Shared_GameProcess.MushroomsPerMinimap = { Min = 4, Max = 9 }
 Shared_GameProcess.LuckyBlocksPerHole = { Min = 5, Max = 7 }
 Shared_GameProcess.DecorationScaleMin = 0.8
 Shared_GameProcess.DecorationScaleMax = 1
@@ -29,17 +31,77 @@ Shared_GameProcess.PlacementOverlapPadding = 3
 Shared_GameProcess.PlacementMaxAttempts = 30
 Shared_GameProcess.LuckyBlockOverlapPadding = 8
 Shared_GameProcess.LuckyBlockPlacementMaxAttempts = 60
-Shared_GameProcess.LianasOnWallChance = 0.5
-Shared_GameProcess.LianasRoadWallChanceMultiplier = 2
-Shared_GameProcess.LianasMinimapWallChanceMultiplier = 1.3
+Shared_GameProcess.LianasRoadWallSegmentLength = 100
+Shared_GameProcess.LianasMinimapWallSegmentLength = 140
+Shared_GameProcess.LianasMaxPerRoadWall = 10
+Shared_GameProcess.LianasMaxPerMinimapWall = 2
+Shared_GameProcess.LianaWallEdgeMargin = 1.5
+Shared_GameProcess.LianaMinSpacing = 32
 Shared_GameProcess.LianaScaleMin = 0.75
 Shared_GameProcess.LianaScaleMax = 0.9
+Shared_GameProcess.LiliesRoadWallSegmentLength = 120
+Shared_GameProcess.LiliesMinimapWallSegmentLength = 160
+Shared_GameProcess.LiliesMaxPerRoadWall = 6
+Shared_GameProcess.LiliesMaxPerMinimapWall = 2
+Shared_GameProcess.LilyMinSpacing = 24
+Shared_GameProcess.LilyScaleMin = 0.9
+Shared_GameProcess.LilyScaleMax = 1.1
+Shared_GameProcess.LilyWallClearance = 0.08
+Shared_GameProcess.MinimapLilyYawFlipDegrees = 180
 Shared_GameProcess.WorldLuckyBlockFloatHeight = 0.6
 Shared_GameProcess.WorldLuckyBlockFloatHeightScale = 0.08
 Shared_GameProcess.WorldLuckyBlockMinFloorClearance = 0.35
 Shared_GameProcess.WorldLuckyBlockMinClearanceScale = 0.06
 Shared_GameProcess.WorldLuckyBlockFloatSpeed = 1.25
 Shared_GameProcess.WorldLuckyBlockRotateSpeed = 25
+Shared_GameProcess.CarriedLuckyBlockTopOffset = .5
+Shared_GameProcess.LuckyBlockDeliverZLead = 4
+Shared_GameProcess.DroppedLuckyBlockDespawnSeconds = 15
+Shared_GameProcess.WorldDropMinRadius = 10
+Shared_GameProcess.WorldDropMaxRadius = 12
+Shared_GameProcess.WorldDropMaxAttempts = 16
+Shared_GameProcess.WorldDropForwardConeDegrees = 140
+Shared_GameProcess.WorldDropWallClearance = 0.45
+Shared_GameProcess.WorldDropMaxFloorDelta = 8
+Shared_GameProcess.WorldDropMaxClientPositionError = 25
+Shared_GameProcess.WorldDropSizeReferenceHeight = 4
+Shared_GameProcess.WorldDropRadiusScaleMin = 0.85
+Shared_GameProcess.WorldDropRadiusScaleMax = 2.25
+
+Shared_GameProcess.ProcessPhase = {
+	NewMap = "NewMap",
+	RaceStarts = "RaceStarts",
+	RaceEnds = "RaceEnds",
+	Relax = "Relax",
+}
+
+Shared_GameProcess.NewMapDuration = 10
+Shared_GameProcess.NewMapBuildDuration = 1
+Shared_GameProcess.RaceStartsDuration = 5
+Shared_GameProcess.RaceEndsDuration = 60
+Shared_GameProcess.RelaxDuration = 10
+
+Shared_GameProcess.ProcessPhaseDurations = {
+	NewMap = Shared_GameProcess.NewMapDuration,
+	RaceStarts = Shared_GameProcess.RaceStartsDuration,
+	RaceEnds = Shared_GameProcess.RaceEndsDuration,
+	Relax = Shared_GameProcess.RelaxDuration,
+}
+
+Shared_GameProcess.EntranceWallNewMapMessage = "Map is building!"
+Shared_GameProcess.EntranceWallRaceStartsMessage = "Race starting!"
+Shared_GameProcess.EntranceWallRelaxMessage = "Map is resetting!"
+Shared_GameProcess.UnluckyMapCloseMessage = "Unlucky! The map closed — your Lucky Block is gone!"
+
+function Shared_GameProcess.GetWorldDropRadiusScale(modelHeight: number): number
+	local referenceHeight = Shared_GameProcess.WorldDropSizeReferenceHeight
+	local minScale = Shared_GameProcess.WorldDropRadiusScaleMin
+	local maxScale = Shared_GameProcess.WorldDropRadiusScaleMax
+	if referenceHeight <= 0 then
+		return 1
+	end
+	return math.clamp(modelHeight / referenceHeight, minScale, maxScale)
+end
 
 function Shared_GameProcess.GetWorldLuckyBlockFloatHeight(modelHeight: number): number
 	local baseHeight = Shared_GameProcess.WorldLuckyBlockFloatHeight
@@ -58,15 +120,16 @@ function Shared_GameProcess.GetWorldLuckyBlockSpawnLift(modelHeight: number): nu
 		+ Shared_GameProcess.GetWorldLuckyBlockMinFloorClearance(modelHeight)
 end
 
+-- Road segment length per rarity (-Z). Keep each size >= WallFrontOpening so minimaps fit.
 Shared_GameProcess.FloorSizeByRarity = {
-	Common = 300,
-	Rare = 350,
-	Epic = 500,
-	Legendary = 600,
-	Mythical = 700,
-	Secret = 800,
-	Divine = 900,
-	Superior = 1000,
+	Common = 200,
+	Rare = 260,
+	Epic = 340,
+	Legendary = 420,
+	Mythical = 500,
+	Secret = 580,
+	Divine = 660,
+	Superior = 740,
 }
 
 function Shared_GameProcess.GetFloorSize(rarity: string): number?

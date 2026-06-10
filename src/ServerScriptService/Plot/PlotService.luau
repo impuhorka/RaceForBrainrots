@@ -10,6 +10,7 @@ local PlotCash = require(script.Parent.PlotCash)
 local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
+local GameProcessService = require(ServerScriptService.GameProcess.GameProcessService)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
@@ -38,6 +39,10 @@ local function setEquippedVisual(player: Player, inventoryIndex: any)
 	end
 
 	if type(inventoryIndex) ~= "number" then
+		return
+	end
+
+	if GameProcessService.IsPlayerCarrying(player) then
 		return
 	end
 

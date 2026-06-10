@@ -8,12 +8,12 @@ Shared_Rebirth.SlotUnlockPerRebirthAfterFourth = 1
 Shared_Rebirth.CashMultiplierPerRebirth = 0.5
 Shared_Rebirth.SpeedCapPerRebirth = 25
 Shared_Rebirth.StrengthCapPerRebirth = 25
-Shared_Rebirth.BaseSpeedCap = 45
-Shared_Rebirth.BaseStrengthCap = 60
+Shared_Rebirth.BaseSpeedCap = 40
+Shared_Rebirth.BaseStrengthCap = 50
 
 Shared_Rebirth.Economy = {
-	BaseCost = 2_500_000,
-	GrowthPerRebirth = 2.2,
+	BaseCost = 4_000_000,
+	GrowthPerRebirth = 2.25,
 	RoundTo = 10_000,
 }
 

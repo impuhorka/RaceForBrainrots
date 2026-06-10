@@ -22,27 +22,49 @@ local CROSSFADE_TWEEN_INFO = TweenInfo.new(CROSSFADE_DURATION, Enum.EasingStyle.
 
 local backgroundSound: Sound?
 local roadSound: Sound?
+local roadCarryingSound: Sound?
 local isOnRoad = false
+local isCarryingLuckyBlock = false
 local roadNearZ = 0
 local roadFarZ = 0
 local roadBoundsReady = false
-local backgroundFadeTween: Tween?
-local roadFadeTween: Tween?
+local activeFadeTweens: { Tween } = {}
 local zoneConnection: RBXScriptConnection?
 
 local function cancelFadeTweens()
-	if backgroundFadeTween then
-		backgroundFadeTween:Cancel()
-		backgroundFadeTween = nil
+	for _, tween in activeFadeTweens do
+		tween:Cancel()
 	end
-	if roadFadeTween then
-		roadFadeTween:Cancel()
-		roadFadeTween = nil
-	end
+	table.clear(activeFadeTweens)
+end
+
+local function trackFadeTween(tween: Tween)
+	table.insert(activeFadeTweens, tween)
+	tween.Completed:Once(function()
+		local index = table.find(activeFadeTweens, tween)
+		if index then
+			table.remove(activeFadeTweens, index)
+		end
+	end)
+	tween:Play()
 end
 
 local function getMusicMultiplier(): number
 	return Client_AudioSettings.GetMusicVolume()
+end
+
+local function createLoopedMusicSound(name: string, soundId: string, volume: number): Sound?
+	if type(soundId) ~= "string" or soundId == "" then
+		return nil
+	end
+
+	local sound = Instance.new("Sound")
+	sound.Name = name
+	sound.SoundId = soundId
+	sound.Looped = true
+	sound.Volume = volume
+	sound.Parent = SoundService
+	return sound
 end
 
 local function ensureBackgroundSound(): Sound?
@@ -51,16 +73,7 @@ local function ensureBackgroundSound(): Sound?
 	end
 
 	local soundId = Shared_Sounds.Music and Shared_Sounds.Music.Background or ""
-	if type(soundId) ~= "string" or soundId == "" then
-		return nil
-	end
-
-	local sound = Instance.new("Sound")
-	sound.Name = "BackgroundMusic"
-	sound.SoundId = soundId
-	sound.Looped = true
-	sound.Volume = BACKGROUND_MUSIC_VOLUME
-	sound.Parent = SoundService
+	local sound = createLoopedMusicSound("BackgroundMusic", soundId, BACKGROUND_MUSIC_VOLUME)
 	backgroundSound = sound
 	return sound
 end
@@ -71,17 +84,19 @@ local function ensureRoadSound(): Sound?
 	end
 
 	local soundId = Shared_Sounds.Music and Shared_Sounds.Music.Road or ""
-	if type(soundId) ~= "string" or soundId == "" then
-		return nil
+	local sound = createLoopedMusicSound("RoadMusic", soundId, 0)
+	roadSound = sound
+	return sound
+end
+
+local function ensureRoadCarryingSound(): Sound?
+	if roadCarryingSound and roadCarryingSound.Parent then
+		return roadCarryingSound
 	end
 
-	local sound = Instance.new("Sound")
-	sound.Name = "RoadMusic"
-	sound.SoundId = soundId
-	sound.Looped = true
-	sound.Volume = 0
-	sound.Parent = SoundService
-	roadSound = sound
+	local soundId = Shared_Sounds.Music and Shared_Sounds.Music.RoadCarryingLuckyBlock or ""
+	local sound = createLoopedMusicSound("RoadCarryingLuckyBlockMusic", soundId, 0)
+	roadCarryingSound = sound
 	return sound
 end
 
@@ -115,91 +130,130 @@ local function isPlayerOnRoad(): boolean
 	return Shared_RoadGradient.IsOnRoad(root.Position.Z, roadNearZ, roadFarZ)
 end
 
-local function applyImmediateVolumes()
-	local background = ensureBackgroundSound()
-	local road = ensureRoadSound()
-	if not background or not road then
-		return
+local function isPlayerCarryingLuckyBlock(): boolean
+	return localPlayer:GetAttribute("CarryingLuckyBlock") == true
+end
+
+local function getTargetVolumes(onRoad: boolean, carrying: boolean): (number, number, number)
+	local musicMultiplier = getMusicMultiplier()
+	if not onRoad then
+		return BACKGROUND_MUSIC_VOLUME * musicMultiplier, 0, 0
 	end
 
-	local musicMultiplier = getMusicMultiplier()
-	if isOnRoad then
-		background.Volume = 0
-		road.Volume = ROAD_MUSIC_VOLUME * musicMultiplier
-		if not road.IsPlaying then
-			road:Play()
-		end
-		if not background.IsPlaying then
-			background:Play()
-		end
-	else
-		background.Volume = BACKGROUND_MUSIC_VOLUME * musicMultiplier
-		road.Volume = 0
-		if not background.IsPlaying then
-			background:Play()
-		end
-		if road.IsPlaying then
-			road:Stop()
-		end
+	if carrying then
+		return 0, 0, ROAD_MUSIC_VOLUME * musicMultiplier
+	end
+
+	return 0, ROAD_MUSIC_VOLUME * musicMultiplier, 0
+end
+
+local function ensureSoundsPlaying(background: Sound, road: Sound, roadCarrying: Sound)
+	if not background.IsPlaying then
+		background:Play()
+	end
+	if not road.IsPlaying then
+		road:Play()
+	end
+	if not roadCarrying.IsPlaying then
+		roadCarrying:Play()
 	end
 end
 
-local function crossfadeToRoadState(onRoad: boolean)
+local function stopInactiveRoadSounds(onRoad: boolean, carrying: boolean)
+	if onRoad and carrying then
+		if roadSound and roadSound.IsPlaying then
+			roadSound:Stop()
+		end
+		return
+	end
+
+	if onRoad and not carrying then
+		if roadCarryingSound and roadCarryingSound.IsPlaying then
+			roadCarryingSound:Stop()
+		end
+		return
+	end
+
+	if roadSound and roadSound.IsPlaying then
+		roadSound:Stop()
+	end
+	if roadCarryingSound and roadCarryingSound.IsPlaying then
+		roadCarryingSound:Stop()
+	end
+end
+
+local function applyImmediateVolumes()
 	local background = ensureBackgroundSound()
 	local road = ensureRoadSound()
-	if not background or not road then
+	local roadCarrying = ensureRoadCarryingSound()
+	if not background or not road or not roadCarrying then
+		return
+	end
+
+	local targetBackgroundVolume, targetRoadVolume, targetCarryingVolume =
+		getTargetVolumes(isOnRoad, isCarryingLuckyBlock)
+
+	ensureSoundsPlaying(background, road, roadCarrying)
+
+	background.Volume = targetBackgroundVolume
+	road.Volume = targetRoadVolume
+	roadCarrying.Volume = targetCarryingVolume
+
+	stopInactiveRoadSounds(isOnRoad, isCarryingLuckyBlock)
+end
+
+local function scheduleStopInactiveRoadSoundsAfterFade(expectedOnRoad: boolean, expectedCarrying: boolean)
+	task.delay(CROSSFADE_DURATION + 0.05, function()
+		if isOnRoad ~= expectedOnRoad or isCarryingLuckyBlock ~= expectedCarrying then
+			return
+		end
+		stopInactiveRoadSounds(expectedOnRoad, expectedCarrying)
+	end)
+end
+
+local function crossfadeMusicState(onRoad: boolean, carrying: boolean)
+	local background = ensureBackgroundSound()
+	local road = ensureRoadSound()
+	local roadCarrying = ensureRoadCarryingSound()
+	if not background or not road or not roadCarrying then
 		return
 	end
 
 	cancelFadeTweens()
 
-	local musicMultiplier = getMusicMultiplier()
-	local targetBackgroundVolume = if onRoad then 0 else BACKGROUND_MUSIC_VOLUME * musicMultiplier
-	local targetRoadVolume = if onRoad then ROAD_MUSIC_VOLUME * musicMultiplier else 0
+	local targetBackgroundVolume, targetRoadVolume, targetCarryingVolume =
+		getTargetVolumes(onRoad, carrying)
 
-	if not background.IsPlaying then
-		background:Play()
-	end
+	ensureSoundsPlaying(background, road, roadCarrying)
 
-	if onRoad and not road.IsPlaying then
-		road:Play()
-	end
-
-	backgroundFadeTween = TweenService:Create(background, CROSSFADE_TWEEN_INFO, {
+	trackFadeTween(TweenService:Create(background, CROSSFADE_TWEEN_INFO, {
 		Volume = targetBackgroundVolume,
-	})
-	roadFadeTween = TweenService:Create(road, CROSSFADE_TWEEN_INFO, {
+	}))
+	trackFadeTween(TweenService:Create(road, CROSSFADE_TWEEN_INFO, {
 		Volume = targetRoadVolume,
-	})
+	}))
+	trackFadeTween(TweenService:Create(roadCarrying, CROSSFADE_TWEEN_INFO, {
+		Volume = targetCarryingVolume,
+	}))
 
-	backgroundFadeTween:Play()
-	roadFadeTween:Play()
-
-	if not onRoad then
-		roadFadeTween.Completed:Once(function(playbackState)
-			if playbackState ~= Enum.PlaybackState.Completed or isOnRoad then
-				return
-			end
-			if roadSound and roadSound.IsPlaying then
-				roadSound:Stop()
-			end
-		end)
-	end
+	scheduleStopInactiveRoadSoundsAfterFade(onRoad, carrying)
 end
 
-local function setRoadMusicActive(onRoad: boolean)
-	if onRoad == isOnRoad then
+local function setMusicZoneState(onRoad: boolean, carrying: boolean)
+	if onRoad == isOnRoad and carrying == isCarryingLuckyBlock then
 		return
 	end
+
 	isOnRoad = onRoad
-	crossfadeToRoadState(onRoad)
+	isCarryingLuckyBlock = carrying
+	crossfadeMusicState(onRoad, carrying)
 end
 
 local function updateRoadZone()
 	if not roadBoundsReady then
 		tryInitRoadBounds()
 	end
-	setRoadMusicActive(isPlayerOnRoad())
+	setMusicZoneState(isPlayerOnRoad(), isPlayerCarryingLuckyBlock())
 end
 
 local function refreshState()
@@ -213,6 +267,7 @@ local function refreshState()
 	end
 
 	ensureRoadSound()
+	ensureRoadCarryingSound()
 
 	if isOnRoad then
 		cancelFadeTweens()
@@ -226,12 +281,7 @@ local function refreshState()
 		background:Play()
 	end
 
-	if roadSound then
-		roadSound.Volume = 0
-		if roadSound.IsPlaying then
-			roadSound:Stop()
-		end
-	end
+	stopInactiveRoadSounds(false, false)
 end
 
 function Client_BackgroundMusic.Refresh()
@@ -251,6 +301,10 @@ function Client_BackgroundMusic.Init()
 			end
 		end)
 	end
+
+	localPlayer:GetAttributeChangedSignal("CarryingLuckyBlock"):Connect(function()
+		updateRoadZone()
+	end)
 
 	refreshState()
 

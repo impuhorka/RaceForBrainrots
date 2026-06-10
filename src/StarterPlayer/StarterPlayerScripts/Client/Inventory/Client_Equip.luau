@@ -36,6 +36,10 @@ local Client_Equip = {}
 local luckyBlockOpenCooldownUntil = 0
 local LUCKYBLOCK_OPEN_COOLDOWN = 0.35
 
+local function isCarryingLuckyBlock(): boolean
+	return Players.LocalPlayer:GetAttribute("CarryingLuckyBlock") == true
+end
+
 local equippedInventoryIndex: number? = nil
 local strokeTemplate: UIStroke?
 local slotStrokes: { [ImageButton]: UIStroke } = {}
@@ -178,6 +182,10 @@ function Client_Equip.SetRefreshAll(callback: () -> ())
 end
 
 function Client_Equip.ToggleHotbarSlot(slotIndex: number)
+	if isCarryingLuckyBlock() then
+		return
+	end
+
 	if slotIndex < 1 or slotIndex > Client_Hotbar.GetSize() then
 		return
 	end
@@ -202,8 +210,33 @@ function Client_Equip.OnChanged(listener: () -> ())
 	table.insert(equipListeners, listener)
 end
 
+function Client_Equip.Equip(inventoryIndex: number?, playSfx: boolean?)
+	if not inventoryIndex then
+		return
+	end
+
+	if Client_LuckyBlockRevealState.IsMaskedIndex(inventoryIndex) then
+		return
+	end
+
+	local inventory = Client_Data:GetValue("Inventory") or {}
+	if not inventory[inventoryIndex] then
+		return
+	end
+
+	equippedInventoryIndex = inventoryIndex
+	if playSfx ~= false then
+		playUiPopSfx()
+	end
+	notifyEquipChanged()
+end
+
 function Client_Equip.Toggle(inventoryIndex: number?)
 	if not inventoryIndex then
+		return
+	end
+
+	if isCarryingLuckyBlock() then
 		return
 	end
 
@@ -220,12 +253,14 @@ function Client_Equip.Toggle(inventoryIndex: number?)
 	notifyEquipChanged()
 end
 
-function Client_Equip.Unequip()
+function Client_Equip.Unequip(playSfx: boolean?)
 	if not equippedInventoryIndex then
 		return
 	end
 	equippedInventoryIndex = nil
-	playUiPopSfx()
+	if playSfx ~= false then
+		playUiPopSfx()
+	end
 	notifyEquipChanged()
 end
 
@@ -406,6 +441,10 @@ function Client_Equip.Init()
 			return
 		end
 
+		if isCarryingLuckyBlock() then
+			return
+		end
+
 		local equippedIndex = equippedInventoryIndex
 		if not equippedIndex then
 			return
@@ -435,7 +474,7 @@ function Client_Equip.Init()
 		end
 
 		-- Remove held lucky block visual immediately when opening starts.
-		Client_Equip.Unequip()
+		Client_Equip.Unequip(false)
 
 		luckyBlockOpenCooldownUntil = tick() + LUCKYBLOCK_OPEN_COOLDOWN
 		plotHandler:FireServer("OpenLuckyBlock", equippedIndex)

@@ -9,6 +9,8 @@ Shared_Sounds.SFX = {
 	CashCollect = "rbxassetid://114703843022722",
 	CashPopupAppear = "rbxassetid://134637530898931",
 	ProximityActivate = "rbxassetid://132673746791429",
+	LuckyBlockCollect = "rbxassetid://7933571710",
+	LuckyBlockCollected = "rbxassetid://105820183918870",
 }
 
 Shared_Sounds.SFXVolume = {
@@ -16,11 +18,14 @@ Shared_Sounds.SFXVolume = {
 	Success = 0.65,
 	Error = 0.65,
 	CashCollect = 0.5,
+	LuckyBlockCollect = 1,
+	LuckyBlockCollected = 1,
 }
 
 Shared_Sounds.Music = {
 	Background = "rbxassetid://136703374512384",
 	Road = "rbxassetid://140517328454242",
+	RoadCarryingLuckyBlock = "rbxassetid://1843912718",
 }
 
 return Shared_Sounds

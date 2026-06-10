@@ -178,7 +178,26 @@ local function playWiggleSoundLoop(parent: Instance, totalDuration: number)
 	end)
 end
 
-local function playSuccessRolloutSfx()
+local function playHatchConfettiSfx()
+	if Client_AudioSettings.GetSfxVolume() <= 0 then
+		return
+	end
+
+	local sfx = Shared_Sounds.SFX or {}
+	local volumes = Shared_Sounds.SFXVolume or {}
+
+	local collectId = sfx.LuckyBlockCollect
+	if type(collectId) == "string" and collectId ~= "" then
+		Client_SoundPreload.Play(collectId, volumes.LuckyBlockCollect or 1)
+	end
+
+	local collectedId = sfx.LuckyBlockCollected
+	if type(collectedId) == "string" and collectedId ~= "" then
+		Client_SoundPreload.Play(collectedId, volumes.LuckyBlockCollected or 1)
+	end
+end
+
+local function playSuccessRolloutSfx(skipExtraPop: boolean?)
 	local firstTickId = ROLLOUT_FIRST_TICK_SOUND_ID
 	local successTickId = ROLLOUT_SUCCESS_SOUND_ID
 	local extraRolloutId = ROLLOUT_EXTRA_SOUND_ID
@@ -188,15 +207,19 @@ local function playSuccessRolloutSfx()
 	if type(successTickId) ~= "string" or successTickId == "" then
 		return
 	end
-	if type(extraRolloutId) ~= "string" or extraRolloutId == "" then
-		return
+	if not skipExtraPop then
+		if type(extraRolloutId) ~= "string" or extraRolloutId == "" then
+			return
+		end
 	end
 	if Client_AudioSettings.GetSfxVolume() <= 0 then
 		return
 	end
 
 	task.spawn(function()
-		Client_SoundPreload.PlayUi(extraRolloutId, 1, 2)
+		if not skipExtraPop and type(extraRolloutId) == "string" and extraRolloutId ~= "" then
+			Client_SoundPreload.PlayUi(extraRolloutId, 1, 2)
+		end
 		Client_SoundPreload.PlayUi(firstTickId, 1, 2)
 		task.wait(ROLLOUT_SUCCESS_REPEAT_INTERVAL)
 		Client_SoundPreload.PlayUi(successTickId, 1, 2)
@@ -597,7 +620,12 @@ local function playOpening(data: {
 			data._onRewardPoppedOut = nil
 		end
 		if data.openingUserId == localPlayer.UserId then
-			playSuccessRolloutSfx()
+			local isBrainrotHatch = data.pickedItemType == "Brainrot"
+			-- Brainrot hatch already plays confetti collect SFX; skip the extra rollout pop.
+			playSuccessRolloutSfx(isBrainrotHatch)
+			if isBrainrotHatch then
+				playHatchConfettiSfx()
+			end
 		end
 
 		if not revealedModel.PrimaryPart then

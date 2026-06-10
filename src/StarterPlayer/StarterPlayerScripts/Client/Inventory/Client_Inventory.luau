@@ -422,7 +422,9 @@ local function runSlotInteraction(
 				return
 			end
 
-			Client_Equip.Toggle(inventoryIndex)
+			if Players.LocalPlayer:GetAttribute("CarryingLuckyBlock") ~= true then
+				Client_Equip.Toggle(inventoryIndex)
+			end
 			Client_Equip.Refresh(scrollingFrame, itemTemplate)
 		end
 

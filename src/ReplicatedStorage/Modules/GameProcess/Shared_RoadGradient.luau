@@ -60,6 +60,16 @@ function Shared_RoadGradient.IsOnRoad(worldZ: number, roadNearZ: number, roadFar
 	return worldZ <= roadNearZ and worldZ >= roadFarZ
 end
 
+function Shared_RoadGradient.GetRoadFrontZ(enterPart: BasePart): number
+	return enterPart.Position.Z + enterPart.Size.Z / 2
+end
+
+-- Home/plot is past the road front (+Z). Holes/road extend toward -Z from the front.
+function Shared_RoadGradient.HasPassedRoadFront(worldZ: number, roadFrontZ: number, deliverLead: number?): boolean
+	local lead = deliverLead or 0
+	return worldZ > roadFrontZ - lead
+end
+
 function Shared_RoadGradient.GetRoadAlphaFromWorldZ(worldZ: number, roadNearZ: number, roadFarZ: number): number
 	local totalLength = roadNearZ - roadFarZ
 	if totalLength <= 0 then

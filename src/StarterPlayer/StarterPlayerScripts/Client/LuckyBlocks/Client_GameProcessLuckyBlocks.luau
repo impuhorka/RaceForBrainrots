@@ -88,15 +88,17 @@ local function stopAnimation(model: Model)
 	resyncScheduled[model] = nil
 end
 
-local function getModelBaseRotation(model: Model): CFrame
-	local primaryPart = Shared_Weight.EnsureLuckyBlockPrimaryPart(model)
-	if primaryPart then
-		local primaryCFrame = primaryPart.CFrame
-		return primaryCFrame - primaryCFrame.Position
+local function getWorldBaseRotation(model: Model, dropSpin: DropSpinState?): CFrame
+	if dropSpin then
+		return Shared_GameProcess.GetFlatYawRotation(dropSpin.endRotation)
 	end
 
-	local basePivot = model:GetPivot()
-	return basePivot - basePivot.Position
+	local storedYaw = model:GetAttribute("WorldBaseYaw")
+	if type(storedYaw) == "number" then
+		return Shared_GameProcess.YawRotation(storedYaw)
+	end
+
+	return Shared_GameProcess.GetFlatYawRotation(model:GetPivot())
 end
 
 local function getFloatBasePosition(model: Model): Vector3
@@ -143,10 +145,6 @@ local function applyGroundedPose(model: Model, floatBasePosition: Vector3, floor
 	model:PivotTo(getGroundedPivotCFrame(model, floatBasePosition, floorRotation))
 end
 
-local function getFloatRestPivot(basePosition: Vector3, baseRotation: CFrame, idleSpinYaw: number): CFrame
-	return CFrame.new(basePosition) * CFrame.Angles(0, idleSpinYaw, 0) * baseRotation
-end
-
 local function getIdleSpinDirection(model: Model, dropSpin: DropSpinState?): number
 	if dropSpin and math.abs(dropSpin.spinStartSpeed) > 0 then
 		return if dropSpin.spinStartSpeed > 0 then 1 else -1
@@ -160,42 +158,27 @@ local function getIdleSpinDirection(model: Model, dropSpin: DropSpinState?): num
 	return if math.random() < 0.5 then -1 else 1
 end
 
-local function prepareModelForClientAnimation(model: Model)
+local function prepareRigidAssembly(model: Model)
 	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
+		if descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
 			descendant.Anchored = true
 			descendant.CanCollide = false
+			descendant.Massless = true
 		end
 	end
 end
 
-local function capturePartOffsets(model: Model, pivotCF: CFrame): { [BasePart]: CFrame }
-	local offsets: { [BasePart]: CFrame } = {}
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			offsets[descendant] = pivotCF:ToObjectSpace(descendant.CFrame)
-		end
-	end
-	return offsets
-end
-
-local function applyModelPose(model: Model, pivotCF: CFrame, partOffsets: { [BasePart]: CFrame })
-	for part, offset in partOffsets do
-		if part.Parent and part:IsDescendantOf(model) then
-			part.CFrame = pivotCF:ToWorldSpace(offset)
-		end
-	end
-end
-
-local function snapToFloatRestPose(
+local function applyFloatPivot(
 	model: Model,
 	basePosition: Vector3,
 	baseRotation: CFrame,
-	idleSpinYaw: number
-): { [BasePart]: CFrame }
-	local floatRestPivot = getFloatRestPivot(basePosition, baseRotation, idleSpinYaw)
-	model:PivotTo(floatRestPivot)
-	return capturePartOffsets(model, floatRestPivot)
+	yOffset: number,
+	totalYaw: number
+)
+	local rotation = CFrame.Angles(0, totalYaw, 0) * baseRotation
+	model:PivotTo(CFrame.new(basePosition + Vector3.new(0, yOffset, 0)) * rotation)
 end
 
 local startAnimation: (Model, DropSpinState?) -> ()
@@ -234,10 +217,10 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 	activeDropSpin[model] = dropSpin
 
 	Shared_Weight.SyncLuckyBlockPivot(model)
-	prepareModelForClientAnimation(model)
+	prepareRigidAssembly(model)
 
 	local basePosition = getFloatBasePosition(model)
-	local baseRotation = if dropSpin then dropSpin.endRotation else getModelBaseRotation(model)
+	local baseRotation = getWorldBaseRotation(model, dropSpin)
 	-- Start at rest height; sin(pi) == 0 with downward velocity so idle float does not pop up on land.
 	local phase = math.pi
 	local startTime = os.clock()
@@ -257,16 +240,14 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 	end
 	local floatSpeed = Shared_GameProcess.WorldLuckyBlockFloatSpeed
 
-	local floorRotation = if dropSpin then dropSpin.endRotation else baseRotation
+	local floorRotation = baseRotation
 	local effectsPaused = not Client_VisualSettings.AreEffectsEnabled()
 	local frozenIdleSpinYaw: number? = nil
 
-	local partOffsets: { [BasePart]: CFrame }
 	if effectsPaused then
 		applyGroundedPose(model, basePosition, floorRotation)
-		partOffsets = capturePartOffsets(model, getGroundedPivotCFrame(model, basePosition, floorRotation))
 	else
-		partOffsets = snapToFloatRestPose(model, basePosition, baseRotation, idleSpinYaw)
+		applyFloatPivot(model, basePosition, baseRotation, 0, idleSpinYaw)
 	end
 
 	descendantConnections[model] = model.DescendantAdded:Connect(function(descendant)
@@ -301,7 +282,7 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 			lastTick = os.clock()
 			dropSpin = nil
 			basePosition = getFloatBasePosition(model)
-			partOffsets = snapToFloatRestPose(model, basePosition, baseRotation, idleSpinYaw)
+			applyFloatPivot(model, basePosition, baseRotation, 0, idleSpinYaw)
 		end
 
 		local now = os.clock()
@@ -328,9 +309,7 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 			totalYaw += spinYaw
 		end
 
-		local rotation = CFrame.Angles(0, totalYaw, 0) * baseRotation
-		local pivotCF = CFrame.new(basePosition + Vector3.new(0, yOffset, 0)) * rotation
-		applyModelPose(model, pivotCF, partOffsets)
+		applyFloatPivot(model, basePosition, baseRotation, yOffset, totalYaw)
 	end)
 
 	model.Destroying:Once(function()

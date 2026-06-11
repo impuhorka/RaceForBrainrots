@@ -743,6 +743,7 @@ function GameProcessService.DropCarriedLuckyBlock(player: Player, clientRootCFra
 	local floatHeight = Shared_GameProcess.GetWorldLuckyBlockFloatHeight(bboxSize.Y)
 	luckyBlock:SetAttribute("FloatHeight", floatHeight)
 	luckyBlock:SetAttribute("WorldFloatBasePosition", dropPosition)
+	luckyBlock:SetAttribute("WorldBaseYaw", Shared_GameProcess.GetFlatYaw(luckyBlock:GetPivot()))
 	luckyBlock:SetAttribute("DropLaunchOrigin", launchOrigin)
 	luckyBlock:SetAttribute("DropSizeScale", dropRadiusScale)
 	luckyBlock:SetAttribute("DroppedByUserId", player.UserId)

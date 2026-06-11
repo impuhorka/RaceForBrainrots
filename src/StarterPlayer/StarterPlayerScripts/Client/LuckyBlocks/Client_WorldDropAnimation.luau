@@ -1,6 +1,9 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
+local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Client_WorldDropAnimation = {}
 
 local ANIM_DURATION_SCALE = 1.5
@@ -102,7 +105,8 @@ local function stepSpinState(spinState: SpinState)
 end
 
 local function getSpinRotation(endRotation: CFrame, spinState: SpinState): CFrame
-	return CFrame.Angles(0, spinState.yaw, 0) * endRotation
+	local flatBase = Shared_GameProcess.GetFlatYawRotation(endRotation)
+	return CFrame.Angles(0, spinState.yaw, 0) * flatBase
 end
 
 local function getLookAtRotation(atPos: Vector3, userId: number?): CFrame
@@ -114,30 +118,21 @@ local function getLookAtRotation(atPos: Vector3, userId: number?): CFrame
 			local lookTarget = Vector3.new(root.Position.X, atPos.Y, root.Position.Z)
 			if (lookTarget - atPos).Magnitude > 0.01 then
 				local cf = CFrame.lookAt(atPos, lookTarget)
-				return cf - cf.Position
+				return Shared_GameProcess.GetFlatYawRotation(cf)
 			end
 		end
 	end
 	return CFrame.new()
 end
 
-local function isLuckyBlockModel(model: Model): boolean
-	if model:GetAttribute("IsWorldLuckyBlock") == true then
-		return true
-	end
-	local configName = model:GetAttribute("ConfigName")
-	return type(configName) == "string" and string.find(configName, "LuckyBlock", 1, true) ~= nil
-end
-
 local function prepareModel(model: Model)
-	local keepWeldedAssembly = isLuckyBlockModel(model)
 	for _, inst in model:GetDescendants() do
-		if inst:IsA("BasePart") then
+		if inst:IsA("WeldConstraint") then
+			inst:Destroy()
+		elseif inst:IsA("BasePart") then
 			inst.Massless = true
 			inst.CanCollide = false
-			if not keepWeldedAssembly then
-				inst.Anchored = true
-			end
+			inst.Anchored = true
 		end
 	end
 end

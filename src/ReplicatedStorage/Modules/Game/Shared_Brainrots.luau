@@ -23,48 +23,76 @@ Brainrots.Balance = {
 	SellWorthSeconds = 10,
 }
 
+-- PowerTier (1-10) sets base $/s inside each rarity band from Shared_Rarities.BaseIncome.
 Brainrots.Data = {
-	ChillinChili = {
-		DispalayName = "Chillin Chili",
-		Rarity = "Common",
-		PowerTier = 5,
-	},
-	FluriFlura = {
-		DispalayName = "Fluri Flura",
-		Rarity = "Rare",
-		PowerTier = 5,
-	},
-	BrrBrrPatapim = {
-		DispalayName = "BrrBrr Patapim",
-		Rarity = "Epic",
-		PowerTier = 5,
-	},
-	FrigoCamelo = {
-		DispalayName = "Frigo Camelo",
-		Rarity = "Legendary",
-		PowerTier = 5,
-	},
-	GirafaCelestre = {
-		DispalayName = "Girafa Celestre",
-		Rarity = "Mythical",
-		PowerTier = 5,
-	},
-	
-	PipiPotato = {
-		DispalayName = "Pipi Potato",
-		Rarity = "Secret",
-		PowerTier = 5,
-	},
-	SixSeven = {
-		DispalayName = "Six Seven",
-		Rarity = "Divine",
-		PowerTier = 5,
-	},
-	TatatataSahur = {
-		DispalayName = "Tatatata Sahur",
-		Rarity = "Superior",
-		PowerTier = 5,
-	},
+
+	-- Common
+	BananitoDelfinito = { DispalayName = "Bananito Delfinito", Rarity = "Common", PowerTier = 1 },
+	EspressoSignora = { DispalayName = "Espresso Signora", Rarity = "Common", PowerTier = 2 },
+	ChillinChili = { DispalayName = "Chillin Chili", Rarity = "Common", PowerTier = 3 },
+	GanganzelliTrulala = { DispalayName = "Ganganzelli Trulala", Rarity = "Common", PowerTier = 3 },
+	GangsterFootera = { DispalayName = "Gangster Footera", Rarity = "Common", PowerTier = 3 },
+	Garamararam = { DispalayName = "Garamararam", Rarity = "Common", PowerTier = 4 },
+	LiriliLarila = { DispalayName = "Lirili Larila", Rarity = "Common", PowerTier = 5 },
+	NuclearoDinosauro = { DispalayName = "Nuclearo Dinosauro", Rarity = "Common", PowerTier = 6 },
+	Pakrahmatmatina = { DispalayName = "Pakrahmatmatina", Rarity = "Common", PowerTier = 7 },
+	TralalitaTralala = { DispalayName = "Tralalita Tralala", Rarity = "Common", PowerTier = 8 },
+	TrippiTroppi = { DispalayName = "Trippi Troppi", Rarity = "Common", PowerTier = 8 },
+	Trollface = { DispalayName = "Trollface", Rarity = "Common", PowerTier = 9 },
+	TrulimeroTrulicina = { DispalayName = "Trulimero Trulicina", Rarity = "Common", PowerTier = 10 },
+
+	-- Rare
+	BalerinaCapucina = { DispalayName = "Balerina Capucina", Rarity = "Rare", PowerTier = 1 },
+	BanditoBobrito = { DispalayName = "Bandito Bobrito", Rarity = "Rare", PowerTier = 2 },
+	BrrBicusDicus = { DispalayName = "Brr Bicus Dicus", Rarity = "Rare", PowerTier = 3 },
+	ChefCrabracadabra = { DispalayName = "Chef Crabracadabra", Rarity = "Rare", PowerTier = 4 },
+	FluriFlura = { DispalayName = "Fluri Flura", Rarity = "Rare", PowerTier = 4 },
+	EsokSekolah = { DispalayName = "Esok Sekolah", Rarity = "Rare", PowerTier = 5 },
+	Lerulerulerule = { DispalayName = "Lerulerulerule", Rarity = "Rare", PowerTier = 6 },
+	OdinDinDinDun = { DispalayName = "Odin Din Din Dun", Rarity = "Rare", PowerTier = 7 },
+	Tralaledon = { DispalayName = "Tralaledon", Rarity = "Rare", PowerTier = 8 },
+	TricTracBarabum = { DispalayName = "Tric Trac Barabum", Rarity = "Rare", PowerTier = 9 },
+	TrippiTroppiTroppaTrippa = { DispalayName = "Trippi Troppi Troppa Trippa", Rarity = "Rare", PowerTier = 10 },
+
+	-- Epic
+	BlueberrinniOctopusini = { DispalayName = "Blueberrinni Octopusini", Rarity = "Epic", PowerTier = 1 },
+	CavalloVirtuoso = { DispalayName = "Cavallo Virtuoso", Rarity = "Epic", PowerTier = 2 },
+	SmurfCat = { DispalayName = "Smurf Cat", Rarity = "Epic", PowerTier = 4 },
+	BrrBrrPatapim = { DispalayName = "Brr Brr Patapim", Rarity = "Epic", PowerTier = 5 },
+	TigroligreFrutonni = { DispalayName = "Tigroligre Frutonni", Rarity = "Epic", PowerTier = 6 },
+	TimCheese = { DispalayName = "Tim Cheese", Rarity = "Epic", PowerTier = 7 },
+	TriplitoTralaleritos = { DispalayName = "Triplito Tralaleritos", Rarity = "Epic", PowerTier = 8 },
+	ZibraZubraZibralini = { DispalayName = "Zibra Zubra Zibralini", Rarity = "Epic", PowerTier = 10 },
+
+	-- Legendary
+	AgarriniLaPallini = { DispalayName = "Agarrini La Pallini", Rarity = "Legendary", PowerTier = 1 },
+	CappuccinoAssassino = { DispalayName = "Cappuccino Assassino", Rarity = "Legendary", PowerTier = 3 },
+	GorilloWatermelondrillo = { DispalayName = "Gorillo Watermelondrillo", Rarity = "Legendary", PowerTier = 5 },
+	FrigoCamelo = { DispalayName = "Frigo Camelo", Rarity = "Legendary", PowerTier = 6 },
+	LioneloCactuseli = { DispalayName = "Lionelo Cactuseli", Rarity = "Legendary", PowerTier = 6 },
+	Mateo = { DispalayName = "Mateo", Rarity = "Legendary", PowerTier = 8 },
+	PandacciniBananini = { DispalayName = "Pandaccini Bananini", Rarity = "Legendary", PowerTier = 10 },
+
+	-- Mythical
+	["69"] = { DispalayName = "69", Rarity = "Mythical", PowerTier = 1 },
+	ChicleteiraBicicleteira = { DispalayName = "Chicleteira Bicicleteira", Rarity = "Mythical", PowerTier = 3 },
+	PotHotspot = { DispalayName = "Pot Hotspot", Rarity = "Mythical", PowerTier = 6 },
+	GirafaCelestre = { DispalayName = "Girafa Celestre", Rarity = "Mythical", PowerTier = 7 },
+	StrawberrelliFlamingelli = { DispalayName = "Strawberrelli Flamingelli", Rarity = "Mythical", PowerTier = 8 },
+	TralaleroTralala = { DispalayName = "Tralalero Tralala", Rarity = "Mythical", PowerTier = 10 },
+
+	-- Secret
+	ChicleteirinaBicicleteirina = { DispalayName = "Chicleteirina Bicicleteirina", Rarity = "Secret", PowerTier = 1 },
+	DragonCannelloni = { DispalayName = "Dragon Cannelloni", Rarity = "Secret", PowerTier = 6 },
+	PipiPotato = { DispalayName = "Pipi Potato", Rarity = "Secret", PowerTier = 8 },
+	TorrtuginniDragonfrutini = { DispalayName = "Torrtuginni Dragonfrutini", Rarity = "Secret", PowerTier = 10 },
+
+	-- Divine
+	Pakrahmatmamat = { DispalayName = "Pakrahmatmamat", Rarity = "Divine", PowerTier = 5 },
+	SixSeven = { DispalayName = "Six Seven", Rarity = "Divine", PowerTier = 9 },
+
+	-- Superior
+	TatatataSahur = { DispalayName = "Tatatata Sahur", Rarity = "Superior", PowerTier = 10 },
 }
 
 local function roundEconomy(value: number): number
@@ -110,6 +138,34 @@ function Brainrots.GetDisplayName(configName: string): string
 	return config.DispalayName or config.DisplayName or configName
 end
 
+function Brainrots.GetPowerTier(configName: string): number
+	local config = Brainrots.Data[configName]
+	if not config then
+		return 5
+	end
+	return math.clamp(config.PowerTier or 5, 1, 10)
+end
+
+function Brainrots.GetConfigNamesForRarity(rarity: string): { string }
+	local configNames: { string } = {}
+	for configName, config in Brainrots.Data do
+		if config.Rarity == rarity then
+			table.insert(configNames, configName)
+		end
+	end
+
+	table.sort(configNames, function(a, b)
+		local tierA = Brainrots.GetPowerTier(a)
+		local tierB = Brainrots.GetPowerTier(b)
+		if tierA ~= tierB then
+			return tierA < tierB
+		end
+		return Brainrots.GetDisplayName(a) < Brainrots.GetDisplayName(b)
+	end)
+
+	return configNames
+end
+
 function Brainrots.GetDefaultBaseWeight(_configName: string?): number
 	return Brainrots.DefaultBaseWeight or 15
 end
@@ -137,7 +193,7 @@ function Brainrots.GetBaseCashPerSecond(configName: string): number
 		return 0
 	end
 
-	local powerTier = math.clamp(config.PowerTier or 5, 1, 10)
+	local powerTier = Brainrots.GetPowerTier(configName)
 	local minIncome = rarityRange.Min
 	local maxIncome = rarityRange.Max
 	local cashPerSecond = minIncome + ((maxIncome - minIncome) * (powerTier - 1) / 9)

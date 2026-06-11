@@ -303,6 +303,7 @@ local function placeLuckyBlockOnHoleFloor(
 	local spawnLift = Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
 	luckyBlock:PivotTo(luckyBlock:GetPivot() + Vector3.new(0, spawnLift, 0))
 	luckyBlock:SetAttribute("WorldFloatBasePosition", luckyBlock:GetPivot().Position)
+	luckyBlock:SetAttribute("WorldBaseYaw", Shared_GameProcess.GetFlatYaw(luckyBlock:GetPivot()))
 	luckyBlock:SetAttribute("FloatHeight", floatHeight)
 	luckyBlock:SetAttribute("FloatSpinDirection", if math.random() < 0.5 then -1 else 1)
 

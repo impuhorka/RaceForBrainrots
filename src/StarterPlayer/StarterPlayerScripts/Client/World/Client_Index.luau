@@ -34,6 +34,11 @@ local function getBrainrotEntries()
 		local aOrder = (a.RarityData and a.RarityData.LayoutOrder) or math.huge
 		local bOrder = (b.RarityData and b.RarityData.LayoutOrder) or math.huge
 		if aOrder == bOrder then
+			local aTier = Shared_Brainrots.GetPowerTier(a.ConfigName)
+			local bTier = Shared_Brainrots.GetPowerTier(b.ConfigName)
+			if aTier ~= bTier then
+				return aTier > bTier
+			end
 			return a.DisplayName < b.DisplayName
 		end
 		return aOrder < bOrder

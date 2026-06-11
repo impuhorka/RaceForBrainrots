@@ -113,6 +113,7 @@ function Bootstrap.start()
 	ClientLoader.require("Client_ProximityPrompts").Init()
 	ClientLoader.require("Client_PlotSlotSurfaces").Init()
 	ClientLoader.require("Client_FOV").init()
+	ClientLoader.require("Client_AntiFling").Init()
 
 	ReplicaController.RequestData()
 

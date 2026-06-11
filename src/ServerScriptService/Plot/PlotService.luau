@@ -99,8 +99,8 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 
 	local blacklistSet = buildBlacklistSet(luckyBlockData.Blacklist)
 	local candidates = {}
-	for configName, brainrotData in Shared_Brainrots.Data do
-		if brainrotData.Rarity == rarity and not blacklistSet[normalizeName(configName)] then
+	for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
+		if not blacklistSet[normalizeName(configName)] then
 			table.insert(candidates, configName)
 		end
 	end

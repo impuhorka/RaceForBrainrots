@@ -9,6 +9,7 @@ local root = script.Parent
 local cache: { [string]: any } = {}
 
 local PATHS: { [string]: ModuleScript } = {
+	Client_AntiFling = root.Core.Client_AntiFling,
 	Client_AudioSettings = root.Core.Client_AudioSettings,
 	Client_BackgroundMusic = root.Settings.Client_BackgroundMusic,
 	Client_CashAddingPopups = root.Plot.Client_CashAddingPopups,

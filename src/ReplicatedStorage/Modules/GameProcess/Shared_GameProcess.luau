@@ -79,7 +79,7 @@ Shared_GameProcess.ProcessPhase = {
 
 Shared_GameProcess.NewMapBuildDuration = 10
 Shared_GameProcess.RaceStartsDuration = 5
-Shared_GameProcess.RaceEndsDuration = 10
+Shared_GameProcess.RaceEndsDuration = 60
 Shared_GameProcess.RelaxDuration = 10
 
 function Shared_GameProcess.IsRaceActivePhase(phase: string?): boolean
@@ -172,6 +172,19 @@ end
 function Shared_GameProcess.GetWorldLuckyBlockSpawnLift(modelHeight: number): number
 	return Shared_GameProcess.GetWorldLuckyBlockFloatHeight(modelHeight)
 		+ Shared_GameProcess.GetWorldLuckyBlockMinFloorClearance(modelHeight)
+end
+
+function Shared_GameProcess.GetFlatYaw(rotation: CFrame): number
+	local _, yaw, _ = rotation:ToEulerAnglesYXZ()
+	return yaw
+end
+
+function Shared_GameProcess.GetFlatYawRotation(rotation: CFrame): CFrame
+	return CFrame.Angles(0, Shared_GameProcess.GetFlatYaw(rotation), 0)
+end
+
+function Shared_GameProcess.YawRotation(yaw: number): CFrame
+	return CFrame.Angles(0, yaw, 0)
 end
 
 -- Road segment length per rarity (-Z). Keep each size >= WallFrontOpening so minimaps fit.

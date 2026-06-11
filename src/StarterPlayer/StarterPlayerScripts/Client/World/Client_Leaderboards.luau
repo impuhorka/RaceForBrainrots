@@ -11,6 +11,7 @@ type BoardUi = {
 	scrollingFrame: ScrollingFrame,
 	templates: { [number]: GuiObject },
 	rows: { GuiObject },
+	childAddedConnection: RBXScriptConnection?,
 }
 
 local boards: { [string]: BoardUi } = {}
@@ -74,20 +75,42 @@ local function getScrollingFrame(model: Model): ScrollingFrame?
 	return bestMatch
 end
 
+local function isLeaderboardRow(gui: GuiObject): boolean
+	return gui:GetAttribute(rowAttributeName) == true
+end
+
+local function isTemplateLike(gui: GuiObject): boolean
+	if isLeaderboardRow(gui) then
+		return false
+	end
+	return findTextLabel(gui, "NickName") ~= nil and findTextLabel(gui, "Data") ~= nil
+end
+
 local function hideTemplate(template: GuiObject)
 	template.Visible = false
+end
+
+local function isNamedTemplateSlot(gui: GuiObject): boolean
+	local slot = tonumber(gui.Name)
+	return slot ~= nil and slot >= 1 and slot <= 4
+end
+
+local function hideTemplateSources(scrollingFrame: ScrollingFrame)
+	for _, child in scrollingFrame:GetChildren() do
+		if not child:IsA("GuiObject") or isLeaderboardRow(child) then
+			continue
+		end
+		if isNamedTemplateSlot(child) or isTemplateLike(child) then
+			hideTemplate(child)
+		end
+	end
 end
 
 local function findNamedTemplate(scrollingFrame: ScrollingFrame, place: number): GuiObject?
 	local name = tostring(place)
 	local direct = scrollingFrame:FindFirstChild(name)
-	if direct and direct:IsA("GuiObject") then
+	if direct and direct:IsA("GuiObject") and not isLeaderboardRow(direct) then
 		return direct
-	end
-
-	local nested = scrollingFrame:FindFirstChild(name, true)
-	if nested and nested:IsA("GuiObject") and nested:GetAttribute(rowAttributeName) ~= true then
-		return nested
 	end
 
 	return nil
@@ -104,9 +127,7 @@ local function collectTemplates(scrollingFrame: ScrollingFrame): { [number]: Gui
 	end
 
 	if next(templates) then
-		for _, template in templates do
-			hideTemplate(template)
-		end
+		hideTemplateSources(scrollingFrame)
 		return templates
 	end
 
@@ -133,7 +154,16 @@ local function collectTemplates(scrollingFrame: ScrollingFrame): { [number]: Gui
 		end
 	end
 
+	hideTemplateSources(scrollingFrame)
 	return templates
+end
+
+local function refreshBoardTemplates(boardUi: BoardUi)
+	boardUi.templates = collectTemplates(boardUi.scrollingFrame)
+	hideTemplateSources(boardUi.scrollingFrame)
+	for _, template in boardUi.templates do
+		hideTemplate(template)
+	end
 end
 
 local function clearRows(boardUi: BoardUi)
@@ -167,6 +197,13 @@ local function renderBoard(boardId: string, entries: { any })
 		return
 	end
 
+	hideTemplateSources(boardUi.scrollingFrame)
+	for _, template in boardUi.templates do
+		if template.Parent then
+			hideTemplate(template)
+		end
+	end
+
 	clearRows(boardUi)
 
 	for index, entry in entries do
@@ -193,27 +230,68 @@ end
 
 local pendingBoardConnections: { [string]: RBXScriptConnection } = {}
 
-local function bindBoardModel(boardId: string, model: Model): boolean
-	if boards[boardId] then
-		return true
+local function bindScrollingFrameChildAdded(boardId: string, boardUi: BoardUi)
+	if boardUi.childAddedConnection then
+		boardUi.childAddedConnection:Disconnect()
 	end
 
+	boardUi.childAddedConnection = boardUi.scrollingFrame.ChildAdded:Connect(function(child)
+		if not child:IsA("GuiObject") or isLeaderboardRow(child) then
+			return
+		end
+		if not isNamedTemplateSlot(child) and not isTemplateLike(child) then
+			return
+		end
+
+		task.defer(function()
+			local currentBoard = boards[boardId]
+			if not currentBoard or currentBoard.scrollingFrame ~= boardUi.scrollingFrame then
+				return
+			end
+
+			refreshBoardTemplates(currentBoard)
+			if lastSnapshot and lastSnapshot[boardId] then
+				renderBoard(boardId, lastSnapshot[boardId])
+			end
+		end)
+	end)
+end
+
+local function bindBoardModel(boardId: string, model: Model): boolean
 	local scrollingFrame = getScrollingFrame(model)
 	if not scrollingFrame then
 		return false
 	end
 
-	local templates = collectTemplates(scrollingFrame)
-	for _, template in templates do
-		hideTemplate(template)
+	local existing = boards[boardId]
+	if existing then
+		existing.model = model
+		existing.scrollingFrame = scrollingFrame
+		refreshBoardTemplates(existing)
+		bindScrollingFrameChildAdded(boardId, existing)
+
+		local pendingConnection = pendingBoardConnections[boardId]
+		if pendingConnection then
+			pendingConnection:Disconnect()
+			pendingBoardConnections[boardId] = nil
+		end
+
+		if lastSnapshot and lastSnapshot[boardId] then
+			renderBoard(boardId, lastSnapshot[boardId])
+		end
+		return true
 	end
 
-	boards[boardId] = {
+	local templates = collectTemplates(scrollingFrame)
+	local boardUi: BoardUi = {
 		model = model,
 		scrollingFrame = scrollingFrame,
 		templates = templates,
 		rows = {},
+		childAddedConnection = nil,
 	}
+	boards[boardId] = boardUi
+	bindScrollingFrameChildAdded(boardId, boardUi)
 
 	local pendingConnection = pendingBoardConnections[boardId]
 	if pendingConnection then

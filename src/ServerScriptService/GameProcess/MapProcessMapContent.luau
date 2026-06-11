@@ -519,7 +519,6 @@ local function tryPlaceGroundFlowerStack(
 
 			local placedInStack = false
 			for _ = 1, maxAttempts do
-				placeFlowerAt(holeFloor, flower, template.Name, anchorSpot.X, anchorSpot.Z)
 				local flowerHalfX, flowerHalfZ = getFlowerWorldFootprintHalfSize(flower)
 				local spreadX = anchorSpot.HalfX + flowerHalfX + overlapPadding + stackSpread
 				local spreadZ = anchorSpot.HalfZ + flowerHalfZ + overlapPadding + stackSpread
@@ -1260,13 +1259,8 @@ local function placeHoleFloorDecorationsForFloor(
 	grassTemplates: { Model },
 	mushroomTemplates: { Model },
 	rarityName: string,
-	parent: Instance,
-	spawnLuckyBlocks: boolean?
+	parent: Instance
 )
-	if spawnLuckyBlocks == nil then
-		spawnLuckyBlocks = true
-	end
-
 	local leftHoleFloor = layout.leftHoleFloor
 	local rightHoleFloor = layout.rightHoleFloor
 
@@ -1293,33 +1287,6 @@ local function placeHoleFloorDecorationsForFloor(
 
 	placeMushroomsForHoleFloor(leftHoleFloor, mushroomTemplates, rarityName, "Left", leftPlacedSpots, parent)
 	placeMushroomsForHoleFloor(rightHoleFloor, mushroomTemplates, rarityName, "Right", rightPlacedSpots, parent)
-
-	if spawnLuckyBlocks then
-		local luckyBlockConfigName = Shared_LuckyBlocks.GetConfigNameForRarity(rarityName)
-		local luckyBlockTemplate = if luckyBlockConfigName then getLuckyBlockTemplate(luckyBlockConfigName) else nil
-		if luckyBlockConfigName and not luckyBlockTemplate then
-			warn(`Missing ReplicatedStorage.Assets.LuckyBlocks.{luckyBlockConfigName}`)
-		elseif luckyBlockTemplate and luckyBlockConfigName then
-			spawnLuckyBlocksForHoleFloor(
-				leftHoleFloor,
-				luckyBlockTemplate,
-				luckyBlockConfigName,
-				rarityName,
-				"Left",
-				leftPlacedSpots,
-				parent
-			)
-			spawnLuckyBlocksForHoleFloor(
-				rightHoleFloor,
-				luckyBlockTemplate,
-				luckyBlockConfigName,
-				rarityName,
-				"Right",
-				rightPlacedSpots,
-				parent
-			)
-		end
-	end
 end
 
 local function collectDecorationSpotsOnHoleFloor(holeFloor: BasePart, zoneModels: { Model }): { PlacedSpot }

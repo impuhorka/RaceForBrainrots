@@ -80,6 +80,9 @@ function PlotCash.TickPlot(plot)
 		return
 	end
 
+	local rebirths = Server_Data:GetValue(plot.Owner, "Rebirths")
+	local rebirthMultiplier = Shared_Rebirth.GetCashMultiplier(rebirths)
+
 	for _, slotModel in plot.Slots do
 		if not slotHasBrainrot(slotModel) then
 			continue
@@ -95,8 +98,7 @@ function PlotCash.TickPlot(plot)
 			continue
 		end
 
-		local rebirths = Server_Data:GetValue(plot.Owner, "Rebirths")
-		income = math.floor(income * Shared_Rebirth.GetCashMultiplier(rebirths) + 0.5)
+		income = math.floor(income * rebirthMultiplier + 0.5)
 
 		local currentCash = slotModel:GetAttribute("CashToCollect") or 0
 		slotModel:SetAttribute("CashToCollect", currentCash + income)

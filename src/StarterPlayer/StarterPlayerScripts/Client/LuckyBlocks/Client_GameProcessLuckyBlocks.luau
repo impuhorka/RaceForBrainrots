@@ -469,10 +469,16 @@ function Client_GameProcessLuckyBlocks.Init()
 	floorsFolderRef = floorsFolder
 
 	for _, descendant in floorsFolder:GetDescendants() do
-		watchModel(descendant)
+		if descendant:IsA("Model") then
+			watchModel(descendant)
+		end
 	end
 
-	floorsFolder.DescendantAdded:Connect(watchModel)
+	floorsFolder.DescendantAdded:Connect(function(descendant)
+		if descendant:IsA("Model") then
+			watchModel(descendant)
+		end
+	end)
 
 	Client_VisualSettings.Listen(function(enabled)
 		for _, descendant in floorsFolder:GetDescendants() do

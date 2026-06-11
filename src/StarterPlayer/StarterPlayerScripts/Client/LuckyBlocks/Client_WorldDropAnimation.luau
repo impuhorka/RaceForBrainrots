@@ -57,10 +57,6 @@ local function easeOutQuart(t: number): number
 	return 1 - u * u * u * u
 end
 
-function Client_WorldDropAnimation.GetSpinStopDuration(): number
-	return SPIN_STOP_DURATION
-end
-
 local function isPlayActive(model: Model, generation: number): boolean
 	return model.Parent ~= nil and playGenerations[model] == generation
 end

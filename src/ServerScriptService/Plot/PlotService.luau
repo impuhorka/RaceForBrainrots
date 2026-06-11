@@ -22,7 +22,6 @@ local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
 local plotHandler: RemoteEvent
-local activeInstance: any = nil
 
 local function clearEquippedVisual(player: Player)
 	player:SetAttribute("EquippedItemType", nil)
@@ -277,23 +276,28 @@ end
 
 local function sellAllBrainrots(player: Player): (number, number)
 	local inventory = Server_Data:GetValue(player, "Inventory") or {}
+	local keptInventory: { any } = {}
 	local soldCount = 0
 	local totalWorth = 0
 
-	for index = #inventory, 1, -1 do
-		local item = inventory[index]
+	for _, item in inventory do
 		if item and item.ItemType == "Brainrot" and type(item.ConfigName) == "string" then
 			local level = math.max(1, tonumber(item.Data and item.Data.Level) or 1)
 			local modifier = item.Data and item.Data.Modifier or "Normal"
 			local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
-			if sellWorth > 0 and Server_Data:RemoveInventoryAt(player, index) then
+			if sellWorth > 0 then
 				soldCount += 1
 				totalWorth += sellWorth
+			else
+				table.insert(keptInventory, item)
 			end
+		else
+			table.insert(keptInventory, item)
 		end
 	end
 
-	if totalWorth > 0 then
+	if soldCount > 0 then
+		Server_Data:SetInventory(player, keptInventory)
 		Server_Data:AddValue(player, "Cash", totalWorth)
 	end
 
@@ -394,10 +398,6 @@ end
 
 local PlotService = {}
 PlotService.__index = PlotService
-
-function PlotService.GetActive()
-	return activeInstance
-end
 
 function PlotService.new()
 	local self = setmetatable({}, PlotService)
@@ -502,6 +502,9 @@ end
 
 function PlotService:DetachPlayer(player: Player)
 	PlotOfflineCash.OnPlayerLeave(player)
+	luckyBlockOpenLocks[player] = nil
+	PlotPlacement.ClearPlayerLocks(player)
+	PlotSlotPurchase.ClearPlayerLocks(player)
 
 	local plot = self.PlayerToPlot[player]
 	if not plot then
@@ -513,14 +516,6 @@ function PlotService:DetachPlayer(player: Player)
 	self.PlayerToPlot[player] = nil
 end
 
-function PlotService:GetSlotCount(player: Player): number
-	local plot = self:GetPlotByPlayer(player)
-	if not plot then
-		return 0
-	end
-	return plot:GetSlotCount()
-end
-
 function PlotService:AddSlot(player: Player): Model?
 	local plot = self:GetPlotByPlayer(player)
 	if not plot then
@@ -529,16 +524,7 @@ function PlotService:AddSlot(player: Player): Model?
 	return plot:AddSlot()
 end
 
-function PlotService:RemoveSlot(player: Player, slotId: number): boolean
-	local plot = self:GetPlotByPlayer(player)
-	if not plot then
-		return false
-	end
-	return plot:RemoveSlot(slotId)
-end
-
 function PlotService:Init()
-	activeInstance = self
 	self:LoadPlots()
 
 	plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent

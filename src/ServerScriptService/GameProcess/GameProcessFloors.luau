@@ -10,7 +10,6 @@ local MapProcessMapContent = require(script.Parent.MapProcessMapContent)
 local GameProcessFloors = {}
 
 local mapDecorationsSpawned = false
-local lastBuildLuckyBlockCount = 0
 
 function GameProcessFloors.SpawnPersistentMapDecorations()
 	if mapDecorationsSpawned then
@@ -35,8 +34,7 @@ function GameProcessFloors.SpawnPersistentMapDecorations()
 			context.grassTemplates,
 			context.mushroomTemplates,
 			entry.rarityName,
-			floorsFolder,
-			false
+			floorsFolder
 		)
 		if index % 2 == 0 then
 			task.wait()
@@ -52,9 +50,6 @@ function GameProcessFloors.SpawnPersistentMapDecorations()
 	end
 
 	mapDecorationsSpawned = true
-	lastBuildLuckyBlockCount = 0
-
-	print(`[GameProcessFloors] Spawned persistent map decorations`)
 end
 
 function GameProcessFloors.PrepareNextMapDuringRelax()
@@ -77,7 +72,6 @@ function GameProcessFloors.PrepareNextMapDuringRelax()
 
 	local buildStartTime, buildEndTime =
 		MapProcessBuildTiming.beginBuildWindow(Shared_GameProcess.RelaxDuration)
-	local buildDuration = buildEndTime - buildStartTime
 	local buildId = math.floor(buildStartTime * 1000)
 	local zoneCount = #buildEntries * 2
 	local totalSlots = math.max(
@@ -111,13 +105,6 @@ function GameProcessFloors.PrepareNextMapDuringRelax()
 			)
 		end
 	end
-
-	lastBuildLuckyBlockCount = 0
-
-	print(
-		`[GameProcessFloors] Relax map setup over {string.format("%.1f", buildDuration)}s `
-			.. `({stepper.getSlotIndex()}/{totalSlots} paced steps, trees re-rolled per zone)`
-	)
 end
 
 function GameProcessFloors.ExecuteNewMapLuckyBlockSpawn()
@@ -138,7 +125,6 @@ function GameProcessFloors.ExecuteNewMapLuckyBlockSpawn()
 
 	local buildStartTime, buildEndTime =
 		MapProcessBuildTiming.beginBuildWindow(Shared_GameProcess.NewMapBuildDuration)
-	local buildDuration = buildEndTime - buildStartTime
 	local buildId = math.floor(buildStartTime * 1000)
 	MapProcessBuildTiming.setMapBuildAttributes(buildId, buildStartTime, buildEndTime, totalSlots)
 
@@ -161,13 +147,6 @@ function GameProcessFloors.ExecuteNewMapLuckyBlockSpawn()
 			stepper.pace
 		)
 	end
-
-	lastBuildLuckyBlockCount = #MapProcessMapContent.collectLuckyBlocks(floorsFolder)
-
-	print(
-		`[GameProcessFloors] NewMap lucky blocks over {string.format("%.1f", buildDuration)}s `
-			.. `({lastBuildLuckyBlockCount} spawned)`
-	)
 end
 
 function GameProcessFloors.EnsureMapGeometry(): boolean

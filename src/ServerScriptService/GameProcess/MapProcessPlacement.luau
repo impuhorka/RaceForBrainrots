@@ -50,33 +50,8 @@ function MapProcessPlacement.getModelsClusterSpot(models: { Model }): PlacedSpot
 end
 
 function MapProcessPlacement.getModelLowestWorldY(model: Model): number
-	local lowest = math.huge
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			local part = descendant :: BasePart
-			local cf = part.CFrame
-			local halfSize = part.Size / 2
-			for sx = -1, 1, 2 do
-				for sy = -1, 1, 2 do
-					for sz = -1, 1, 2 do
-						local cornerY = cf:PointToWorldSpace(
-							Vector3.new(halfSize.X * sx, halfSize.Y * sy, halfSize.Z * sz)
-						).Y
-						if cornerY < lowest then
-							lowest = cornerY
-						end
-					end
-				end
-			end
-		end
-	end
-
-	if lowest == math.huge then
-		local bboxCF, bboxSize = model:GetBoundingBox()
-		return bboxCF.Position.Y - bboxSize.Y / 2
-	end
-
-	return lowest
+	local bboxCF, bboxSize = model:GetBoundingBox()
+	return bboxCF.Position.Y - bboxSize.Y / 2
 end
 
 function MapProcessPlacement.snapModelBottomToY(model: Model, targetBottomY: number)

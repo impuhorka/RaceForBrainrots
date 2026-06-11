@@ -9,6 +9,10 @@ local PlotSlotPurchase = {}
 
 local purchaseLocks: { [Player]: boolean } = {}
 
+function PlotSlotPurchase.ClearPlayerLocks(player: Player)
+	purchaseLocks[player] = nil
+end
+
 local function getPlotHandlerEvent()
 	local events = ReplicatedStorage:WaitForChild("Events")
 	return events:WaitForChild("PlotHandler") :: RemoteEvent

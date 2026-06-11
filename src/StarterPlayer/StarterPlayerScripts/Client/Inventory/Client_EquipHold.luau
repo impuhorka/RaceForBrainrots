@@ -241,15 +241,12 @@ local function attachItemToTorso(
 			part.Anchored = false
 			part.CanCollide = false
 			part.Massless = true
-		end
-	end
-
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") and part ~= primaryPart then
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = primaryPart
-			weld.Part1 = part
-			weld.Parent = primaryPart
+			if part ~= primaryPart then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = primaryPart
+				weld.Part1 = part
+				weld.Parent = primaryPart
+			end
 		end
 	end
 

@@ -17,6 +17,18 @@ local function getUpgradeCooldownKey(player: Player, slotId: number): string
 	return ("%d:%d"):format(player.UserId, slotId)
 end
 
+function PlotPlacement.ClearPlayerLocks(player: Player)
+	placingLocks[player] = nil
+	pickupLocks[player] = nil
+
+	local prefix = (`%d:`):format(player.UserId)
+	for key in slotUpgradeLocks do
+		if string.sub(key, 1, #prefix) == prefix then
+			slotUpgradeLocks[key] = nil
+		end
+	end
+end
+
 local function getPlotHandlerEvent()
 	local events = ReplicatedStorage:WaitForChild("Events")
 	return events:WaitForChild("PlotHandler") :: RemoteEvent

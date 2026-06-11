@@ -23,7 +23,6 @@ local carriedByPlayer: { [Player]: Model } = {}
 local delivering: { [Player]: boolean } = {}
 local pickupLocks: { [Player]: boolean } = {}
 local roadFrontZ: number? = nil
-local roadFrontConnections: { [Player]: RBXScriptConnection } = {}
 local gameProcessHandler: RemoteEvent? = nil
 local despawnTimers: { [Model]: thread } = {}
 local brainrotDropLocks: { [Player]: boolean } = {}
@@ -94,14 +93,6 @@ local function getLuckyBlockHoldScaleRatio(model: Model): number
 	return 1
 end
 
-local function clearModelWelds(model: Model)
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("WeldConstraint") then
-			descendant:Destroy()
-		end
-	end
-end
-
 local function attachCarriedLuckyBlockToCharacter(player: Player, luckyBlock: Model): boolean
 	local character = player.Character
 	if not character then
@@ -114,26 +105,22 @@ local function attachCarriedLuckyBlockToCharacter(player: Player, luckyBlock: Mo
 		return false
 	end
 
-	clearModelWelds(luckyBlock)
-
 	primaryPart.Anchored = false
 
-	for _, part in luckyBlock:GetDescendants() do
-		if part:IsA("BasePart") then
+	for _, descendant in luckyBlock:GetDescendants() do
+		if descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			local part = descendant
 			part.CanCollide = false
 			part.Massless = true
 			if part ~= primaryPart then
 				part.Anchored = false
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = primaryPart
+				weld.Part1 = part
+				weld.Parent = primaryPart
 			end
-		end
-	end
-
-	for _, part in luckyBlock:GetDescendants() do
-		if part:IsA("BasePart") and part ~= primaryPart then
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = primaryPart
-			weld.Part1 = part
-			weld.Parent = primaryPart
 		end
 	end
 
@@ -193,14 +180,6 @@ local function createCarriedCloneFromWorld(worldLuckyBlock: Model): Model
 	carriedBlock:SetAttribute("IsCarriedLuckyBlock", true)
 	removePickupPrompt(carriedBlock)
 	return carriedBlock
-end
-
-local function anchorModel(model: Model)
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = true
-		end
-	end
 end
 
 local function getLuckyBlockWorldParent(): Instance?
@@ -450,12 +429,12 @@ local function placeWorldModelAtDropPosition(
 	local dropRotation = getDropFacingRotation(root, dropX, dropZ, floorTopY, overrideRootCFrame)
 
 	worldModel.Parent = worldParent
-	clearModelWelds(worldModel)
 
-	for _, part in worldModel:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.Anchored = false
-			part.CanCollide = false
+	for _, descendant in worldModel:GetDescendants() do
+		if descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.CanCollide = false
 		end
 	end
 
@@ -467,42 +446,13 @@ local function placeWorldModelAtDropPosition(
 	local spawnLift = Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
 	worldModel:PivotTo(worldModel:GetPivot() + Vector3.new(0, spawnLift, 0))
 
-	anchorModel(worldModel)
+	for _, descendant in worldModel:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+		end
+	end
+
 	return worldModel:GetPivot().Position
-end
-
-local function placeLuckyBlockAtDropPosition(
-	luckyBlock: Model,
-	character: Model,
-	worldParent: Instance,
-	radiusScale: number?,
-	overrideRootCFrame: CFrame?
-): Vector3?
-	return placeWorldModelAtDropPosition(luckyBlock, character, worldParent, radiusScale, overrideRootCFrame)
-end
-
-local function addLuckyBlockToInventory(player: Player, luckyBlock: Model): number?
-	local configName = luckyBlock:GetAttribute("ConfigName")
-	if type(configName) ~= "string" or configName == "" then
-		return nil
-	end
-
-	local baseWeight = luckyBlock:GetAttribute("BaseWeight")
-	local weight = luckyBlock:GetAttribute("Weight")
-	local itemData: { [string]: number } = {}
-
-	if type(baseWeight) == "number" then
-		itemData.BaseWeight = baseWeight
-	end
-	if type(weight) == "number" then
-		itemData.Weight = weight
-	end
-
-	return Server_Data:AddInventoryItem(player, {
-		ItemType = "LuckyBlock",
-		ConfigName = configName,
-		Data = itemData,
-	})
 end
 
 local function clearDroppedLuckyBlockDespawnDisplay(luckyBlock: Model)
@@ -552,13 +502,7 @@ local function startDroppedLuckyBlockDespawn(luckyBlock: Model)
 	end)
 end
 
-local function stopRoadFrontCheck(player: Player)
-	local connection = roadFrontConnections[player]
-	if connection then
-		connection:Disconnect()
-		roadFrontConnections[player] = nil
-	end
-end
+local function stopRoadFrontCheck(_player: Player) end
 
 local function forfeitCarriedLuckyBlock(
 	player: Player,
@@ -628,30 +572,14 @@ local function tryDeliverPlayerPastRoadFront(player: Player)
 end
 
 local function startRoadFrontCheck(player: Player)
-	stopRoadFrontCheck(player)
 	if roadFrontZ == nil or not carriedByPlayer[player] then
 		return
 	end
-
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root or not root:IsA("BasePart") then
-		return
-	end
-
-	roadFrontConnections[player] = root:GetPropertyChangedSignal("CFrame"):Connect(function()
-		tryDeliverPlayerPastRoadFront(player)
-	end)
-
 	tryDeliverPlayerPastRoadFront(player)
 end
 
 function GameProcessService.IsPlayerCarrying(player: Player): boolean
 	return carriedByPlayer[player] ~= nil
-end
-
-function GameProcessService.GetCarriedLuckyBlock(player: Player): Model?
-	return carriedByPlayer[player]
 end
 
 function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBlock: Model)
@@ -728,7 +656,7 @@ function GameProcessService.DropCarriedLuckyBlock(player: Player, clientRootCFra
 	local launchOrigin = getDropLaunchOrigin(character, validatedRootCFrame)
 	local _, bboxSize = luckyBlock:GetBoundingBox()
 	local dropRadiusScale = Shared_GameProcess.GetWorldDropRadiusScale(bboxSize.Y)
-	local dropPosition = placeLuckyBlockAtDropPosition(
+	local dropPosition = placeWorldModelAtDropPosition(
 		luckyBlock,
 		character,
 		worldParent,

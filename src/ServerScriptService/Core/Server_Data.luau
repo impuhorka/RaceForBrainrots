@@ -320,9 +320,13 @@ function Module:SetValue(player, path, value)
 			table.insert(pathArray, part)
 		end
 		replica:SetValue(pathArray, value)
-	else
-		setValueByPath(data, path, value)
+		if path == "Speed" then
+			updateMaxSpeedRecorded(player, value)
+		end
+		return
 	end
+
+	setValueByPath(data, path, value)
 
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if not leaderstats then
@@ -361,6 +365,22 @@ end
 function Module:SubValue(player, path, amount)
 	local current = self:GetValue(player, path) or 0
 	self:SetValue(player, path, math.max(0, current - amount))
+end
+
+function Module:SetInventory(player: Player, inventory: { any })
+	local data = self:GetData(player)
+	if not data then
+		return false
+	end
+
+	data.Inventory = inventory
+
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValue({ "Inventory" }, inventory)
+	end
+
+	return true
 end
 
 function Module:RemoveInventoryAt(player: Player, index: number): any?

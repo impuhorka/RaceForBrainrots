@@ -230,8 +230,6 @@ local function onPlayerAdded(player: Player)
 
 		sendSnapshotToPlayer(player)
 		Server_Leaderboards.SubmitPlayer(player)
-		refreshSnapshot()
-		sendSnapshotToPlayer(player)
 	end)
 end
 

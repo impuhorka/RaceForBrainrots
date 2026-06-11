@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
-local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
 
 local Server_Data = require(script.Parent.Server_Data)

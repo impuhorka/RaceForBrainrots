@@ -362,39 +362,12 @@ function Plot:CreateSlot(slotId: number): Model?
 	return slotModel
 end
 
-function Plot:GetSlotCount(): number
-	local count = 0
-	for _ in self.Slots do
-		count += 1
-	end
-	return count
-end
-
 function Plot:AddSlot(): Model?
 	local slotId = self.TotalSlots + 1
 	while self.Slots[slotId] do
 		slotId += 1
 	end
 	return self:CreateSlot(slotId)
-end
-
-function Plot:RemoveSlot(slotId: number): boolean
-	local slotModel = self.Slots[slotId]
-	if not slotModel then
-		return false
-	end
-
-	slotModel:Destroy()
-	self.Slots[slotId] = nil
-
-	if slotId == self.TotalSlots then
-		while self.TotalSlots > 0 and not self.Slots[self.TotalSlots] do
-			self.TotalSlots -= 1
-		end
-	end
-
-	self:CleanupUnusedFloors()
-	return true
 end
 
 function Plot:GetSlotCFrame(slotId: number): CFrame?

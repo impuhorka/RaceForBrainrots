@@ -7,7 +7,6 @@ local MapProcessDecorationQuery = {}
 
 export type ZoneDecorationIndex = {
 	byZoneKey: { [string]: { Model } },
-	all: { Model },
 }
 
 local function zoneKey(rarityName: string, holeSide: string): string
@@ -48,7 +47,6 @@ function MapProcessDecorationQuery.buildZoneDecorationIndex(models: { Model }): 
 
 	return {
 		byZoneKey = byZoneKey,
-		all = models,
 	}
 end
 
@@ -58,10 +56,6 @@ function MapProcessDecorationQuery.getZoneModels(
 	holeSide: string
 ): { Model }
 	return index.byZoneKey[zoneKey(rarityName, holeSide)] or {}
-end
-
-function MapProcessDecorationQuery.isZoneDecorationModel(model: Model, rarityName: string, holeSide: string): boolean
-	return model:GetAttribute("Rarity") == rarityName and model:GetAttribute("HoleSide") == holeSide
 end
 
 function MapProcessDecorationQuery.countNonTreeDecorationSteps(models: { Model }): number

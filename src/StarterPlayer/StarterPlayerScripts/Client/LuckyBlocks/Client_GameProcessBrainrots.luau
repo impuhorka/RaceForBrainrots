@@ -5,8 +5,8 @@ local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
-local Shared_Weight = SharedModules.require("Shared_Weight")
 local Client_WorldDropAnimation = ClientLoader.require("Client_WorldDropAnimation")
+local Client_VisualSettings = ClientLoader.require("Client_VisualSettings")
 
 local Client_GameProcessBrainrots = {}
 
@@ -86,6 +86,10 @@ local function startIdleFloat(model: Model, dropSpin: DropSpinState?)
 	animationConnections[model] = RunService.RenderStepped:Connect(function()
 		if not model.Parent then
 			stopAnimation(model)
+			return
+		end
+
+		if not Client_VisualSettings.AreEffectsEnabled() then
 			return
 		end
 
@@ -214,10 +218,16 @@ function Client_GameProcessBrainrots.Init()
 	end
 
 	for _, descendant in floorsFolder:GetDescendants() do
-		watchModel(descendant)
+		if descendant:IsA("Model") then
+			watchModel(descendant)
+		end
 	end
 
-	floorsFolder.DescendantAdded:Connect(watchModel)
+	floorsFolder.DescendantAdded:Connect(function(descendant)
+		if descendant:IsA("Model") then
+			watchModel(descendant)
+		end
+	end)
 end
 
 return Client_GameProcessBrainrots

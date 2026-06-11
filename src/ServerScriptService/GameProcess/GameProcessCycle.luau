@@ -4,6 +4,7 @@ local Workspace = game:GetService("Workspace")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
+local Shared_RoadGradient = SharedModules.require("Shared_RoadGradient")
 local GameProcessEntranceWall = require(script.Parent.GameProcessEntranceWall)
 local GameProcessFloors = require(script.Parent.GameProcessFloors)
 local GameProcessService = require(script.Parent.GameProcessService)
@@ -19,67 +20,116 @@ local PHASE_ORDER = {
 	Shared_GameProcess.ProcessPhase.Relax,
 }
 
+local function waitForPhaseEnd()
+	while true do
+		local gameFolder = Workspace:FindFirstChild("Game")
+		local phaseEndTime = gameFolder and gameFolder:GetAttribute("ProcessPhaseEndTime")
+		if type(phaseEndTime) ~= "number" then
+			break
+		end
+
+		local remaining = phaseEndTime - Workspace:GetServerTimeNow()
+		if remaining <= 0 then
+			break
+		end
+
+		task.wait(math.min(remaining, 0.25))
+	end
+end
+
 local function setPhase(phase: string, duration: number)
 	local gameFolder = GameProcessEntranceWall.EnsureGameFolder()
+	local now = Workspace:GetServerTimeNow()
+	local phaseEndTime = now + duration
 	gameFolder:SetAttribute("ProcessPhase", phase)
-	gameFolder:SetAttribute("ProcessPhaseEndTime", Workspace:GetServerTimeNow() + duration)
+	gameFolder:SetAttribute("ProcessPhaseStartTime", now)
+	gameFolder:SetAttribute("ProcessPhaseEndTime", phaseEndTime)
+
+	if phase == Shared_GameProcess.ProcessPhase.NewMap then
+		gameFolder:SetAttribute("MapBuildStartTime", now)
+		gameFolder:SetAttribute("MapBuildEndTime", now + Shared_GameProcess.NewMapBuildDuration)
+	elseif phase == Shared_GameProcess.ProcessPhase.Relax then
+		gameFolder:SetAttribute("MapBuildStartTime", now)
+		gameFolder:SetAttribute("MapBuildEndTime", phaseEndTime)
+	else
+		gameFolder:SetAttribute("MapBuildStartTime", nil)
+		gameFolder:SetAttribute("MapBuildEndTime", nil)
+	end
 end
 
 local function runNewMapPhase()
 	GameProcessEntranceWall.Show()
 	GameProcessService.ClearForMapReset()
-	GameProcessFloors.ClearMapContent()
 	GameProcessFloors.EnsureMapGeometry()
 
-	local duration = Shared_GameProcess.NewMapDuration
-	local buildDuration = Shared_GameProcess.NewMapBuildDuration
-	setPhase(Shared_GameProcess.ProcessPhase.NewMap, duration)
+	setPhase(Shared_GameProcess.ProcessPhase.NewMap, Shared_GameProcess.NewMapBuildDuration)
 
-	local phaseStart = os.clock()
-	GameProcessFloors.BuildMapContentAsync(buildDuration)
-	local remaining = duration - (os.clock() - phaseStart)
-	if remaining > 0 then
-		task.wait(remaining)
-	end
+	task.spawn(function()
+		GameProcessFloors.ExecuteNewMapLuckyBlockSpawn()
+	end)
+
+	waitForPhaseEnd()
 end
 
 local function runRaceStartsPhase()
 	GameProcessEntranceWall.Show()
 
-	local duration = Shared_GameProcess.RaceStartsDuration
-	setPhase(Shared_GameProcess.ProcessPhase.RaceStarts, duration)
-	task.wait(duration)
+	setPhase(Shared_GameProcess.ProcessPhase.RaceStarts, Shared_GameProcess.RaceStartsDuration)
+	waitForPhaseEnd()
 end
 
-local function teleportAllPlayersHome()
+local function isPlayerOnRoad(player: Player): boolean
+	local zones = Workspace:FindFirstChild("Zones")
+	local enterPart = zones and zones:FindFirstChild("EnterPart")
+	if not enterPart or not enterPart:IsA("BasePart") then
+		return false
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return false
+	end
+
+	local roadNearZ, roadFarZ = Shared_RoadGradient.GetRoadBounds(enterPart)
+	return Shared_RoadGradient.IsOnRoad(root.Position.Z, roadNearZ, roadFarZ)
+end
+
+local function teleportRoadPlayersHome()
 	if not plotService then
 		return
 	end
 
 	for _, player in Players:GetPlayers() do
-		plotService:TeleportPlayerToPlot(player)
+		if isPlayerOnRoad(player) then
+			plotService:TeleportPlayerToPlot(player)
+		end
 	end
 end
 
 local function runRaceEndsPhase()
 	GameProcessEntranceWall.Hide()
 
-	local duration = Shared_GameProcess.RaceEndsDuration
-	setPhase(Shared_GameProcess.ProcessPhase.RaceEnds, duration)
-	task.wait(duration)
+	setPhase(Shared_GameProcess.ProcessPhase.RaceEnds, Shared_GameProcess.RaceEndsDuration)
+	waitForPhaseEnd()
 
-	GameProcessService.OnRaceEnded()
-	teleportAllPlayersHome()
+	task.spawn(function()
+		GameProcessService.OnRaceEnded()
+		teleportRoadPlayersHome()
+	end)
 end
 
 local function runRelaxPhase()
 	GameProcessEntranceWall.Show()
 	GameProcessService.ClearForMapReset()
-	GameProcessFloors.ClearMapContent()
 
-	local duration = Shared_GameProcess.RelaxDuration
-	setPhase(Shared_GameProcess.ProcessPhase.Relax, duration)
-	task.wait(duration)
+	setPhase(Shared_GameProcess.ProcessPhase.Relax, Shared_GameProcess.RelaxDuration)
+
+	task.spawn(function()
+		GameProcessFloors.PrepareNextMapDuringRelax()
+	end)
+
+	waitForPhaseEnd()
 end
 
 local PHASE_RUNNERS = {
@@ -107,6 +157,7 @@ end
 function GameProcessCycle.Init()
 	GameProcessEntranceWall.Init()
 	GameProcessFloors.EnsureMapGeometry()
+	GameProcessFloors.SpawnPersistentMapDecorations()
 	task.spawn(runCycleLoop)
 end
 

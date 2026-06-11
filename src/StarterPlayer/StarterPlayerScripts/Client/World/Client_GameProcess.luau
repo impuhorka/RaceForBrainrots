@@ -29,8 +29,12 @@ type EntranceWallUi = {
 local localPlayer = Players.LocalPlayer
 local gameProcessGui: GuiObject?
 local phaseFrames: { [string]: GuiObject } = {}
+local phaseGradients: { [string]: UIGradient? } = {}
 local timeLeftLabels: { [string]: TextLabel } = {}
 local entranceWallUi: EntranceWallUi = {}
+local lastEntranceWallUiPhase: string? = nil
+local lastUiUpdateAt = 0
+local UI_UPDATE_INTERVAL = 0.1
 
 local function formatTimeLeft(seconds: number): string
 	return string.format("%.1f seconds", math.max(0, seconds))
@@ -123,7 +127,9 @@ local function resolveEntranceWallUi(): EntranceWallUi
 	entranceWallUi.frame = frame
 	entranceWallUi.newMapGradient = findGradient(frame, "NewMapGradient")
 	entranceWallUi.raceStartsGradient = findGradient(frame, "RaceStartsGradient")
-	entranceWallUi.relaxMapGradient = findGradient(frame, "RelaxMapGradient")
+	entranceWallUi.relaxMapGradient = findGradient(frame, "RelaxGradient")
+		or findGradient(frame, "RelaxMapGradient")
+		or findGradient(frame, "RelaxTimeGradient")
 
 	return entranceWallUi
 end
@@ -203,6 +209,13 @@ local function resolveUi()
 			if timeLeft then
 				timeLeftLabels[phaseName] = timeLeft
 			end
+			if phaseName == Shared_GameProcess.ProcessPhase.Relax then
+				phaseGradients[phaseName] = findGradient(frame, "RelaxGradient")
+					or findGradient(frame, "RelaxMapGradient")
+					or findGradient(frame, "RelaxTimeGradient")
+			else
+				phaseGradients[phaseName] = findGradient(frame, `{phaseName}Gradient`)
+			end
 		end
 	end
 
@@ -229,7 +242,13 @@ local function getPhaseTimeLeft(): (string?, number)
 	return phase, timeLeft
 end
 
-local function updateUi()
+local function updateUi(force: boolean?)
+	local now = os.clock()
+	if not force and now - lastUiUpdateAt < UI_UPDATE_INTERVAL then
+		return
+	end
+	lastUiUpdateAt = now
+
 	local phase, timeLeft = getPhaseTimeLeft()
 	local formattedTime = formatTimeLeft(timeLeft)
 
@@ -245,10 +264,21 @@ local function updateUi()
 			if label and isActive then
 				label.Text = formattedTime
 			end
+
+			local gradient = phaseGradients[phaseName]
+			if gradient then
+				gradient.Enabled = isActive
+			end
 		end
 	end
 
-	updateEntranceWallUi(phase, timeLeft)
+	if phase ~= lastEntranceWallUiPhase then
+		lastEntranceWallUiPhase = phase
+		updateEntranceWallUi(phase, timeLeft)
+	elseif entranceWallUi.timeLabel and phase ~= nil then
+		local formattedTime = formatTimeLeft(timeLeft)
+		entranceWallUi.timeLabel.Text = formattedTime
+	end
 end
 
 local function bindEntranceWallWatcher()
@@ -265,7 +295,8 @@ local function bindEntranceWallWatcher()
 	mapFolder.ChildAdded:Connect(function(child)
 		if child.Name == ENTRANCE_WALL_NAME then
 			entranceWallUi = {}
-			updateUi()
+			lastEntranceWallUiPhase = nil
+			updateUi(true)
 		end
 	end)
 
@@ -310,12 +341,16 @@ function Client_GameProcess.Init()
 
 		local gameFolder = Workspace:WaitForChild("Game", 30)
 		if gameFolder then
-			gameFolder:GetAttributeChangedSignal("ProcessPhase"):Connect(updateUi)
-			gameFolder:GetAttributeChangedSignal("ProcessPhaseEndTime"):Connect(updateUi)
+			gameFolder:GetAttributeChangedSignal("ProcessPhase"):Connect(function()
+				updateUi(true)
+			end)
+			gameFolder:GetAttributeChangedSignal("ProcessPhaseEndTime"):Connect(function()
+				updateUi(true)
+			end)
 		end
 
-		RunService.RenderStepped:Connect(updateUi)
-		updateUi()
+		RunService.Heartbeat:Connect(updateUi)
+		updateUi(true)
 	end)
 end
 

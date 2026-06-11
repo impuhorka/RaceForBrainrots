@@ -1071,7 +1071,9 @@ function GameProcessService.Init()
 		if action == "DropEquippedBrainrot" then
 			local inventoryIndex = select(1, ...)
 			GameProcessService.DropEquippedBrainrot(player, inventoryIndex)
+			return
 		end
+
 	end)
 
 	local zones = Workspace:WaitForChild("Zones", 30)

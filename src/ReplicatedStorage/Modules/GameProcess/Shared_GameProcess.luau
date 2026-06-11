@@ -1,3 +1,5 @@
+local Workspace = game:GetService("Workspace")
+
 local Shared_GameProcess = {}
 
 Shared_GameProcess.WallFrontOpening = 125
@@ -16,13 +18,13 @@ Shared_GameProcess.TreeScaleMin = 0.85
 Shared_GameProcess.TreeScaleMax = 1.1
 Shared_GameProcess.MinBushesPerMinimap = 3
 Shared_GameProcess.BushOverlapPadding = 10
-Shared_GameProcess.FlowersPerMinimap = { Min = 8, Max = 10 }
-Shared_GameProcess.GroundFlowersPerStack = { Min = 2, Max = 5 }
+Shared_GameProcess.FlowersPerMinimap = { Min = 4, Max = 6 }
+Shared_GameProcess.GroundFlowersPerStack = { Min = 1, Max = 3 }
 Shared_GameProcess.GroundFlowerStackSpread = 2
-Shared_GameProcess.GrassStacksPerMinimap = { Min = 14, Max = 22 }
-Shared_GameProcess.GrassPerStack = { Min = 2, Max = 5 }
+Shared_GameProcess.GrassStacksPerMinimap = { Min = 3, Max = 6 }
+Shared_GameProcess.GrassPerStack = { Min = 1, Max = 2 }
 Shared_GameProcess.GrassStackSpread = 2
-Shared_GameProcess.MushroomsPerMinimap = { Min = 4, Max = 9 }
+Shared_GameProcess.MushroomsPerMinimap = { Min = 2, Max = 5 }
 Shared_GameProcess.LuckyBlocksPerHole = { Min = 5, Max = 7 }
 Shared_GameProcess.DecorationScaleMin = 0.8
 Shared_GameProcess.DecorationScaleMax = 1
@@ -75,18 +77,10 @@ Shared_GameProcess.ProcessPhase = {
 	Relax = "Relax",
 }
 
-Shared_GameProcess.NewMapDuration = 10
-Shared_GameProcess.NewMapBuildDuration = 1
+Shared_GameProcess.NewMapBuildDuration = 10
 Shared_GameProcess.RaceStartsDuration = 5
 Shared_GameProcess.RaceEndsDuration = 10
 Shared_GameProcess.RelaxDuration = 10
-
-Shared_GameProcess.ProcessPhaseDurations = {
-	NewMap = Shared_GameProcess.NewMapDuration,
-	RaceStarts = Shared_GameProcess.RaceStartsDuration,
-	RaceEnds = Shared_GameProcess.RaceEndsDuration,
-	Relax = Shared_GameProcess.RelaxDuration,
-}
 
 function Shared_GameProcess.IsRaceActivePhase(phase: string?): boolean
 	if type(phase) ~= "string" then
@@ -98,9 +92,60 @@ end
 
 Shared_GameProcess.EntranceWallNewMapMessage = "Map is building!"
 Shared_GameProcess.EntranceWallRaceStartsMessage = "Race starting!"
-Shared_GameProcess.EntranceWallRelaxMessage = "Map is resetting!"
+Shared_GameProcess.EntranceWallRelaxMessage = "Relax"
 Shared_GameProcess.UnluckyMapCloseMessage = "Unlucky! The map closed — your Lucky Block is gone!"
 Shared_GameProcess.UnluckyRaceEndMessage = "Unlucky! Next time maybe."
+
+function Shared_GameProcess.GetScheduledSlotTime(
+	phaseStartTime: number,
+	slotIndex: number,
+	totalSlots: number,
+	activeDuration: number
+): number
+	if totalSlots <= 0 or slotIndex <= 0 then
+		return phaseStartTime
+	end
+	local clampedSlot = math.clamp(slotIndex, 1, totalSlots)
+	return phaseStartTime + (clampedSlot / totalSlots) * activeDuration
+end
+
+function Shared_GameProcess.GetMapRevealInterval(totalSlots: number, buildDuration: number): number
+	if totalSlots <= 0 or buildDuration <= 0 then
+		return buildDuration
+	end
+	return buildDuration / totalSlots
+end
+
+function Shared_GameProcess.GetMapRevealItemsPerSecond(totalSlots: number, buildDuration: number): number
+	local interval = Shared_GameProcess.GetMapRevealInterval(totalSlots, buildDuration)
+	if interval <= 0 then
+		return totalSlots
+	end
+	return 1 / interval
+end
+
+-- Never burst past-due slots; keep at least one even interval between reveals.
+function Shared_GameProcess.WaitForPacedReveal(
+	buildStartTime: number,
+	slotIndex: number,
+	totalSlots: number,
+	buildDuration: number,
+	lastRevealAt: number?
+): number
+	if totalSlots <= 0 or slotIndex <= 0 then
+		return Workspace:GetServerTimeNow()
+	end
+
+	local minInterval = Shared_GameProcess.GetMapRevealInterval(totalSlots, buildDuration)
+	local targetTime = Shared_GameProcess.GetScheduledSlotTime(buildStartTime, slotIndex, totalSlots, buildDuration)
+	local minTime = if type(lastRevealAt) == "number" then lastRevealAt + minInterval else buildStartTime
+	local waitUntil = math.max(targetTime, minTime)
+	local delay = waitUntil - Workspace:GetServerTimeNow()
+	if delay > 0 then
+		task.wait(delay)
+	end
+	return Workspace:GetServerTimeNow()
+end
 
 function Shared_GameProcess.GetWorldDropRadiusScale(modelHeight: number): number
 	local referenceHeight = Shared_GameProcess.WorldDropSizeReferenceHeight

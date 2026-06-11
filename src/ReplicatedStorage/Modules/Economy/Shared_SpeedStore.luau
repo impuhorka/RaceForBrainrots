@@ -4,8 +4,8 @@ local Shared_SpeedStore = Shared_StatStore.create({
 	DefaultValue = 26,
 	PurchaseOptions = { 1, 5, 10 },
 	Economy = {
-		BaseCostPerPoint = 280,
-		GrowthPerPoint = 1.088,
+		BaseCostPerPoint = 250,
+		GrowthPerPoint = 1.082,
 		RoundTo = 50,
 	},
 })

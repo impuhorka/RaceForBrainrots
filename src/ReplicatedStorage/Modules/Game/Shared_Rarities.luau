@@ -12,14 +12,14 @@ Shared_Rarities.Balance = {
 		Superior = { Min = 3600, Max = 5400 },
 	},
 	PaybackMultiplier = {
-		Common = 1.0,
-		Rare = 1.25,
-		Epic = 1.5,
-		Legendary = 1.75,
-		Mythical = 2.0,
-		Secret = 2.5,
-		Divine = 4.0,
-		Superior = 5.0,
+		Common = 0.9,
+		Rare = 1.05,
+		Epic = 1.2,
+		Legendary = 1.4,
+		Mythical = 1.65,
+		Secret = 2.0,
+		Divine = 2.8,
+		Superior = 3.5,
 	},
 }
 

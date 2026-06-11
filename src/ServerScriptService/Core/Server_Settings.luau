@@ -11,6 +11,7 @@ local VOLUME_KEYS = {
 
 local BOOLEAN_KEYS = {
 	Animations = true,
+	VisualEffects = true,
 	PopUps = true,
 }
 

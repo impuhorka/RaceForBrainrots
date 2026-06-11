@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Client_TadaEffect = {}
 
@@ -7,6 +8,10 @@ local TADA_PIECE_COUNT = 50
 local TADA_STAGGER_MAX = 0.35
 
 function Client_TadaEffect.Play()
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
+
 	local localPlayer = Players.LocalPlayer
 	local playerGui = localPlayer:FindFirstChild("PlayerGui")
 	if not playerGui then

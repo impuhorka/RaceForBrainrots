@@ -179,11 +179,94 @@ function Shared_Weight.ApplyLuckyBlockScale(model: Model, baseWeight: number, ro
 	return Shared_Weight.ApplyWeightedScale(model, baseWeight, rolledWeight)
 end
 
+local LUCKY_BLOCK_PRIMARY_NAMES = {
+	"PrimaryPart",
+	"Primary",
+	"Hitbox",
+	"Root",
+	"Main",
+}
+
 function Shared_Weight.EnsureLuckyBlockPrimaryPart(model: Model): BasePart?
-	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+	if model.PrimaryPart and model.PrimaryPart:IsDescendantOf(model) then
+		return model.PrimaryPart
 	end
+
+	for _, name in LUCKY_BLOCK_PRIMARY_NAMES do
+		local direct = model:FindFirstChild(name)
+		if direct and direct:IsA("BasePart") then
+			model.PrimaryPart = direct
+			return direct
+		end
+	end
+
+	local largestDirect: BasePart? = nil
+	local largestVolume = 0
+	for _, child in model:GetChildren() do
+		if child:IsA("BasePart") then
+			local volume = child.Size.X * child.Size.Y * child.Size.Z
+			if volume > largestVolume then
+				largestVolume = volume
+				largestDirect = child
+			end
+		end
+	end
+	if largestDirect then
+		model.PrimaryPart = largestDirect
+		return largestDirect
+	end
+
+	model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
 	return model.PrimaryPart
+end
+
+function Shared_Weight.CountLuckyBlockParts(model: Model): number
+	local count = 0
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			count += 1
+		end
+	end
+	return count
+end
+
+function Shared_Weight.WeldLuckyBlockAssembly(model: Model): BasePart?
+	local primaryPart = Shared_Weight.EnsureLuckyBlockPrimaryPart(model)
+	if not primaryPart then
+		return nil
+	end
+
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		end
+	end
+
+	primaryPart.Anchored = true
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
+			part.Massless = true
+			if part ~= primaryPart then
+				part.Anchored = false
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = primaryPart
+				weld.Part1 = part
+				weld.Parent = primaryPart
+			end
+		end
+	end
+
+	return primaryPart
+end
+
+function Shared_Weight.PrepareLuckyBlockForWorld(model: Model): BasePart?
+	Shared_Weight.SyncLuckyBlockPivot(model)
+	local primaryPart = Shared_Weight.WeldLuckyBlockAssembly(model)
+	if primaryPart then
+		model:SetAttribute("LuckyBlockPartCount", Shared_Weight.CountLuckyBlockParts(model))
+	end
+	return primaryPart
 end
 
 local function resetPivotToPrimaryPart(model: Model, primaryPart: BasePart)

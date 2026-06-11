@@ -560,7 +560,11 @@ local function stopRoadFrontCheck(player: Player)
 	end
 end
 
-local function forfeitCarriedLuckyBlock(player: Player, feedbackMessage: string?): boolean
+local function forfeitCarriedLuckyBlock(
+	player: Player,
+	feedbackMessage: string?,
+	useUnluckyFx: boolean?
+): boolean
 	local luckyBlock = carriedByPlayer[player]
 	local wasCarrying = luckyBlock ~= nil or player:GetAttribute("CarryingLuckyBlock") == true
 	if not wasCarrying then
@@ -577,10 +581,26 @@ local function forfeitCarriedLuckyBlock(player: Player, feedbackMessage: string?
 	Server_Data:RefreshWalkSpeed(player)
 
 	if feedbackMessage and gameProcessHandler then
-		gameProcessHandler:FireClient(player, "CarryFeedback", feedbackMessage)
+		local action = if useUnluckyFx then "UnluckyMapClose" else "CarryFeedback"
+		gameProcessHandler:FireClient(player, action, feedbackMessage)
 	end
 
 	return true
+end
+
+local function forfeitAllCarryingPlayers(feedbackMessage: string?, useUnluckyFx: boolean?)
+	local forfeitedPlayers: { [Player]: boolean } = {}
+
+	for player in carriedByPlayer do
+		forfeitCarriedLuckyBlock(player, feedbackMessage, useUnluckyFx)
+		forfeitedPlayers[player] = true
+	end
+
+	for _, player in Players:GetPlayers() do
+		if not forfeitedPlayers[player] and player:GetAttribute("CarryingLuckyBlock") == true then
+			forfeitCarriedLuckyBlock(player, feedbackMessage, useUnluckyFx)
+		end
+	end
 end
 
 local function tryDeliverPlayerPastRoadFront(player: Player)
@@ -1011,29 +1031,21 @@ local function bindPlayerCarry(player: Player)
 		if isLuckyBlockRaceActive() then
 			GameProcessService.DropCarriedLuckyBlock(player)
 		else
-			forfeitCarriedLuckyBlock(player, Shared_GameProcess.UnluckyMapCloseMessage)
+			forfeitCarriedLuckyBlock(player, Shared_GameProcess.UnluckyMapCloseMessage, true)
 		end
 	end)
 end
 
 function GameProcessService.ForfeitCarriedLuckyBlock(player: Player, feedbackMessage: string?)
-	return forfeitCarriedLuckyBlock(player, feedbackMessage)
+	return forfeitCarriedLuckyBlock(player, feedbackMessage, true)
+end
+
+function GameProcessService.OnRaceEnded()
+	forfeitAllCarryingPlayers(Shared_GameProcess.UnluckyRaceEndMessage, true)
 end
 
 function GameProcessService.ClearForMapReset()
-	local unluckyMessage = Shared_GameProcess.UnluckyMapCloseMessage
-	local forfeitedPlayers: { [Player]: boolean } = {}
-
-	for player in carriedByPlayer do
-		forfeitCarriedLuckyBlock(player, unluckyMessage)
-		forfeitedPlayers[player] = true
-	end
-
-	for _, player in Players:GetPlayers() do
-		if not forfeitedPlayers[player] and player:GetAttribute("CarryingLuckyBlock") == true then
-			forfeitCarriedLuckyBlock(player, unluckyMessage)
-		end
-	end
+	forfeitAllCarryingPlayers(Shared_GameProcess.UnluckyMapCloseMessage, true)
 
 	for luckyBlock in despawnTimers do
 		stopDroppedLuckyBlockDespawn(luckyBlock)

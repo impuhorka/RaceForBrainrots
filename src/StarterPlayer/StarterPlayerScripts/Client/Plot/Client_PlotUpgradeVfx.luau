@@ -43,6 +43,10 @@ local function collectParticleEmitters(root: Instance): { ParticleEmitter }
 end
 
 local function playUpgradeVfx(brainrotModel: Model)
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
+
 	local primaryPart = brainrotModel.PrimaryPart
 	local template = getUpgradeEffectTemplate()
 	if not primaryPart or not template then

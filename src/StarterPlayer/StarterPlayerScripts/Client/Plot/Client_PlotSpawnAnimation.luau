@@ -164,6 +164,9 @@ function Client_PlotSpawnAnimation.AnimateSlotPlace(slotModel: Model)
 	if not slotModel or not slotModel.Parent then
 		return
 	end
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
 	animateModelPartsScaleIn(slotModel)
 end
 

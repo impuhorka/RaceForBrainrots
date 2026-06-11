@@ -17,12 +17,74 @@ local Shared_Weight = SharedModules.require("Shared_Weight")
 local Module = {}
 Module.Profiles = {}
 Module.Replicas = {}
+Module.OnLeaderboardStatChanged = nil
+
+local DEFAULT_WALK_SPEED = Shared_SpeedStore.DefaultSpeed
+
+local function resolveMaxSpeed(rawSpeed: any): number
+	local speed = tonumber(rawSpeed) or DEFAULT_WALK_SPEED
+	return math.max(1, math.floor(speed))
+end
+
+local function notifyLeaderboardStats(player: Player)
+	if Module.OnLeaderboardStatChanged then
+		task.defer(Module.OnLeaderboardStatChanged, player)
+	end
+end
+
+local function reconcileLeaderboardStats(data: { [string]: any })
+	local speed = resolveMaxSpeed(data.Speed)
+	data.MaxSpeedRecorded = math.max(math.floor(tonumber(data.MaxSpeedRecorded) or 0), speed)
+	data.TotalCashEarned = math.max(0, math.floor(tonumber(data.TotalCashEarned) or 0))
+end
+
+local function updateMaxSpeedRecorded(player: Player, speedValue: any)
+	local data = Module:GetData(player)
+	if not data then
+		return
+	end
+
+	local speed = resolveMaxSpeed(speedValue)
+	local recorded = math.max(0, math.floor(tonumber(data.MaxSpeedRecorded) or 0))
+	if speed <= recorded then
+		return
+	end
+
+	data.MaxSpeedRecorded = speed
+	local replica = Module:GetReplica(player)
+	if replica then
+		replica:SetValue({ "MaxSpeedRecorded" }, speed)
+	end
+	notifyLeaderboardStats(player)
+end
+
+local function addTotalCashEarned(player: Player, amount: number)
+	if amount <= 0 then
+		return
+	end
+
+	local data = Module:GetData(player)
+	if not data then
+		return
+	end
+
+	local earned = math.max(0, math.floor(tonumber(data.TotalCashEarned) or 0)) + math.floor(amount)
+	data.TotalCashEarned = earned
+
+	local replica = Module:GetReplica(player)
+	if replica then
+		replica:SetValue({ "TotalCashEarned" }, earned)
+	end
+	notifyLeaderboardStats(player)
+end
 
 local DataTemplate = {
-	Cash = 150,
+	Cash = 200,
 
 	Speed = Shared_SpeedStore.DefaultSpeed,
 	Strength = 1,
+	MaxSpeedRecorded = Shared_SpeedStore.DefaultSpeed,
+	TotalCashEarned = 0,
 
 	Rebirths = 0,
 
@@ -68,6 +130,7 @@ local DataTemplate = {
 	Music = 1,
 	SFX = 1,
 	Animations = true,
+	VisualEffects = true,
 	PopUps = true,
 	SlowMode = false,
 
@@ -84,13 +147,7 @@ local DataTemplate = {
 local USE_TEST_INVENTORY = false
 local USE_MOCK_DATASTORE_IN_STUDIO = false
 local INVENTORY_MAX_SLOTS = 60
-local DEFAULT_WALK_SPEED = Shared_SpeedStore.DefaultSpeed
 local SLOW_MODE_SPEED_CAP = 50
-
-local function resolveMaxSpeed(rawSpeed: any): number
-	local speed = tonumber(rawSpeed) or DEFAULT_WALK_SPEED
-	return math.max(1, math.floor(speed))
-end
 
 local function resolveSlowModeEnabled(rawSlowMode: any): boolean
 	return rawSlowMode == true
@@ -282,6 +339,7 @@ function Module:SetValue(player, path, value)
 		if speed and speed:IsA("IntValue") then
 			speed.Value = math.max(1, math.floor(tonumber(value) or 1))
 		end
+		updateMaxSpeedRecorded(player, value)
 	elseif path == "Strength" then
 		local strength = leaderstats:FindFirstChild("Strength")
 		if strength and strength:IsA("IntValue") then
@@ -291,8 +349,13 @@ function Module:SetValue(player, path, value)
 end
 
 function Module:AddValue(player, path, amount)
+	local safeAmount = tonumber(amount) or 0
 	local current = self:GetValue(player, path) or 0
-	self:SetValue(player, path, current + amount)
+	self:SetValue(player, path, current + safeAmount)
+
+	if path == "Cash" and safeAmount > 0 then
+		addTotalCashEarned(player, safeAmount)
+	end
 end
 
 function Module:SubValue(player, path, amount)
@@ -467,6 +530,12 @@ function Module:ResetPlayerData(player: Player): boolean
 	self:SetValue(player, "Strength", data.Strength or 1)
 	self:SetValue(player, "SlowMode", data.SlowMode == true)
 
+	local replica = self:GetReplica(player)
+	if replica then
+		replica:SetValue({ "MaxSpeedRecorded" }, data.MaxSpeedRecorded or Shared_SpeedStore.DefaultSpeed)
+		replica:SetValue({ "TotalCashEarned" }, data.TotalCashEarned or 0)
+	end
+
 	player:SetAttribute("CarryingLuckyBlock", nil)
 	player:SetAttribute("CarriedLuckyBlockConfigName", nil)
 	player:SetAttribute("CarriedLuckyBlockBaseWeight", nil)
@@ -534,6 +603,7 @@ local function onPlayerAdded(player)
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
 	migrateInventoryWeights(profile)
+	reconcileLeaderboardStats(profile.Data)
 
 	if USE_TEST_INVENTORY then
 		local plot = profile.Data.Plot or {}
@@ -582,6 +652,8 @@ local function onPlayerAdded(player)
 	profile.Data.SlowMode = resolveSlowModeEnabled(profile.Data.SlowMode)
 	replica:SetValue({ "Speed" }, profile.Data.Speed)
 	replica:SetValue({ "SlowMode" }, profile.Data.SlowMode)
+	replica:SetValue({ "MaxSpeedRecorded" }, profile.Data.MaxSpeedRecorded)
+	replica:SetValue({ "TotalCashEarned" }, profile.Data.TotalCashEarned)
 
 	player.CharacterAdded:Connect(function(character)
 		local currentSpeed = Module:GetValue(player, "Speed") or profile.Data.Speed

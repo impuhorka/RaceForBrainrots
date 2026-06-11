@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
@@ -8,6 +9,8 @@ local GameProcessFloors = require(script.Parent.GameProcessFloors)
 local GameProcessService = require(script.Parent.GameProcessService)
 
 local GameProcessCycle = {}
+
+local plotService: any = nil
 
 local PHASE_ORDER = {
 	Shared_GameProcess.ProcessPhase.NewMap,
@@ -25,19 +28,19 @@ end
 local function runNewMapPhase()
 	GameProcessEntranceWall.Show()
 	GameProcessService.ClearForMapReset()
-	GameProcessFloors.ClearMap()
+	GameProcessFloors.ClearMapContent()
+	GameProcessFloors.EnsureMapGeometry()
 
 	local duration = Shared_GameProcess.NewMapDuration
 	local buildDuration = Shared_GameProcess.NewMapBuildDuration
 	setPhase(Shared_GameProcess.ProcessPhase.NewMap, duration)
 
 	local phaseStart = os.clock()
-	GameProcessFloors.BuildMapAsync(buildDuration)
+	GameProcessFloors.BuildMapContentAsync(buildDuration)
 	local remaining = duration - (os.clock() - phaseStart)
 	if remaining > 0 then
 		task.wait(remaining)
 	end
-	GameProcessFloors.RevealBuiltMap()
 end
 
 local function runRaceStartsPhase()
@@ -48,18 +51,31 @@ local function runRaceStartsPhase()
 	task.wait(duration)
 end
 
+local function teleportAllPlayersHome()
+	if not plotService then
+		return
+	end
+
+	for _, player in Players:GetPlayers() do
+		plotService:TeleportPlayerToPlot(player)
+	end
+end
+
 local function runRaceEndsPhase()
 	GameProcessEntranceWall.Hide()
 
 	local duration = Shared_GameProcess.RaceEndsDuration
 	setPhase(Shared_GameProcess.ProcessPhase.RaceEnds, duration)
 	task.wait(duration)
+
+	GameProcessService.OnRaceEnded()
+	teleportAllPlayersHome()
 end
 
 local function runRelaxPhase()
 	GameProcessEntranceWall.Show()
 	GameProcessService.ClearForMapReset()
-	GameProcessFloors.ClearMap()
+	GameProcessFloors.ClearMapContent()
 
 	local duration = Shared_GameProcess.RelaxDuration
 	setPhase(Shared_GameProcess.ProcessPhase.Relax, duration)
@@ -84,9 +100,13 @@ local function runCycleLoop()
 	end
 end
 
+function GameProcessCycle.SetPlotService(service: any)
+	plotService = service
+end
+
 function GameProcessCycle.Init()
 	GameProcessEntranceWall.Init()
-	GameProcessFloors.ClearMap()
+	GameProcessFloors.EnsureMapGeometry()
 	task.spawn(runCycleLoop)
 end
 

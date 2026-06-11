@@ -9,6 +9,7 @@ local ClientLoader = require(script.Parent.Parent.Loader)
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Shared_LuckyBlockBillboard = SharedModules.require("Shared_LuckyBlockBillboard")
 local Shared_Weight = SharedModules.require("Shared_Weight")
+local Client_VisualSettings = ClientLoader.require("Client_VisualSettings")
 local Client_WorldDropAnimation = ClientLoader.require("Client_WorldDropAnimation")
 
 local Client_GameProcessLuckyBlocks = {}
@@ -106,6 +107,46 @@ local function getFloatBasePosition(model: Model): Vector3
 	return model:GetPivot().Position
 end
 
+local floorsFolderRef: Folder? = nil
+
+local function getFloorsFolder(): Folder?
+	if floorsFolderRef and floorsFolderRef.Parent then
+		return floorsFolderRef
+	end
+
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
+	local floorsFolder = mapFolder and mapFolder:FindFirstChild("Floors")
+	if floorsFolder and floorsFolder:IsA("Folder") then
+		floorsFolderRef = floorsFolder
+		return floorsFolder
+	end
+
+	return nil
+end
+
+local function getSpawnLift(model: Model): number
+	local floatHeight = model:GetAttribute("FloatHeight")
+	local _, bboxSize = model:GetBoundingBox()
+	if type(floatHeight) == "number" and floatHeight > 0 then
+		return floatHeight + Shared_GameProcess.GetWorldLuckyBlockMinFloorClearance(bboxSize.Y)
+	end
+	return Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
+end
+
+local function getGroundedPivotCFrame(model: Model, floatBasePosition: Vector3, floorRotation: CFrame): CFrame
+	local groundedPosition = floatBasePosition - Vector3.new(0, getSpawnLift(model), 0)
+	return CFrame.new(groundedPosition) * floorRotation
+end
+
+local function applyGroundedPose(model: Model, floatBasePosition: Vector3, floorRotation: CFrame)
+	model:PivotTo(getGroundedPivotCFrame(model, floatBasePosition, floorRotation))
+end
+
+local function getFloatRestPivot(basePosition: Vector3, baseRotation: CFrame, idleSpinYaw: number): CFrame
+	return CFrame.new(basePosition) * CFrame.Angles(0, idleSpinYaw, 0) * baseRotation
+end
+
 local function getIdleSpinDirection(model: Model, dropSpin: DropSpinState?): number
 	if dropSpin and math.abs(dropSpin.spinStartSpeed) > 0 then
 		return if dropSpin.spinStartSpeed > 0 then 1 else -1
@@ -144,6 +185,17 @@ local function applyModelPose(model: Model, pivotCF: CFrame, partOffsets: { [Bas
 			part.CFrame = pivotCF:ToWorldSpace(offset)
 		end
 	end
+end
+
+local function snapToFloatRestPose(
+	model: Model,
+	basePosition: Vector3,
+	baseRotation: CFrame,
+	idleSpinYaw: number
+): { [BasePart]: CFrame }
+	local floatRestPivot = getFloatRestPivot(basePosition, baseRotation, idleSpinYaw)
+	model:PivotTo(floatRestPivot)
+	return capturePartOffsets(model, floatRestPivot)
 end
 
 local startAnimation: (Model, DropSpinState?) -> ()
@@ -205,9 +257,17 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 	end
 	local floatSpeed = Shared_GameProcess.WorldLuckyBlockFloatSpeed
 
-	local restPivot = CFrame.new(basePosition) * baseRotation
-	local partOffsets = capturePartOffsets(model, restPivot)
-	applyModelPose(model, restPivot, partOffsets)
+	local floorRotation = if dropSpin then dropSpin.endRotation else baseRotation
+	local effectsPaused = not Client_VisualSettings.AreEffectsEnabled()
+	local frozenIdleSpinYaw: number? = nil
+
+	local partOffsets: { [BasePart]: CFrame }
+	if effectsPaused then
+		applyGroundedPose(model, basePosition, floorRotation)
+		partOffsets = capturePartOffsets(model, getGroundedPivotCFrame(model, basePosition, floorRotation))
+	else
+		partOffsets = snapToFloatRestPose(model, basePosition, baseRotation, idleSpinYaw)
+	end
 
 	descendantConnections[model] = model.DescendantAdded:Connect(function(descendant)
 		if descendant:IsA("BasePart") then
@@ -219,6 +279,29 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 		if not model.Parent then
 			stopAnimation(model)
 			return
+		end
+
+		local effectsEnabled = Client_VisualSettings.AreEffectsEnabled()
+		if not effectsEnabled then
+			if not effectsPaused then
+				effectsPaused = true
+				frozenIdleSpinYaw = idleSpinYaw
+			end
+			basePosition = getFloatBasePosition(model)
+			applyGroundedPose(model, basePosition, floorRotation)
+			return
+		end
+
+		if effectsPaused then
+			effectsPaused = false
+			startTime = os.clock()
+			phase = math.pi
+			idleSpinYaw = frozenIdleSpinYaw or idleSpinYaw
+			frozenIdleSpinYaw = nil
+			lastTick = os.clock()
+			dropSpin = nil
+			basePosition = getFloatBasePosition(model)
+			partOffsets = snapToFloatRestPose(model, basePosition, baseRotation, idleSpinYaw)
 		end
 
 		local now = os.clock()
@@ -265,6 +348,16 @@ local function updateDespawnDisplay(model: Model)
 	end
 end
 
+local function snapLuckyBlockToFloor(model: Model)
+	if model:GetAttribute("IsWorldLuckyBlock") ~= true then
+		return
+	end
+
+	Client_WorldDropAnimation.stop(model)
+	dropAnimPlayed[model] = true
+	startAnimation(model)
+end
+
 local function tryPlayDropAnimation(model: Model): boolean
 	if dropAnimPlayed[model] then
 		return false
@@ -278,6 +371,12 @@ local function tryPlayDropAnimation(model: Model): boolean
 
 	stopAnimation(model)
 	dropAnimPlayed[model] = true
+
+	if not Client_VisualSettings.AreEffectsEnabled() then
+		snapLuckyBlockToFloor(model)
+		return true
+	end
+
 	local droppedByUserId = model:GetAttribute("DroppedByUserId")
 	if type(droppedByUserId) == "number" and droppedByUserId == Players.LocalPlayer.UserId then
 		local localLaunchOrigin = Client_WorldDropAnimation.getLocalPlayerLaunchOrigin()
@@ -388,12 +487,27 @@ function Client_GameProcessLuckyBlocks.Init()
 	if not floorsFolder then
 		return
 	end
+	floorsFolderRef = floorsFolder
 
 	for _, descendant in floorsFolder:GetDescendants() do
 		watchModel(descendant)
 	end
 
 	floorsFolder.DescendantAdded:Connect(watchModel)
+
+	Client_VisualSettings.Listen(function(enabled)
+		for _, descendant in floorsFolder:GetDescendants() do
+			if not descendant:IsA("Model") or descendant:GetAttribute("IsWorldLuckyBlock") ~= true then
+				continue
+			end
+
+			if enabled then
+				startAnimation(descendant)
+			else
+				snapLuckyBlockToFloor(descendant)
+			end
+		end
+	end)
 end
 
 return Client_GameProcessLuckyBlocks

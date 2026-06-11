@@ -6,14 +6,15 @@ Shared_Rebirth.SlotUnlockPerRebirth = { 5, 5, 3, 3 }
 Shared_Rebirth.SlotUnlockPerRebirthAfterFourth = 1
 
 Shared_Rebirth.CashMultiplierPerRebirth = 0.5
-Shared_Rebirth.SpeedCapPerRebirth = 25
-Shared_Rebirth.StrengthCapPerRebirth = 25
-Shared_Rebirth.BaseSpeedCap = 40
-Shared_Rebirth.BaseStrengthCap = 50
+Shared_Rebirth.SpeedCapPerRebirth = 50
+Shared_Rebirth.StrengthCapPerRebirth = 50
+Shared_Rebirth.BaseSpeedCap = 80
+Shared_Rebirth.BaseStrengthCap = 100
 
 Shared_Rebirth.Economy = {
-	BaseCost = 4_000_000,
-	GrowthPerRebirth = 2.25,
+	BaseCost = 3_500_000,
+	GrowthPerRebirth = 2.18,
+	CostAcceleration = 0.14,
 	RoundTo = 10_000,
 }
 
@@ -98,7 +99,9 @@ end
 function Shared_Rebirth.GetCost(rebirths: any): number
 	local count = Shared_Rebirth.GetRebirthCount(rebirths)
 	local economy = Shared_Rebirth.Economy
-	local rawCost = economy.BaseCost * (economy.GrowthPerRebirth ^ count)
+	local acceleration = economy.CostAcceleration or 0
+	local effectiveExponent = count * (1 + count * acceleration)
+	local rawCost = economy.BaseCost * (economy.GrowthPerRebirth ^ effectiveExponent)
 	return roundToStep(rawCost, economy.RoundTo)
 end
 

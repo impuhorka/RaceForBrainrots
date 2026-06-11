@@ -1,7 +1,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local ClientLoader = require(script.Parent.Parent.Loader)
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
+local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Client_Equip = ClientLoader.require("Client_Equip")
 
 local localPlayer = Players.LocalPlayer
@@ -15,8 +18,14 @@ local function isCarryingLuckyBlock(): boolean
 	return localPlayer:GetAttribute("CarryingLuckyBlock") == true
 end
 
+local function isRaceActive(): boolean
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local phase = gameFolder and gameFolder:GetAttribute("ProcessPhase")
+	return Shared_GameProcess.IsRaceActivePhase(phase)
+end
+
 local function hasEquippedBrainrot(): boolean
-	if isCarryingLuckyBlock() then
+	if isCarryingLuckyBlock() or isRaceActive() then
 		return false
 	end
 
@@ -51,20 +60,16 @@ local function resolveActionUi()
 	end
 end
 
-local function updateActionButtonVisibility()
-	local carryingLuckyBlock = isCarryingLuckyBlock()
+local function updateDropBrainrotVisibility()
 	local showBrainrotDrop = hasEquippedBrainrot()
 
 	if dropButton then
 		dropButton.Visible = showBrainrotDrop
 	end
-	if actionButton then
-		actionButton.Visible = carryingLuckyBlock or showBrainrotDrop
-	end
 end
 
 local function refreshDropVisibility()
-	task.defer(updateActionButtonVisibility)
+	task.defer(updateDropBrainrotVisibility)
 end
 
 local function onDropClicked()
@@ -97,6 +102,11 @@ local function bindEquippedListeners()
 
 	local Client_Data = ClientLoader.require("Client_Data")
 	Client_Data:ListenToChange("Inventory", onEquippedChanged)
+
+	local gameFolder = Workspace:FindFirstChild("Game") or Workspace:WaitForChild("Game", 60)
+	if gameFolder then
+		gameFolder:GetAttributeChangedSignal("ProcessPhase"):Connect(onEquippedChanged)
+	end
 end
 
 local dropButtonConnected = false

@@ -182,6 +182,9 @@ local function updateActionButtonVisibility(carrying: boolean)
 	if actionButton then
 		actionButton.Visible = carrying
 	end
+	if dropButton then
+		dropButton.Visible = carrying
+	end
 end
 
 local function tryInitializeActionUi(): boolean
@@ -465,6 +468,12 @@ function Client_LuckyBlockCarry.Init()
 		end)
 	end)
 
+	Client_Equip.OnChanged(function()
+		if Client_LuckyBlockCarry.IsCarrying() then
+			updateActionButtonVisibility(true)
+		end
+	end)
+
 	for _, player in Players:GetPlayers() do
 		bindPlayer(player)
 	end
@@ -479,6 +488,13 @@ function Client_LuckyBlockCarry.Init()
 		gameProcessHandler.OnClientEvent:Connect(function(action: string, inventoryIndex: any, rarity: any)
 			if action == "LuckyBlockDelivered" then
 				onLuckyBlockDelivered(inventoryIndex, rarity)
+				return
+			end
+
+			if action == "UnluckyMapClose" and type(inventoryIndex) == "string" then
+				clearLocalCarryVisualsImmediately()
+				Client_Messaging.Show(inventoryIndex, "red")
+				Client_FOV.playUnluckyForfeit()
 				return
 			end
 

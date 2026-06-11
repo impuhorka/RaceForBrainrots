@@ -44,6 +44,30 @@ local function findTimeLeftLabel(frame: Instance): TextLabel?
 	return nil
 end
 
+local function findMainUiChild(main: Instance, name: string): Instance?
+	local topFrames = main:FindFirstChild("TopFrames")
+	if topFrames then
+		local direct = topFrames:FindFirstChild(name)
+		if direct then
+			return direct
+		end
+	end
+
+	return main:FindFirstChild(name, true)
+end
+
+local function waitForMainUiChild(main: Instance, name: string): Instance?
+	local topFrames = main:WaitForChild("TopFrames", 30)
+	if topFrames then
+		local direct = topFrames:WaitForChild(name, 30)
+		if direct then
+			return direct
+		end
+	end
+
+	return main:FindFirstChild(name, true)
+end
+
 local function findGradient(root: Instance, gradientName: string): UIGradient?
 	local direct = root:FindFirstChild(gradientName)
 	if direct and direct:IsA("UIGradient") then
@@ -164,7 +188,7 @@ local function resolveUi()
 		return false
 	end
 
-	local foundGui = main:FindFirstChild("GameProcess")
+	local foundGui = findMainUiChild(main, "GameProcess")
 	if not foundGui or not foundGui:IsA("GuiObject") then
 		return false
 	end
@@ -265,16 +289,21 @@ function Client_GameProcess.Init()
 		end
 
 		if not resolveUi() then
-			local connection: RBXScriptConnection?
-			connection = main.ChildAdded:Connect(function(child)
-				if child.Name ~= "GameProcess" then
-					return
-				end
-				if resolveUi() and connection then
-					connection:Disconnect()
-					updateUi()
-				end
-			end)
+			waitForMainUiChild(main, "GameProcess")
+			if not resolveUi() then
+				local connection: RBXScriptConnection?
+				connection = main.DescendantAdded:Connect(function(descendant)
+					if descendant.Name ~= "GameProcess" or not descendant:IsA("GuiObject") then
+						return
+					end
+					if resolveUi() and connection then
+						connection:Disconnect()
+						updateUi()
+					end
+				end)
+			else
+				updateUi()
+			end
 		end
 
 		bindEntranceWallWatcher()

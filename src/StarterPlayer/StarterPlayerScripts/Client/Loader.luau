@@ -17,6 +17,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_EquipHold = root.Inventory.Client_EquipHold,
 	Client_FOV = root.Core.Client_FOV,
 	Client_GradientBar = root.World.Client_GradientBar,
+	Client_Leaderboards = root.World.Client_Leaderboards,
 	Client_GameProcess = root.World.Client_GameProcess,
 	Client_GameProcessBrainrots = root.LuckyBlocks.Client_GameProcessBrainrots,
 	Client_GameProcessLuckyBlocks = root.LuckyBlocks.Client_GameProcessLuckyBlocks,
@@ -31,9 +32,11 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_WorldDropAnimation = root.LuckyBlocks.Client_WorldDropAnimation,
 	Client_LuckyBlockRevealState = root.Inventory.Client_LuckyBlockRevealState,
 	Client_Messaging = root.Core.Client_Messaging,
+	Client_ModelVfx = root.Core.Client_ModelVfx,
 	Client_OfflineCash = root.Plot.Client_OfflineCash,
 	Client_PlotBillboards = root.Plot.Client_PlotBillboards,
 	Client_PlotBrainrotAnimations = root.Plot.Client_PlotBrainrotAnimations,
+	Client_PlotBrainrotVfx = root.Plot.Client_PlotBrainrotVfx,
 	Client_PlotBrainrotJump = root.Plot.Client_PlotBrainrotJump,
 	Client_PlotCashCollect = root.Plot.Client_PlotCashCollect,
 	Client_PlotSlotPlace = root.Plot.Client_PlotSlotPlace,
@@ -52,6 +55,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_StrengthStore = root.Stores.Client_StrengthStore,
 	Client_TadaEffect = root.Core.Client_TadaEffect,
 	Client_Visuals = root.Core.Client_Visuals,
+	Client_VisualSettings = root.Core.Client_VisualSettings,
 }
 
 function Loader.require(moduleName: string): any

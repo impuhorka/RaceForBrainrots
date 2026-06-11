@@ -54,7 +54,7 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount)
 
 		if option.costLabel then
-			option.costLabel.Text = ("$%s"):format(Shared_Abbreviation:Number(cost))
+			option.costLabel.Text = if cost <= 0 then "FREE" else ("$%s"):format(Shared_Abbreviation:Number(cost))
 		end
 		if option.beforeLabel then
 			option.beforeLabel.Text = tostring(currentValue)
@@ -122,7 +122,7 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 			if action == config.successRemoteAction then
 				local addedAmount = type(arg1) == "number" and math.floor(arg1) or 0
 				local paidCost = type(arg2) == "number" and arg2 or 0
-				if addedAmount > 0 and paidCost > 0 then
+				if addedAmount > 0 then
 					Client_Messaging.Show(config.successMessage(addedAmount, paidCost), "green")
 				end
 				return

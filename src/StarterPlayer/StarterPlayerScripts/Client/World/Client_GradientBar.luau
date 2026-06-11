@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
+local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Shared_RoadGradient = SharedModules.require("Shared_RoadGradient")
 
 local Client_GradientBar = {}
@@ -18,6 +19,7 @@ local PLAYER_ICON_HEIGHT_SCALE = 1.35
 local LOCAL_PLAYER_ICON_ZINDEX = 50
 local OTHER_PLAYER_ICON_ZINDEX = 40
 
+local gradientBarFrameRef: GuiObject?
 local roadFrameRef: GuiObject?
 local playerIconsFolder: Folder?
 local playerIcons: { [Player]: ImageLabel } = {}
@@ -25,6 +27,28 @@ local roadNearZ = 0
 local roadFarZ = 0
 local roadBoundsReady = false
 local updateConnection: RBXScriptConnection?
+
+local function waitForMainUiChild(main: Instance, name: string): Instance?
+	local topFrames = main:WaitForChild("TopFrames", 30)
+	if topFrames then
+		local direct = topFrames:WaitForChild(name, 30)
+		if direct then
+			return direct
+		end
+	end
+
+	return main:FindFirstChild(name, true)
+end
+
+local function updateGradientBarVisibility()
+	if not gradientBarFrameRef then
+		return
+	end
+
+	local gameFolder = Workspace:FindFirstChild("Game")
+	local phase = gameFolder and gameFolder:GetAttribute("ProcessPhase")
+	gradientBarFrameRef.Visible = Shared_GameProcess.IsRaceActivePhase(phase)
+end
 
 local function clearGenerated(roadFrame: GuiObject)
 	local existing = roadFrame:FindFirstChild(GENERATED_FOLDER_NAME)
@@ -331,7 +355,15 @@ end
 function Client_GradientBar.Init()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
 	local main = playerGui:WaitForChild("Main")
-	local gradientBar = main:WaitForChild("GradientBar")
+	local gradientBar = waitForMainUiChild(main, "GradientBar")
+	if not gradientBar or not gradientBar:IsA("GuiObject") then
+		warn("[Client_GradientBar] GradientBar not found under Main")
+		return
+	end
+
+	gradientBarFrameRef = gradientBar
+	gradientBar.Visible = false
+
 	local road = gradientBar:WaitForChild("Road")
 
 	Players.PlayerAdded:Connect(function(player)
@@ -340,13 +372,19 @@ function Client_GradientBar.Init()
 
 	Players.PlayerRemoving:Connect(removePlayerIcon)
 
-	if gradientBar:IsA("GuiObject") then
-		applyUICorner(gradientBar)
-	end
+	applyUICorner(gradientBar)
 
 	if road:IsA("GuiObject") then
 		applyRoadGradient(road)
 	end
+
+	task.spawn(function()
+		local gameFolder = Workspace:WaitForChild("Game", 30)
+		if gameFolder then
+			gameFolder:GetAttributeChangedSignal("ProcessPhase"):Connect(updateGradientBarVisibility)
+		end
+		updateGradientBarVisibility()
+	end)
 end
 
 return Client_GradientBar

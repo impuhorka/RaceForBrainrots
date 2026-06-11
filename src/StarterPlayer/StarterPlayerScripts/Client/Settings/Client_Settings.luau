@@ -17,7 +17,8 @@ local SETTINGS_CONFIG = {
 	{ key = "Music", displayName = "Music", kind = "Scroll", layoutOrder = 1 },
 	{ key = "SFX", displayName = "Sound Effects", kind = "Scroll", layoutOrder = 2 },
 	{ key = "Animations", displayName = "Animations", kind = "Button", layoutOrder = 3 },
-	{ key = "PopUps", displayName = "Pop Ups", kind = "Button", layoutOrder = 4 },
+	{ key = "VisualEffects", displayName = "Visual Effects", kind = "Button", layoutOrder = 4 },
+	{ key = "PopUps", displayName = "Pop Ups", kind = "Button", layoutOrder = 5 },
 }
 
 local BAR_GREEN = Color3.fromRGB(80, 220, 120)

@@ -22,6 +22,7 @@ local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
 local plotHandler: RemoteEvent
+local activeInstance: any = nil
 
 local function clearEquippedVisual(player: Player)
 	player:SetAttribute("EquippedItemType", nil)
@@ -191,9 +192,7 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 		return nil
 	end
 
-	local minLevel = math.max(1, math.floor(luckyBlockData.MinLevel or 1))
-	local maxLevel = math.max(minLevel, math.floor(luckyBlockData.MaxLevel or minLevel))
-	local rewardedLevel = math.random(minLevel, maxLevel)
+	local rewardedLevel = Shared_LuckyBlocks.RollRewardLevel(luckyBlockConfigName)
 	local rewardedModifier = rollLuckyBlockModifier(luckyBlockData)
 	local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(luckyBlockConfigName)
 	local baseWeight, blockWeight =
@@ -396,6 +395,10 @@ end
 local PlotService = {}
 PlotService.__index = PlotService
 
+function PlotService.GetActive()
+	return activeInstance
+end
+
 function PlotService.new()
 	local self = setmetatable({}, PlotService)
 	self.Plots = {}
@@ -535,6 +538,7 @@ function PlotService:RemoveSlot(player: Player, slotId: number): boolean
 end
 
 function PlotService:Init()
+	activeInstance = self
 	self:LoadPlots()
 
 	plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent

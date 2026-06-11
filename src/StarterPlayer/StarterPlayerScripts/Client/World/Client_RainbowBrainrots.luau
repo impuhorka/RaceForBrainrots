@@ -1,6 +1,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Client_RainbowBrainrots = {}
 
@@ -115,6 +116,11 @@ function Client_RainbowBrainrots.Init()
 
 		t += acc
 		acc = 0
+
+		if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+			return
+		end
+
 		local h = (t / RAINBOW_PERIOD) % 1
 		local tint = Color3.fromHSV(h, 1, 1)
 		local indexVisible = getFrameVisible("Index")

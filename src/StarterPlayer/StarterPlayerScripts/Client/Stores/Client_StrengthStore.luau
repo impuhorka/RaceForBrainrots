@@ -13,6 +13,9 @@ local Client_StrengthStore = Client_StatStoreUi.create({
 	successRemoteAction = "StrengthPurchaseSuccess",
 	failedRemoteAction = "StrengthPurchaseFailed",
 	successMessage = function(addedAmount, paidCost)
+		if paidCost <= 0 then
+			return ("Bought +%d strength for free!"):format(addedAmount)
+		end
 		return ("Bought +%d strength for $%s."):format(addedAmount, Shared_Abbreviation:Number(paidCost))
 	end,
 })

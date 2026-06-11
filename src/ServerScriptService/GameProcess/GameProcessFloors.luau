@@ -1999,40 +1999,94 @@ local function getBuildContext()
 	}
 end
 
-function GameProcessFloors.ClearMap()
-	local floorsFolder = getFloorsFolder()
-	for _, child in floorsFolder:GetChildren() do
-		child:Destroy()
+local function isPersistentMapGeometry(instance: Instance): boolean
+	if not instance:IsA("BasePart") then
+		return false
 	end
-	clearMapBuildStaging()
+
+	if instance:GetAttribute("IsGameProcessWall") == true then
+		return true
+	end
+	if instance:GetAttribute("IsHoleFloor") == true then
+		return true
+	end
+	if instance:GetAttribute("IsEntranceFloor") == true then
+		return true
+	end
+	if instance:GetAttribute("IsGameProcessRoadFloor") == true then
+		return true
+	end
+
+	local rarity = instance:GetAttribute("Rarity")
+	if type(rarity) == "string" and instance.Name == `{rarity}Floor` then
+		return true
+	end
+
+	return false
 end
 
-function GameProcessFloors.RevealBuiltMap()
-	revealBuiltMap()
+local function hasMapGeometry(floorsFolder: Folder): boolean
+	for _, child in floorsFolder:GetChildren() do
+		if child:IsA("BasePart") and isPersistentMapGeometry(child) then
+			local rarity = child:GetAttribute("Rarity")
+			if type(rarity) == "string" and child.Name == `{rarity}Floor` then
+				return true
+			end
+		end
+	end
+	return false
 end
 
-function GameProcessFloors.BuildMapAsync(buildDuration: number)
+local function collectLiveMapEntries(floorsFolder: Folder): { RarityBuildEntry }
+	local entries: { RarityBuildEntry } = {}
+
+	for _, rarityName in getSortedRarities() do
+		local floor = floorsFolder:FindFirstChild(`{rarityName}Floor`)
+		if not floor or not floor:IsA("BasePart") then
+			continue
+		end
+
+		local leftHoleFloor = floorsFolder:FindFirstChild(`{rarityName}LeftHoleFloor`)
+		local rightHoleFloor = floorsFolder:FindFirstChild(`{rarityName}RightHoleFloor`)
+		if not leftHoleFloor or not leftHoleFloor:IsA("BasePart") then
+			continue
+		end
+		if not rightHoleFloor or not rightHoleFloor:IsA("BasePart") then
+			continue
+		end
+
+		local holeWidthX = Shared_GameProcess.HoleFloorSize
+		local halfHoleWidthX = holeWidthX / 2
+		local halfFloorX = floor.Size.X / 2
+
+		table.insert(entries, {
+			floor = floor,
+			rarityName = rarityName,
+			holeLayout = {
+				leftHoleFloor = leftHoleFloor,
+				rightHoleFloor = rightHoleFloor,
+				leftFootprintCenterX = floor.Position.X - halfFloorX - halfHoleWidthX,
+				rightFootprintCenterX = floor.Position.X + halfFloorX + halfHoleWidthX,
+				holeWidthX = holeWidthX,
+			},
+		})
+	end
+
+	return entries
+end
+
+local function buildMapGeometry(parent: Instance): boolean
 	local context = getBuildContext()
 	if not context then
-		return
+		return false
 	end
 
 	local enterPart = context.enterPart
 	local floorTemplate = context.floorTemplate
 	local wallTemplate = context.wallTemplate
-	local decorationTemplates = context.decorationTemplates
-	local flowerTemplates = context.flowerTemplates
-	local grassTemplates = context.grassTemplates
-	local mushroomTemplates = context.mushroomTemplates
-	local lianaTemplates = context.lianaTemplates
-	local lilyTemplate = context.lilyTemplate
-	local buildParent = getMapBuildStagingFolder()
-
-	clearMapBuildStaging()
-
 	local rarities = getSortedRarities()
 	if #rarities == 0 then
-		return
+		return false
 	end
 
 	local enterPosition = enterPart.Position
@@ -2049,7 +2103,6 @@ function GameProcessFloors.BuildMapAsync(buildDuration: number)
 		end
 
 		local rarityData = Shared_Rarities.Data[rarityName]
-
 		local floor = floorTemplate:Clone()
 		floor.Name = `{rarityName}Floor`
 		floor.Size = Vector3.new(enterSize.X, originFloorHeight, floorSize)
@@ -2063,9 +2116,10 @@ function GameProcessFloors.BuildMapAsync(buildDuration: number)
 			floor.Color = rarityColor
 		end
 		floor:SetAttribute("Rarity", rarityName)
-		floor.Parent = buildParent
+		floor:SetAttribute("IsGameProcessRoadFloor", true)
+		floor.Parent = parent
 
-		local holeLayout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, rarityName, buildParent)
+		local holeLayout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, rarityName, parent)
 		table.insert(buildEntries, {
 			floor = floor,
 			rarityName = rarityName,
@@ -2076,33 +2130,109 @@ function GameProcessFloors.BuildMapAsync(buildDuration: number)
 	end
 
 	for _, entry in buildEntries do
-		placeWallsForFloor(entry.floor, wallTemplate, entry.rarityName, buildParent)
-		placeHoleFloorWallsForFloor(wallTemplate, entry.rarityName, entry.holeLayout, buildParent)
+		placeWallsForFloor(entry.floor, wallTemplate, entry.rarityName, parent)
+		placeHoleFloorWallsForFloor(wallTemplate, entry.rarityName, entry.holeLayout, parent)
 	end
 
+	return #buildEntries > 0
+end
+
+local function buildMapContent(
+	buildEntries: { RarityBuildEntry },
+	buildDuration: number,
+	parent: Instance,
+	context: {
+		decorationTemplates: { Model },
+		flowerTemplates: { Model },
+		grassTemplates: { Model },
+		mushroomTemplates: { Model },
+		lianaTemplates: { Model },
+		lilyTemplate: Model?,
+	}
+)
 	for entryIndex, entry in buildEntries do
 		placeHoleFloorDecorationsForFloor(
 			entry.holeLayout,
-			decorationTemplates,
-			flowerTemplates,
-			grassTemplates,
-			mushroomTemplates,
+			context.decorationTemplates,
+			context.flowerTemplates,
+			context.grassTemplates,
+			context.mushroomTemplates,
 			entry.rarityName,
-			buildParent
+			parent
 		)
 		waitBuildYield(buildDuration, entryIndex, #buildEntries)
 	end
 
 	for _, entry in buildEntries do
-		placeLianasOnRarityWalls(buildParent, entry.rarityName, lianaTemplates)
-		placeLiliesOnRarityWalls(buildParent, entry.rarityName, lilyTemplate)
+		placeLianasOnRarityWalls(parent, entry.rarityName, context.lianaTemplates)
+		placeLiliesOnRarityWalls(parent, entry.rarityName, context.lilyTemplate)
 	end
 end
 
+function GameProcessFloors.ClearMapContent()
+	local floorsFolder = getFloorsFolder()
+	for _, child in floorsFolder:GetChildren() do
+		if child:IsA("Model") then
+			child:Destroy()
+		elseif child:IsA("BasePart") and not isPersistentMapGeometry(child) then
+			child:Destroy()
+		end
+	end
+	clearMapBuildStaging()
+end
+
+function GameProcessFloors.ClearMap()
+	local floorsFolder = getFloorsFolder()
+	for _, child in floorsFolder:GetChildren() do
+		child:Destroy()
+	end
+	clearMapBuildStaging()
+end
+
+function GameProcessFloors.EnsureMapGeometry(): boolean
+	local floorsFolder = getFloorsFolder()
+	if hasMapGeometry(floorsFolder) then
+		return true
+	end
+	return buildMapGeometry(floorsFolder)
+end
+
+function GameProcessFloors.RevealBuiltMap()
+	revealBuiltMap()
+end
+
+function GameProcessFloors.BuildMapContentAsync(buildDuration: number)
+	local context = getBuildContext()
+	if not context then
+		return
+	end
+
+	local floorsFolder = getFloorsFolder()
+	if not hasMapGeometry(floorsFolder) then
+		if not buildMapGeometry(floorsFolder) then
+			warn("[GameProcessFloors] BuildMapContentAsync failed: could not build map geometry")
+			return
+		end
+	end
+
+	local buildEntries = collectLiveMapEntries(floorsFolder)
+	if #buildEntries == 0 then
+		warn("[GameProcessFloors] BuildMapContentAsync failed: no live map entries found")
+		return
+	end
+
+	buildMapContent(buildEntries, buildDuration, floorsFolder, context)
+end
+
+function GameProcessFloors.BuildMapAsync(buildDuration: number)
+	GameProcessFloors.EnsureMapGeometry()
+	GameProcessFloors.BuildMapContentAsync(buildDuration)
+end
+
 function GameProcessFloors.Setup()
-	GameProcessFloors.ClearMap()
-	GameProcessFloors.BuildMapAsync(0)
-	GameProcessFloors.RevealBuiltMap()
+	GameProcessFloors.EnsureMapGeometry()
+	GameProcessFloors.ClearMapContent()
+	GameProcessFloors.BuildMapContentAsync(0)
 end
 
 return GameProcessFloors

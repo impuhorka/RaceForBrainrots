@@ -80,7 +80,7 @@ LuckyBlocks.Data = {
 		Image = "rbxassetid://78477350472889",
 		BaseWeight = 10,
 		MinLevel = 1,
-		MaxLevel = 10,
+		MaxLevel = 4,
 		Blacklist = {},
 	},
 	RareLuckyBlock = {
@@ -88,8 +88,8 @@ LuckyBlocks.Data = {
 		Rarity = "Rare",
 		Image = "rbxassetid://89361878329509",
 		BaseWeight = 25,
-		MinLevel = 10,
-		MaxLevel = 20,
+		MinLevel = 1,
+		MaxLevel = 6,
 		Blacklist = {},
 	},
 	EpicLuckyBlock = {
@@ -97,8 +97,8 @@ LuckyBlocks.Data = {
 		Rarity = "Epic",
 		Image = "rbxassetid://97509263941551",
 		BaseWeight = 50,
-		MinLevel = 20,
-		MaxLevel = 30,
+		MinLevel = 2,
+		MaxLevel = 8,
 		Blacklist = {},
 	},
 	LegendaryLuckyBlock = {
@@ -106,40 +106,40 @@ LuckyBlocks.Data = {
 		Rarity = "Legendary",
 		Image = "rbxassetid://75895971800979",
 		BaseWeight = 100,
-		MinLevel = 30,
-		MaxLevel = 40,
+		MinLevel = 3,
+		MaxLevel = 10,
 	},
 	MythicalLuckyBlock = {
 		DisplayName = "Lucky Block",
 		Rarity = "Mythical",
 		Image = "rbxassetid://121875813364809",
 		BaseWeight = 200,
-		MinLevel = 40,
-		MaxLevel = 50,
+		MinLevel = 4,
+		MaxLevel = 12,
 	},
 	SecretLuckyBlock = {
 		DisplayName = "Lucky Block",
 		Rarity = "Secret",
 		Image = "rbxassetid://114710058131467",
 		BaseWeight = 400,
-		MinLevel = 50,
-		MaxLevel = 60,
+		MinLevel = 5,
+		MaxLevel = 14,
 	},
 	DivineLuckyBlock = {
 		DisplayName = "Lucky Block",
 		Rarity = "Divine",
 		Image = "rbxassetid://90001956185589",
 		BaseWeight = 650,
-		MinLevel = 60,
-		MaxLevel = 70,
+		MinLevel = 6,
+		MaxLevel = 16,
 	},
 	SuperiorLuckyBlock = {
 		DisplayName = "Lucky Block",
 		Rarity = "Superior",
 		Image = "rbxassetid://102574841893672",
 		BaseWeight = 1000,
-		MinLevel = 70,
-		MaxLevel = 80,
+		MinLevel = 8,
+		MaxLevel = 18,
 	},
 }
 
@@ -150,6 +150,23 @@ function LuckyBlocks.GetConfigNameForRarity(rarity: string): string?
 		end
 	end
 	return nil
+end
+
+function LuckyBlocks.RollRewardLevel(configName: string): number
+	local config = LuckyBlocks.Data[configName]
+	if not config then
+		return 1
+	end
+
+	local minLevel = math.max(1, math.floor(config.MinLevel or 1))
+	local maxLevel = math.max(minLevel, math.floor(config.MaxLevel or minLevel))
+	if maxLevel <= minLevel then
+		return minLevel
+	end
+
+	local rollA = math.random(minLevel, maxLevel)
+	local rollB = math.random(minLevel, maxLevel)
+	return math.min(rollA, rollB)
 end
 
 function LuckyBlocks.GetBaseWeight(configName: string): number

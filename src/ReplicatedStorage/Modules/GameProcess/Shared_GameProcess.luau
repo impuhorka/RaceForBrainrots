@@ -78,7 +78,7 @@ Shared_GameProcess.ProcessPhase = {
 Shared_GameProcess.NewMapDuration = 10
 Shared_GameProcess.NewMapBuildDuration = 1
 Shared_GameProcess.RaceStartsDuration = 5
-Shared_GameProcess.RaceEndsDuration = 60
+Shared_GameProcess.RaceEndsDuration = 10
 Shared_GameProcess.RelaxDuration = 10
 
 Shared_GameProcess.ProcessPhaseDurations = {
@@ -88,10 +88,19 @@ Shared_GameProcess.ProcessPhaseDurations = {
 	Relax = Shared_GameProcess.RelaxDuration,
 }
 
+function Shared_GameProcess.IsRaceActivePhase(phase: string?): boolean
+	if type(phase) ~= "string" then
+		return false
+	end
+	return phase == Shared_GameProcess.ProcessPhase.RaceStarts
+		or phase == Shared_GameProcess.ProcessPhase.RaceEnds
+end
+
 Shared_GameProcess.EntranceWallNewMapMessage = "Map is building!"
 Shared_GameProcess.EntranceWallRaceStartsMessage = "Race starting!"
 Shared_GameProcess.EntranceWallRelaxMessage = "Map is resetting!"
 Shared_GameProcess.UnluckyMapCloseMessage = "Unlucky! The map closed — your Lucky Block is gone!"
+Shared_GameProcess.UnluckyRaceEndMessage = "Unlucky! Next time maybe."
 
 function Shared_GameProcess.GetWorldDropRadiusScale(modelHeight: number): number
 	local referenceHeight = Shared_GameProcess.WorldDropSizeReferenceHeight

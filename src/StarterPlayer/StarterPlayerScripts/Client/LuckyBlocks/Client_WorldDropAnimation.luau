@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ClientLoader = require(script.Parent.Parent.Loader)
 local Client_WorldDropAnimation = {}
 
 local ANIM_DURATION_SCALE = 1.5
@@ -30,6 +31,8 @@ type SpinState = {
 	signedSpinSpeed: number,
 }
 
+local playGenerations: { [Model]: number } = {}
+
 local function ensurePrimaryPart(model: Model): BasePart?
 	if not model.PrimaryPart then
 		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
@@ -53,6 +56,14 @@ end
 
 function Client_WorldDropAnimation.GetSpinStopDuration(): number
 	return SPIN_STOP_DURATION
+end
+
+local function isPlayActive(model: Model, generation: number): boolean
+	return model.Parent ~= nil and playGenerations[model] == generation
+end
+
+function Client_WorldDropAnimation.stop(model: Model)
+	playGenerations[model] = (playGenerations[model] or 0) + 1
 end
 
 function Client_WorldDropAnimation.getLocalPlayerLaunchOrigin(): Vector3?
@@ -110,12 +121,23 @@ local function getLookAtRotation(atPos: Vector3, userId: number?): CFrame
 	return CFrame.new()
 end
 
+local function isLuckyBlockModel(model: Model): boolean
+	if model:GetAttribute("IsWorldLuckyBlock") == true then
+		return true
+	end
+	local configName = model:GetAttribute("ConfigName")
+	return type(configName) == "string" and string.find(configName, "LuckyBlock", 1, true) ~= nil
+end
+
 local function prepareModel(model: Model)
+	local keepWeldedAssembly = isLuckyBlockModel(model)
 	for _, inst in model:GetDescendants() do
 		if inst:IsA("BasePart") then
 			inst.Massless = true
 			inst.CanCollide = false
-			inst.Anchored = true
+			if not keepWeldedAssembly then
+				inst.Anchored = true
+			end
 		end
 	end
 end
@@ -131,6 +153,10 @@ local function quadraticBezier(p0: Vector3, p1: Vector3, p2: Vector3, t: number)
 end
 
 local function createThrowTrail(primaryPart: BasePart)
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return nil, nil
+	end
+
 	local trail = Instance.new("Trail")
 	local a0 = Instance.new("Attachment")
 	a0.Name = "DropTrailA0"
@@ -156,6 +182,7 @@ end
 
 local function playWindup(
 	model: Model,
+	generation: number,
 	launchOrigin: Vector3,
 	landingPosition: Vector3,
 	endRotation: CFrame,
@@ -169,7 +196,7 @@ local function playWindup(
 	stepSpinState(spinState)
 	model:PivotTo(CFrame.new(launchOrigin) * getSpinRotation(endRotation, spinState))
 
-	while model.Parent do
+	while isPlayActive(model, generation) do
 		local t = math.min((os.clock() - windupStart) / WINDUP_DURATION, 1)
 		local eased = easeInCubic(t)
 		local pos = launchOrigin:Lerp(windupTarget, eased)
@@ -182,11 +209,12 @@ local function playWindup(
 		RunService.Heartbeat:Wait()
 	end
 
-	return model.Parent ~= nil
+	return isPlayActive(model, generation)
 end
 
 local function playThrowArc(
 	model: Model,
+	generation: number,
 	launchOrigin: Vector3,
 	landingPosition: Vector3,
 	endRotation: CFrame,
@@ -224,7 +252,7 @@ local function playThrowArc(
 	local trail, trailAttachments = createThrowTrail(primaryPart)
 	local throwStart = os.clock()
 
-	while model.Parent do
+	while isPlayActive(model, generation) do
 		local t = math.min((os.clock() - throwStart) / throwDuration, 1)
 		local moveT = easeOutCubic(t)
 		local pos = quadraticBezier(windupOrigin, controlPoint, landingPosition, moveT)
@@ -237,17 +265,21 @@ local function playThrowArc(
 		RunService.Heartbeat:Wait()
 	end
 
-	trail:Destroy()
-	for _, attachment in trailAttachments do
-		attachment:Destroy()
+	if trail then
+		trail:Destroy()
+	end
+	if trailAttachments then
+		for _, attachment in trailAttachments do
+			attachment:Destroy()
+		end
 	end
 
-	if model.Parent then
+	if isPlayActive(model, generation) then
 		stepSpinState(spinState)
 		model:PivotTo(CFrame.new(landingPosition) * getSpinRotation(endRotation, spinState))
 	end
 
-	return model.Parent ~= nil
+	return isPlayActive(model, generation)
 end
 
 function Client_WorldDropAnimation.play(
@@ -263,6 +295,9 @@ function Client_WorldDropAnimation.play(
 	end
 
 	task.spawn(function()
+		local generation = (playGenerations[model] or 0) + 1
+		playGenerations[model] = generation
+
 		local sizeScale = if type(config.sizeScale) == "number" and config.sizeScale > 0 then config.sizeScale else 1
 
 		prepareModel(model)
@@ -271,10 +306,11 @@ function Client_WorldDropAnimation.play(
 		local spinStartTime = os.clock()
 		local spinState = createSpinState(spinStartTime)
 
-		local ok = playWindup(model, config.launchOrigin, config.landingPosition, endRotation, spinState)
-		if ok and model.Parent then
+		local ok = playWindup(model, generation, config.launchOrigin, config.landingPosition, endRotation, spinState)
+		if ok and isPlayActive(model, generation) then
 			ok = playThrowArc(
 				model,
+				generation,
 				config.launchOrigin,
 				config.landingPosition,
 				endRotation,
@@ -284,7 +320,7 @@ function Client_WorldDropAnimation.play(
 		end
 
 		if onComplete then
-			if ok and model.Parent then
+			if ok and isPlayActive(model, generation) then
 				onComplete({
 					spinYaw = spinState.yaw,
 					spinStartTime = spinStartTime,

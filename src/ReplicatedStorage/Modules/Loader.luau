@@ -36,6 +36,7 @@ local PATHS: { [string]: ModuleScript } = {
 
 	-- Core
 	Shared_Abbreviation = root.Core.Shared_Abbreviation,
+	Shared_Leaderboards = root.Core.Shared_Leaderboards,
 	Shared_BigNum = root.Core.Shared_BigNum,
 	Shared_Sounds = root.Core.Shared_Sounds,
 	Shared_TableUtil = root.Core.Shared_TableUtil,

@@ -346,10 +346,27 @@ function Client_Messaging.Show(message: string, color: string?)
 	playPopAnimation(entry)
 end
 
+local function waitForMainUiChild(main: Instance, name: string): Instance?
+	local topFrames = main:WaitForChild("TopFrames", 30)
+	if topFrames then
+		local direct = topFrames:WaitForChild(name, 30)
+		if direct then
+			return direct
+		end
+	end
+
+	return main:FindFirstChild(name, true)
+end
+
 function Client_Messaging.Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local main = playerGui:WaitForChild("Main")
-	messagingFrame = main:WaitForChild("Messaging") :: Frame
+	local messaging = waitForMainUiChild(main, "Messaging")
+	if not messaging or not messaging:IsA("Frame") then
+		warn("[Client_Messaging] Messaging frame not found under Main")
+		return
+	end
+	messagingFrame = messaging
 
 	local assets = ReplicatedStorage:WaitForChild("Assets")
 	local ui = assets:WaitForChild("UI")
@@ -357,8 +374,8 @@ function Client_Messaging.Init()
 
 	if not adminFeedbackConnected then
 		adminFeedbackConnected = true
-		local events = ReplicatedStorage:WaitForChild("Events")
-		local adminFeedback = events:WaitForChild("AdminFeedback")
+		local events = ReplicatedStorage:WaitForChild("Events", 15)
+		local adminFeedback = events and events:WaitForChild("AdminFeedback", 15)
 		if adminFeedback and adminFeedback:IsA("RemoteEvent") then
 			adminFeedback.OnClientEvent:Connect(function(message: string, isError: boolean)
 				Client_Messaging.Show(message, isError and "red" or "green")

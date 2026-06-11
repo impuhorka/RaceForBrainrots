@@ -450,15 +450,7 @@ end
 function Server_Admin:Init(plotService)
 	plotServiceRef = plotService
 	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-	local existingEvent = eventsFolder:FindFirstChild("AdminFeedback")
-	if existingEvent and existingEvent:IsA("RemoteEvent") then
-		adminFeedbackEvent = existingEvent
-	else
-		local remote = Instance.new("RemoteEvent")
-		remote.Name = "AdminFeedback"
-		remote.Parent = eventsFolder
-		adminFeedbackEvent = remote
-	end
+	adminFeedbackEvent = eventsFolder:WaitForChild("AdminFeedback") :: RemoteEvent
 	initTextChatCommands()
 end
 

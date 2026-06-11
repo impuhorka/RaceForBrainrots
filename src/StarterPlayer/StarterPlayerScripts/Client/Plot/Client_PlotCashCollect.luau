@@ -115,6 +115,10 @@ local function collectParticleEmitters(root: Instance): { ParticleEmitter }
 end
 
 local function playCollectVfx(interactPart: BasePart)
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
+
 	local template = getCashCollectEffectTemplate()
 	if not template then
 		return

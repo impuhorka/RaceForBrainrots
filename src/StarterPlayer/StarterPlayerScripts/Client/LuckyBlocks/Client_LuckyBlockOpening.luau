@@ -250,6 +250,10 @@ local function scaleEmitterSizeWithReward(emitter: ParticleEmitter, rewardScale:
 end
 
 local function playLuckyBlockResultVfx(targetModel: Model, rewardScale: number)
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
+
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local vfxFolder = assets and assets:FindFirstChild("VFX")
 	local template = vfxFolder and vfxFolder:FindFirstChild("LuckyBlockResult")
@@ -439,18 +443,24 @@ local function playOpening(data: {
 	-- ── PHASE 1: Throw arc ────────────────────────────────────────────────────
 	primary.CFrame = CFrame.new(data.launchOrigin)
 
-	local trail = Instance.new("Trail")
-	local a0 = Instance.new("Attachment", primary); a0.Position = Vector3.new(0, 0, 1)
-	local a1 = Instance.new("Attachment", primary); a1.Position = Vector3.new(0, 0, -1)
-	trail.Attachment0 = a0; trail.Attachment1 = a1
-	trail.Color = ColorSequence.new(Color3.new(1, 1, 1))
-	trail.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.5),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	trail.Lifetime = 0.3
-	trail.MinLength = 0
-	trail.Parent = primary
+	local trail: Trail? = nil
+	if ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		trail = Instance.new("Trail")
+		local a0 = Instance.new("Attachment", primary)
+		a0.Position = Vector3.new(0, 0, 1)
+		local a1 = Instance.new("Attachment", primary)
+		a1.Position = Vector3.new(0, 0, -1)
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Color = ColorSequence.new(Color3.new(1, 1, 1))
+		trail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.5),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		trail.Lifetime = 0.3
+		trail.MinLength = 0
+		trail.Parent = primary
+	end
 
 	if THROW_SOUND_ID then
 		playSound(primary, THROW_SOUND_ID, 2)
@@ -479,7 +489,9 @@ local function playOpening(data: {
 		if t >= 1 then
 			throwConn:Disconnect()
 			primary.CFrame = CFrame.new(finalLanding) * endRotation
-			trail:Destroy()
+			if trail then
+				trail:Destroy()
+			end
 		end
 	end)
 

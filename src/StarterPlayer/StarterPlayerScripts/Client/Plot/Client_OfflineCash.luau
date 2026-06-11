@@ -133,6 +133,10 @@ local function collectParticleEmitters(root: Instance): { ParticleEmitter }
 end
 
 local function playConfetti()
+	if not ClientLoader.require("Client_VisualSettings").AreEffectsEnabled() then
+		return
+	end
+
 	local confettiRoot = offlineFrame and offlineFrame:FindFirstChild("Confetti", true)
 	if not confettiRoot then
 		local assets = ReplicatedStorage:FindFirstChild("Assets")

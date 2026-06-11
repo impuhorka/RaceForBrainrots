@@ -13,12 +13,12 @@ Brainrots.Balance = {
 	MinPlotScale = 0.5,
 	MaxPlotScale = 2,
 	UpgradePayback = {
-		BaseSeconds = 50,
-		PerLevelMultiplier = 1.058,
+		BaseSeconds = 36,
+		PerLevelMultiplier = 1.05,
 		StepLevels = 5,
-		StepMultiplierPhase1 = 1.45,
-		StepMultiplierPhase2 = 1.85,
-		Phase1StepCount = 16,
+		StepMultiplierPhase1 = 1.28,
+		StepMultiplierPhase2 = 1.55,
+		Phase1StepCount = 20,
 	},
 	SellWorthSeconds = 10,
 }
@@ -202,20 +202,20 @@ function Brainrots.GetUpgradeCost(
 	end
 
 	local resolvedModifier = modifier or "Normal"
-	local incomeNow = Brainrots.GetCashPerSecond(
-		configName,
-		safeLevel,
-		resolvedModifier,
-		baseWeight,
-		rolledWeight
+	local upgradeIncomeInfluence = Shared_Modifiers.GetUpgradeIncomeInfluence(resolvedModifier)
+	local incomeNow = getRawCashPerSecond(configName, safeLevel, resolvedModifier)
+	local incomeNext = getRawCashPerSecond(configName, safeLevel + 1, resolvedModifier)
+	local normalIncomeNow = getRawCashPerSecond(configName, safeLevel, "Normal")
+	local normalIncomeNext = getRawCashPerSecond(configName, safeLevel + 1, "Normal")
+	local dampenedIncomeNow = normalIncomeNow + (incomeNow - normalIncomeNow) * upgradeIncomeInfluence
+	local dampenedIncomeNext = normalIncomeNext + (incomeNext - normalIncomeNext) * upgradeIncomeInfluence
+	local base, rolled = Shared_Weight.ResolveBrainrotWeights(
+		{ BaseWeight = baseWeight, Weight = rolledWeight },
+		configName
 	)
-	local incomeNext = Brainrots.GetCashPerSecond(
-		configName,
-		safeLevel + 1,
-		resolvedModifier,
-		baseWeight,
-		rolledWeight
-	)
+	local weightMult = Shared_Weight.GetIncomeMultiplier(base, rolled)
+	incomeNow = math.max(0, math.floor(dampenedIncomeNow * weightMult + 0.5))
+	incomeNext = math.max(0, math.floor(dampenedIncomeNext * weightMult + 0.5))
 	local delta = math.max(0, incomeNext - incomeNow)
 
 	local paybackSeconds = Brainrots.GetUpgradePaybackSeconds(safeLevel)

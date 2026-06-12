@@ -9,6 +9,7 @@ local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_Data = ClientLoader.require("Client_Data")
 local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
+local Client_StreakSfx = ClientLoader.require("Client_StreakSfx")
 local Client_Visuals = ClientLoader.require("Client_Visuals")
 
 local Client_CashAddingPopups = {}
@@ -51,7 +52,8 @@ local function playCashAddSfx()
 	if type(soundId) ~= "string" or soundId == "" then
 		return
 	end
-	Client_SoundPreload.PlayUi(soundId, 1, 1)
+	local playbackSpeed, volumeMul = Client_StreakSfx.Register("Cash")
+	Client_SoundPreload.PlayUi(soundId, volumeMul, 1, nil, playbackSpeed)
 end
 
 local function playCashCollectSfx()
@@ -59,7 +61,9 @@ local function playCashCollectSfx()
 	if type(soundId) ~= "string" or soundId == "" then
 		return
 	end
-	Client_SoundPreload.PlayUi(soundId, Shared_Sounds.SFXVolume.CashCollect, 1, 0.3)
+	local playbackSpeed, volumeMul = Client_StreakSfx.Register("Cash")
+	local baseVolume = Shared_Sounds.SFXVolume.CashCollect or 1
+	Client_SoundPreload.PlayUi(soundId, baseVolume * volumeMul, 1, 0.3, playbackSpeed)
 end
 
 local function playPopupAppearSfx()
@@ -268,7 +272,7 @@ function Client_CashAddingPopups.Init()
 	template.Visible = false
 	disablePopupInput(popupFrame)
 	disablePopupInput(template)
-	popupFrame:SetAttribute("LuckyBlockInputBlacklist", true)
+	popupFrame:SetAttribute("LuckyBlockInputIgnore", true)
 
 	popupFrame.DescendantAdded:Connect(function(descendant)
 		if descendant:IsA("GuiObject") then

@@ -1,9 +1,16 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
-local SharedModules = require(game:GetService("ReplicatedStorage").Modules.Loader)
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
+local ClientLoader = require(script.Parent.Parent.Loader)
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
+local Shared_Sounds = SharedModules.require("Shared_Sounds")
+local Client_AudioSettings = ClientLoader.require("Client_AudioSettings")
+local Client_Messaging = ClientLoader.require("Client_Messaging")
+local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
 
 local Client_GameProcess = {}
 
@@ -33,11 +40,71 @@ local phaseGradients: { [string]: UIGradient? } = {}
 local timeLeftLabels: { [string]: TextLabel } = {}
 local entranceWallUi: EntranceWallUi = {}
 local lastEntranceWallUiPhase: string? = nil
+local lastProcessPhase: string? = nil
 local lastUiUpdateAt = 0
 local UI_UPDATE_INTERVAL = 0.1
+local baseGameProcessSize: UDim2? = nil
+local carrySizeTween: Tween? = nil
+local CARRY_SIZE_Y_MULTIPLIER = 1.3
+local CARRY_SIZE_TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 local function formatTimeLeft(seconds: number): string
 	return string.format("%.1f seconds", math.max(0, seconds))
+end
+
+local function playSuccessSfx()
+	if Client_AudioSettings.GetSfxVolume() <= 0 then
+		return
+	end
+
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.Success
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+
+	Client_SoundPreload.Play(soundId, Shared_Sounds.SFXVolume.Success or 0.65)
+end
+
+local function getGameProcessCarrySize(carrying: boolean): UDim2?
+	if not baseGameProcessSize then
+		return nil
+	end
+
+	local yMultiplier = if carrying then CARRY_SIZE_Y_MULTIPLIER else 1
+	local base = baseGameProcessSize
+	return UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale * yMultiplier, base.Y.Offset * yMultiplier)
+end
+
+local function updateGameProcessCarrySize(carrying: boolean)
+	if not gameProcessGui or not gameProcessGui:IsA("GuiObject") then
+		return
+	end
+
+	if not baseGameProcessSize then
+		baseGameProcessSize = gameProcessGui.Size
+	end
+
+	local targetSize = getGameProcessCarrySize(carrying)
+	if not targetSize then
+		return
+	end
+
+	if carrySizeTween then
+		carrySizeTween:Cancel()
+		carrySizeTween = nil
+	end
+
+	carrySizeTween = TweenService:Create(gameProcessGui, CARRY_SIZE_TWEEN_INFO, { Size = targetSize })
+	carrySizeTween:Play()
+end
+
+local function bindCarrySizeScaling()
+	local function onCarryChanged()
+		updateGameProcessCarrySize(localPlayer:GetAttribute("CarryingLuckyBlock") == true)
+	end
+
+	localPlayer:GetAttributeChangedSignal("CarryingLuckyBlock"):Connect(onCarryChanged)
+	onCarryChanged()
 end
 
 local function findTimeLeftLabel(frame: Instance): TextLabel?
@@ -200,6 +267,9 @@ local function resolveUi()
 	end
 
 	gameProcessGui = foundGui
+	if not baseGameProcessSize then
+		baseGameProcessSize = foundGui.Size
+	end
 
 	for _, phaseName in PHASES do
 		local frame = foundGui:FindFirstChild(phaseName, true)
@@ -251,6 +321,13 @@ local function updateUi(force: boolean?)
 
 	local phase, timeLeft = getPhaseTimeLeft()
 	local formattedTime = formatTimeLeft(timeLeft)
+
+	if phase == Shared_GameProcess.ProcessPhase.RaceEnds and lastProcessPhase ~= phase then
+		playSuccessSfx()
+	end
+	if phase ~= lastProcessPhase then
+		lastProcessPhase = phase
+	end
 
 	if gameProcessGui then
 		local hasActivePhase = phase ~= nil and phaseFrames[phase] ~= nil
@@ -307,7 +384,23 @@ local function bindEntranceWallWatcher()
 	end)
 end
 
+local function bindRaceTimeRanOutHandler()
+	local events = ReplicatedStorage:WaitForChild("Events", 10)
+	local gameProcessHandler = events and events:WaitForChild("GameProcessHandler", 10)
+	if not gameProcessHandler or not gameProcessHandler:IsA("RemoteEvent") then
+		return
+	end
+
+	gameProcessHandler.OnClientEvent:Connect(function(action: string, message: any)
+		if action == "RaceTimeRanOut" and type(message) == "string" then
+			Client_Messaging.Show(message, "red")
+		end
+	end)
+end
+
 function Client_GameProcess.Init()
+	bindRaceTimeRanOutHandler()
+
 	task.spawn(function()
 		local playerGui = localPlayer:WaitForChild("PlayerGui", 30)
 		if not playerGui then
@@ -338,6 +431,7 @@ function Client_GameProcess.Init()
 		end
 
 		bindEntranceWallWatcher()
+		bindCarrySizeScaling()
 
 		local gameFolder = Workspace:WaitForChild("Game", 30)
 		if gameFolder then

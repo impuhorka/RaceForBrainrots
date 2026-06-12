@@ -1,9 +1,13 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
 
+local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_PlotBrainrotJump = ClientLoader.require("Client_PlotBrainrotJump")
+local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
+local Client_StreakSfx = ClientLoader.require("Client_StreakSfx")
 
 local Client_PlotUpgradeVfx = {}
 
@@ -40,6 +44,17 @@ local function collectParticleEmitters(root: Instance): { ParticleEmitter }
 	end
 
 	return emitters
+end
+
+local function playUpgradeSfx()
+	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.Success
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+
+	local playbackSpeed, volumeMul = Client_StreakSfx.Register("Upgrade")
+	local baseVolume = Shared_Sounds.SFXVolume.Success or 1
+	Client_SoundPreload.PlayUi(soundId, baseVolume * volumeMul, 2, nil, playbackSpeed)
 end
 
 local function playUpgradeVfx(brainrotModel: Model)
@@ -89,6 +104,7 @@ local function onSlotLevelChanged(slotModel: Model)
 
 	local brainrotModel = slotModel:FindFirstChild("PlacedBrainrot")
 	if brainrotModel and brainrotModel:IsA("Model") then
+		playUpgradeSfx()
 		playUpgradeVfx(brainrotModel)
 		task.defer(function()
 			RunService.Heartbeat:Wait()

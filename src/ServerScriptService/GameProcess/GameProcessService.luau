@@ -586,7 +586,17 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 	if collecting[worldLuckyBlock] or not worldLuckyBlock.Parent then
 		return
 	end
-	if carriedByPlayer[player] or pickupLocks[player] then
+	if carriedByPlayer[player] then
+		if gameProcessHandler then
+			gameProcessHandler:FireClient(
+				player,
+				"CarryFeedback",
+				Shared_GameProcess.AlreadyCarryingLuckyBlockMessage
+			)
+		end
+		return
+	end
+	if pickupLocks[player] then
 		return
 	end
 
@@ -971,6 +981,14 @@ end
 
 function GameProcessService.OnRaceEnded()
 	forfeitAllCarryingPlayers(Shared_GameProcess.UnluckyRaceEndMessage, true)
+end
+
+function GameProcessService.NotifyRaceTimeRanOut(player: Player)
+	if not gameProcessHandler then
+		return
+	end
+
+	gameProcessHandler:FireClient(player, "RaceTimeRanOut", Shared_GameProcess.RaceTimeRanOutMessage)
 end
 
 function GameProcessService.ClearForMapReset()

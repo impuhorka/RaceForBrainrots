@@ -65,13 +65,17 @@ local function getPulseTweenInfo(baseInfo: TweenInfo, durationScale: number): Tw
 	)
 end
 
-function Client_FOV.playUnluckyForfeit()
+local UNLUCKY_FORFEIT_FOV_OFFSET = 24
+
+function Client_FOV.playUnluckyForfeit(fovOffset: number?)
+	local offset = if type(fovOffset) == "number" and fovOffset > 0 then fovOffset else UNLUCKY_FORFEIT_FOV_OFFSET
+
 	if not camera then
 		return
 	end
 
 	local returnFov = camera.FieldOfView
-	local pulseFov = math.max(35, returnFov - 24)
+	local pulseFov = math.max(35, returnFov - offset)
 
 	if activeTween then
 		activeTween:Cancel()
@@ -107,15 +111,16 @@ function Client_FOV.playUnluckyForfeit()
 	end)
 end
 
-function Client_FOV.playPulse(durationScale: number?)
+function Client_FOV.playPulse(durationScale: number?, fovOffset: number?)
 	local scale = if type(durationScale) == "number" and durationScale > 0 then durationScale else 1
+	local offset = if type(fovOffset) == "number" and fovOffset > 0 then fovOffset else PULSE_FOV_OFFSET
 
 	if not camera then
 		return
 	end
 
 	local returnFov = camera.FieldOfView
-	local pulseFov = math.max(40, returnFov - PULSE_FOV_OFFSET)
+	local pulseFov = math.max(40, returnFov - offset)
 
 	if activeTween then
 		activeTween:Cancel()

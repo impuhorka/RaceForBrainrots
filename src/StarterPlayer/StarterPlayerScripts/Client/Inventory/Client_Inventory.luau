@@ -550,6 +550,13 @@ local function setupHotbarSlot(slotIndex: number, slotButton: ImageButton)
 	)
 
 	slotButton.InputBegan:Connect(beginInteraction)
+
+	slotButton.MouseButton1Click:Connect(function()
+		if Client_Hotbar.GetSlotInventoryIndex(slotIndex) then
+			return
+		end
+		Client_Equip.ToggleHotbarSlot(slotIndex)
+	end)
 end
 
 local function setupInventorySlot(inventoryIndex: number, slotRoot: GuiObject, slotButton: ImageButton)

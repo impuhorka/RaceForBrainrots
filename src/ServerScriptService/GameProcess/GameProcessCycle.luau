@@ -95,14 +95,32 @@ local function isPlayerOnRoad(player: Player): boolean
 	return Shared_RoadGradient.IsOnRoad(root.Position.Z, roadNearZ, roadFarZ)
 end
 
-local function teleportRoadPlayersHome()
+local function getRoadPlayersCarryingAtRaceEnd(): ({ Player }, { [Player]: boolean })
+	local roadPlayers: { Player } = {}
+	local carryingPlayers: { [Player]: boolean } = {}
+
+	for _, player in Players:GetPlayers() do
+		if GameProcessService.IsPlayerCarrying(player) or player:GetAttribute("CarryingLuckyBlock") == true then
+			carryingPlayers[player] = true
+		end
+
+		if isPlayerOnRoad(player) then
+			table.insert(roadPlayers, player)
+		end
+	end
+
+	return roadPlayers, carryingPlayers
+end
+
+local function teleportRoadPlayersHome(roadPlayers: { Player }, carryingPlayers: { [Player]: boolean })
 	if not plotService then
 		return
 	end
 
-	for _, player in Players:GetPlayers() do
-		if isPlayerOnRoad(player) then
-			plotService:TeleportPlayerToPlot(player)
+	for _, player in roadPlayers do
+		plotService:TeleportPlayerToPlot(player)
+		if not carryingPlayers[player] then
+			GameProcessService.NotifyRaceTimeRanOut(player)
 		end
 	end
 end
@@ -114,8 +132,9 @@ local function runRaceEndsPhase()
 	waitForPhaseEnd()
 
 	task.spawn(function()
+		local roadPlayers, carryingPlayers = getRoadPlayersCarryingAtRaceEnd()
 		GameProcessService.OnRaceEnded()
-		teleportRoadPlayersHome()
+		teleportRoadPlayersHome(roadPlayers, carryingPlayers)
 	end)
 end
 

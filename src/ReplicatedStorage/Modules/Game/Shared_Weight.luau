@@ -14,15 +14,15 @@ Shared_Weight.RollTiers = {
 Shared_Weight.Balance = {
 	SizeReferenceBase = 15,
 	SizeRatioSlope = 0.425,
-	MaxSizeMultiplier = 2.5,
+	MaxSizeMultiplier = 2.1,
 	-- Lucky block kg (10-1000) is for economy/carry; visual size uses this spread instead.
 	LuckyBlockMinKg = 10,
 	LuckyBlockMaxKg = 1000,
 	LuckyBlockMinVisualScale = 1,
-	LuckyBlockMaxVisualScale = 2.5,
+	LuckyBlockMaxVisualScale = 2.1,
 	-- Brainrots only scale from the weight roll, not lucky-block base tier.
 	BrainrotSizeRatioSlope = 0.25,
-	BrainrotMaxSizeMultiplier = 1.5,
+	BrainrotMaxSizeMultiplier = 1.35,
 	IncomeRatioSlope = 0.375,
 	MaxIncomeMultiplier = 3,
 }

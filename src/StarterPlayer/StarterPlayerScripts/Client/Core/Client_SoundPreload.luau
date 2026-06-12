@@ -67,7 +67,12 @@ function Client_SoundPreload.Init()
 	end)
 end
 
-function Client_SoundPreload.Play(soundId: string, volume: number?, startTime: number?)
+function Client_SoundPreload.Play(
+	soundId: string,
+	volume: number?,
+	startTime: number?,
+	playbackSpeed: number?
+)
 	if soundId == "" then
 		return
 	end
@@ -78,6 +83,9 @@ function Client_SoundPreload.Play(soundId: string, volume: number?, startTime: n
 	clone.Volume = resolvedVolume
 	if type(startTime) == "number" and startTime > 0 then
 		clone.TimePosition = startTime
+	end
+	if type(playbackSpeed) == "number" and playbackSpeed > 0 then
+		clone.PlaybackSpeed = playbackSpeed
 	end
 	clone.Parent = SoundService
 	clone:Play()
@@ -97,8 +105,14 @@ local function shouldSuppressUiPlay(priority: number): boolean
 	return false
 end
 
-local function commitUiPlay(soundId: string, volume: number?, priority: number, startTime: number?)
-	Client_SoundPreload.Play(soundId, volume, startTime)
+local function commitUiPlay(
+	soundId: string,
+	volume: number?,
+	priority: number,
+	startTime: number?,
+	playbackSpeed: number?
+)
+	Client_SoundPreload.Play(soundId, volume, startTime, playbackSpeed)
 	local now = os.clock()
 	lastUiPlayAt = now
 	lastUiPriority = priority
@@ -107,7 +121,13 @@ local function commitUiPlay(soundId: string, volume: number?, priority: number, 
 	end
 end
 
-function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: number?, startTime: number?)
+function Client_SoundPreload.PlayUi(
+	soundId: string,
+	volume: number?,
+	priority: number?,
+	startTime: number?,
+	playbackSpeed: number?
+)
 	if soundId == "" then
 		return
 	end
@@ -125,7 +145,7 @@ function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: 
 			if shouldSuppressUiPlay(0) then
 				return
 			end
-			commitUiPlay(soundId, volume, 0, startTime)
+			commitUiPlay(soundId, volume, 0, startTime, playbackSpeed)
 		end)
 		return
 	end
@@ -135,7 +155,7 @@ function Client_SoundPreload.PlayUi(soundId: string, volume: number?, priority: 
 	if shouldSuppressUiPlay(resolvedPriority) then
 		return
 	end
-	commitUiPlay(soundId, volume, resolvedPriority, startTime)
+	commitUiPlay(soundId, volume, resolvedPriority, startTime, playbackSpeed)
 end
 
 function Client_SoundPreload.Destroy()

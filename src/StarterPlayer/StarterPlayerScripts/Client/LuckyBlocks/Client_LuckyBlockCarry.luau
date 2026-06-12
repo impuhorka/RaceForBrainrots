@@ -43,6 +43,8 @@ local roadFrontZ: number? = nil
 local roadFrontCheckConn: RBXScriptConnection? = nil
 local INVENTORY_WAIT_SECONDS = 2
 local deliveryCelebrationPlayed = false
+local UNLUCKY_FOV_DELAY_SECONDS = 0.5
+local UNLUCKY_FOV_OFFSET = 12
 
 local function getCarryAnimation(): Animation
 	local animation = Instance.new("Animation")
@@ -194,22 +196,41 @@ local function tryInitializeActionUi(): boolean
 	return actionButton ~= nil
 end
 
-local function playLuckyBlockDeliveredSfx()
+local function playRaceFinishSuccessSfx()
 	if Client_AudioSettings.GetSfxVolume() <= 0 then
 		return
 	end
 
 	local sfx = Shared_Sounds.SFX or {}
 	local volumes = Shared_Sounds.SFXVolume or {}
-
-	local function play(soundId: string?, volume: number)
-		if type(soundId) == "string" and soundId ~= "" then
-			Client_SoundPreload.Play(soundId, volume)
-		end
+	local soundId = sfx.RaceFinishSuccess
+	if type(soundId) ~= "string" or soundId == "" then
+		return
 	end
 
-	play(sfx.LuckyBlockCollect, volumes.LuckyBlockCollect or 1)
-	play(sfx.LuckyBlockCollected, volumes.LuckyBlockCollected or 1)
+	Client_SoundPreload.Play(soundId, volumes.RaceFinishSuccess or 1)
+end
+
+local function playLuckyBlockUnluckySfx()
+	if Client_AudioSettings.GetSfxVolume() <= 0 then
+		return
+	end
+
+	local sfx = Shared_Sounds.SFX or {}
+	local volumes = Shared_Sounds.SFXVolume or {}
+	local soundId = sfx.LuckyBlockUnlucky
+	if type(soundId) ~= "string" or soundId == "" then
+		return
+	end
+
+	Client_SoundPreload.Play(soundId, volumes.LuckyBlockUnlucky or 1)
+end
+
+local function playUnluckyForfeitFeedback()
+	playLuckyBlockUnluckySfx()
+	task.delay(UNLUCKY_FOV_DELAY_SECONDS, function()
+		Client_FOV.playUnluckyForfeit(UNLUCKY_FOV_OFFSET)
+	end)
 end
 
 local function getRarityDisplayName(rarity: string?): string
@@ -257,7 +278,7 @@ local function playDeliveryCelebration(rarity: string?)
 	end
 	deliveryCelebrationPlayed = true
 
-	playLuckyBlockDeliveredSfx()
+	playRaceFinishSuccessSfx()
 	showLuckyBlockCollectedMessage(rarity)
 	Client_FOV.playPulse(1.15)
 	Client_TadaEffect.Play()
@@ -494,7 +515,7 @@ function Client_LuckyBlockCarry.Init()
 			if action == "UnluckyMapClose" and type(inventoryIndex) == "string" then
 				clearLocalCarryVisualsImmediately()
 				Client_Messaging.Show(inventoryIndex, "red")
-				Client_FOV.playUnluckyForfeit()
+				playUnluckyForfeitFeedback()
 				return
 			end
 

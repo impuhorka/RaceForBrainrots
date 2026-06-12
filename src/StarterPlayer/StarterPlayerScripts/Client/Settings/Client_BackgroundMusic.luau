@@ -15,7 +15,7 @@ local Client_Data = ClientLoader.require("Client_Data")
 local Client_BackgroundMusic = {}
 
 local localPlayer = Players.LocalPlayer
-local BACKGROUND_MUSIC_VOLUME = 0.24
+local BACKGROUND_MUSIC_VOLUME = 0.12
 local ROAD_MUSIC_VOLUME = 0.24
 local CROSSFADE_DURATION = 0.4
 local CROSSFADE_TWEEN_INFO = TweenInfo.new(CROSSFADE_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)

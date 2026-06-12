@@ -95,6 +95,8 @@ Shared_GameProcess.EntranceWallRaceStartsMessage = "Race starting!"
 Shared_GameProcess.EntranceWallRelaxMessage = "Relax"
 Shared_GameProcess.UnluckyMapCloseMessage = "Unlucky! The map closed — your Lucky Block is gone!"
 Shared_GameProcess.UnluckyRaceEndMessage = "Unlucky! Next time maybe."
+Shared_GameProcess.RaceTimeRanOutMessage = "Time ran out!"
+Shared_GameProcess.AlreadyCarryingLuckyBlockMessage = "You're already carrying a Lucky Block!"
 
 function Shared_GameProcess.GetScheduledSlotTime(
 	phaseStartTime: number,

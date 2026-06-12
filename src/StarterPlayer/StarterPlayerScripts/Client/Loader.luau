@@ -52,6 +52,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_Settings = root.Settings.Client_Settings,
 	Client_SlowModeButton = root.Settings.Client_SlowModeButton,
 	Client_SoundPreload = root.Core.Client_SoundPreload,
+	Client_StreakSfx = root.Core.Client_StreakSfx,
 	Client_SpeedStore = root.Stores.Client_SpeedStore,
 	Client_StrengthStore = root.Stores.Client_StrengthStore,
 	Client_TadaEffect = root.Core.Client_TadaEffect,

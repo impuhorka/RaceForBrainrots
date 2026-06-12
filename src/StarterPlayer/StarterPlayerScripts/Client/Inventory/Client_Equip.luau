@@ -26,11 +26,14 @@ local SLOT_KEY_CODES = {
 	Enum.KeyCode.Nine,
 }
 
--- Never treat these UI roots as blocking lucky-block screen taps.
-local LUCKY_BLOCK_INPUT_BLACKLIST = {
+-- Full-screen or toast UI that should not block lucky-block taps.
+local LUCKY_BLOCK_INPUT_IGNORE = {
 	CashAdding = true,
 	Messaging = true,
 }
+
+local TOUCH_TAP_MAX_MOVEMENT = 22
+local TOUCH_TAP_MAX_DURATION = 0.45
 
 local Client_Equip = {}
 local luckyBlockOpenCooldownUntil = 0
@@ -46,6 +49,7 @@ local slotStrokes: { [ImageButton]: UIStroke } = {}
 local equipListeners: { () -> () } = {}
 local refreshAll: (() -> ())?
 local cashAddingFrame: GuiObject? = nil
+local pendingTouchTaps: { [InputObject]: { startPos: Vector2, startTime: number, cancelled: boolean } } = {}
 
 local function playUiPopSfx()
 	local soundId = Shared_Sounds.SFX and Shared_Sounds.SFX.UiPop or ""
@@ -192,6 +196,12 @@ function Client_Equip.ToggleHotbarSlot(slotIndex: number)
 
 	local inventoryIndex = Client_Hotbar.GetSlotInventoryIndex(slotIndex)
 	if not inventoryIndex then
+		if equippedInventoryIndex then
+			Client_Equip.Unequip()
+			if refreshAll then
+				refreshAll()
+			end
+		end
 		return
 	end
 
@@ -290,13 +300,13 @@ function Client_Equip.Refresh(scrollingFrame: ScrollingFrame?, itemTemplate: Ins
 	end
 end
 
-local function isUnderBlacklistedUi(gui: Instance?): boolean
+local function isIgnoredUi(gui: Instance?): boolean
 	local current = gui
 	while current do
-		if LUCKY_BLOCK_INPUT_BLACKLIST[current.Name] then
+		if LUCKY_BLOCK_INPUT_IGNORE[current.Name] then
 			return true
 		end
-		if current:GetAttribute("LuckyBlockInputBlacklist") == true then
+		if current:GetAttribute("LuckyBlockInputIgnore") == true then
 			return true
 		end
 		if cashAddingFrame ~= nil and (current == cashAddingFrame or current:IsDescendantOf(cashAddingFrame)) then
@@ -343,7 +353,7 @@ function Client_Equip.Init()
 		return UserInputService:GetMouseLocation()
 	end
 
-	local function isClickOverAnyUi(input: InputObject): boolean
+	local function isPointerOverBlockingUi(x: number, y: number): boolean
 		local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
 		if not playerGui then
 			return false
@@ -360,8 +370,8 @@ function Client_Equip.Init()
 			return true
 		end
 
-		local function isIgnorableUi(gui: GuiObject): boolean
-			if isUnderBlacklistedUi(gui) then
+		local function shouldIgnoreUi(gui: GuiObject): boolean
+			if isIgnoredUi(gui) then
 				return true
 			end
 			if gui.Name == "TrackHit" then
@@ -371,7 +381,7 @@ function Client_Equip.Init()
 		end
 
 		local function isBlockingInteractiveControl(gui: GuiObject): boolean
-			if isIgnorableUi(gui) then
+			if shouldIgnoreUi(gui) then
 				return false
 			end
 			if not isGuiVisibleForInput(gui) then
@@ -383,11 +393,8 @@ function Client_Equip.Init()
 			return gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("TextBox")
 		end
 
-		local function hasBlockingInteractiveControlAt(x: number, y: number): boolean
-			for _, gui in playerGui:GetGuiObjectsAtPosition(x, y) do
-				if isUnderBlacklistedUi(gui) then
-					continue
-				end
+		local function hasBlockingUiAt(screenX: number, screenY: number): boolean
+			for _, gui in playerGui:GetGuiObjectsAtPosition(screenX, screenY) do
 				if isBlockingInteractiveControl(gui) then
 					return true
 				end
@@ -395,45 +402,32 @@ function Client_Equip.Init()
 			return false
 		end
 
-		local function isTapOnlyOverBlacklistedUi(x: number, y: number): boolean
-			local objects = playerGui:GetGuiObjectsAtPosition(x, y)
-			if #objects == 0 then
-				return false
-			end
-
-			for _, gui in objects do
-				if not isUnderBlacklistedUi(gui) then
-					return false
-				end
-			end
-			return true
-		end
-
-		local pointer = getPointerPosition(input)
 		local inset = GuiService:GetGuiInset()
-		local guiPointer = Vector2.new(pointer.X - inset.X, pointer.Y - inset.Y)
+		local guiX = x - inset.X
+		local guiY = y - inset.Y
 
-		if isTapOnlyOverBlacklistedUi(pointer.X, pointer.Y) then
-			return false
-		end
-		if isTapOnlyOverBlacklistedUi(guiPointer.X, guiPointer.Y) then
-			return false
-		end
-
-		if hasBlockingInteractiveControlAt(pointer.X, pointer.Y) then
+		if hasBlockingUiAt(x, y) then
 			return true
 		end
-
-		if hasBlockingInteractiveControlAt(guiPointer.X, guiPointer.Y) then
+		if hasBlockingUiAt(guiX, guiY) then
 			return true
 		end
 
 		return false
 	end
 
-	local function tryOpenEquippedLuckyBlock(input: InputObject, _gameProcessed: boolean)
+	local function isClickOverAnyUi(input: InputObject): boolean
+		local pointer = getPointerPosition(input)
+		return isPointerOverBlockingUi(pointer.X, pointer.Y)
+	end
+
+	local function tryOpenEquippedLuckyBlock(input: InputObject, gameProcessed: boolean)
 		local inputType = input.UserInputType
 		if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		if gameProcessed then
 			return
 		end
 
@@ -456,9 +450,7 @@ function Client_Equip.Init()
 			return
 		end
 
-		-- Mobile: tap anywhere opens the lucky block. CashAdding and other HUD overlays
-		-- must never block touch input for this flow.
-		if inputType ~= Enum.UserInputType.Touch and isClickOverAnyUi(input) then
+		if isClickOverAnyUi(input) then
 			return
 		end
 
@@ -481,7 +473,24 @@ function Client_Equip.Init()
 	end
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		tryOpenEquippedLuckyBlock(input, gameProcessed)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if gameProcessed then
+				return
+			end
+
+			local startPos = Vector2.new(input.Position.X, input.Position.Y)
+			pendingTouchTaps[input] = {
+				startPos = startPos,
+				startTime = tick(),
+				cancelled = isPointerOverBlockingUi(startPos.X, startPos.Y),
+			}
+			return
+		end
+
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			tryOpenEquippedLuckyBlock(input, gameProcessed)
+			return
+		end
 
 		if gameProcessed then
 			return
@@ -496,6 +505,44 @@ function Client_Equip.Init()
 		end
 
 		Client_Equip.ToggleHotbarSlot(slotIndex)
+	end)
+
+	UserInputService.InputChanged:Connect(function(input, _gameProcessed)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local pending = pendingTouchTaps[input]
+		if not pending or pending.cancelled then
+			return
+		end
+
+		local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+		if (currentPos - pending.startPos).Magnitude > TOUCH_TAP_MAX_MOVEMENT then
+			pending.cancelled = true
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local pending = pendingTouchTaps[input]
+		pendingTouchTaps[input] = nil
+		if not pending or pending.cancelled or gameProcessed then
+			return
+		end
+
+		local endPos = Vector2.new(input.Position.X, input.Position.Y)
+		if (endPos - pending.startPos).Magnitude > TOUCH_TAP_MAX_MOVEMENT then
+			return
+		end
+		if tick() - pending.startTime > TOUCH_TAP_MAX_DURATION then
+			return
+		end
+
+		tryOpenEquippedLuckyBlock(input, false)
 	end)
 end
 

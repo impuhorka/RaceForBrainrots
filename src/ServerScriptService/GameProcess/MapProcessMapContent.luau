@@ -200,6 +200,41 @@ local function getWallInteriorSurfacePosition(wall: BasePart, worldX: number, wo
 	local surfacePosition = Vector3.new(worldX, worldY, worldZ) + interiorDir * wallHalfThickness
 	return surfacePosition, interiorDir
 end
+
+local function flushModelToInteriorWallSurface(
+	model: Model,
+	surfacePosition: Vector3,
+	interiorDir: Vector3,
+	clearance: number
+)
+	local interior = interiorDir.Unit
+	local bboxCF, bboxSize = model:GetBoundingBox()
+	local half = bboxSize / 2
+	local minOffset = math.huge
+
+	for sx = -1, 1, 2 do
+		for sy = -1, 1, 2 do
+			for sz = -1, 1, 2 do
+				local corner = bboxCF.Position
+					+ bboxCF.RightVector * half.X * sx
+					+ bboxCF.UpVector * half.Y * sy
+					+ bboxCF.LookVector * half.Z * sz
+				local offset = (corner - surfacePosition):Dot(interior)
+				minOffset = math.min(minOffset, offset)
+			end
+		end
+	end
+
+	if minOffset == math.huge then
+		return
+	end
+
+	local shift = clearance - minOffset
+	if math.abs(shift) > 0.001 then
+		model:PivotTo(model:GetPivot() + interior * shift)
+	end
+end
+
 local function placeDecorationOnHoleFloor(
 	holeFloor: BasePart,
 	template: Model,
@@ -896,10 +931,7 @@ local function placeLianaOnWall(
 	local position, interiorDir = getWallInteriorSurfacePosition(wall, worldX, wallTopY, worldZ)
 	local lookTarget = position + interiorDir
 	liana:PivotTo(CFrame.lookAt(position, lookTarget) * CFrame.Angles(0, -math.pi / 2, 0))
-
-	local _bboxCF, bboxSize = liana:GetBoundingBox()
-	local lianaHalfThickness = if wallRunsAlongZ(wall) then bboxSize.X / 2 else bboxSize.Z / 2
-	liana:PivotTo(liana:GetPivot() + interiorDir * lianaHalfThickness)
+	flushModelToInteriorWallSurface(liana, position, interiorDir, Shared_GameProcess.LilyWallClearance)
 
 	local bboxCF, bboxSize = liana:GetBoundingBox()
 	local targetBottomY = wallTopY - bboxSize.Y
@@ -967,40 +999,6 @@ local function getLilyPivotRotation(wall: BasePart): CFrame
 		rotation = CFrame.Angles(0, yawFlip, 0) * rotation
 	end
 	return rotation
-end
-
-local function flushModelToInteriorWallSurface(
-	model: Model,
-	surfacePosition: Vector3,
-	interiorDir: Vector3,
-	clearance: number
-)
-	local interior = interiorDir.Unit
-	local bboxCF, bboxSize = model:GetBoundingBox()
-	local half = bboxSize / 2
-	local minOffset = math.huge
-
-	for sx = -1, 1, 2 do
-		for sy = -1, 1, 2 do
-			for sz = -1, 1, 2 do
-				local corner = bboxCF.Position
-					+ bboxCF.RightVector * half.X * sx
-					+ bboxCF.UpVector * half.Y * sy
-					+ bboxCF.LookVector * half.Z * sz
-				local offset = (corner - surfacePosition):Dot(interior)
-				minOffset = math.min(minOffset, offset)
-			end
-		end
-	end
-
-	if minOffset == math.huge then
-		return
-	end
-
-	local shift = clearance - minOffset
-	if math.abs(shift) > 0.001 then
-		model:PivotTo(model:GetPivot() + interior * shift)
-	end
 end
 
 local function placeLilyOnWall(

@@ -1,3 +1,6 @@
+local Shared_Carry = require(script.Parent.Parent.Economy.Shared_Carry)
+local Shared_Rarities = require(script.Parent.Shared_Rarities)
+
 local Shared_Weight = {}
 
 Shared_Weight.RollTiers = {
@@ -54,6 +57,22 @@ end
 function Shared_Weight.RollWeight(baseWeight: number): number
 	local safeBase = math.max(0.01, tonumber(baseWeight) or 1)
 	return roundWeight(safeBase * Shared_Weight.RollWeightMultiplier())
+end
+
+function Shared_Weight.GetLuckyBlockMaxRollWeight(baseWeight: number, rarityName: string): number
+	local maxRequiredStrength = Shared_Rarities.GetMaxRequiredStrength(rarityName)
+	if maxRequiredStrength then
+		return Shared_Carry.GetMaxCarryWeight(maxRequiredStrength)
+	end
+
+	local safeBase = math.max(0.01, tonumber(baseWeight) or 1)
+	return roundWeight(safeBase * 9)
+end
+
+function Shared_Weight.RollLuckyBlockWeight(baseWeight: number, rarityName: string): number
+	local rolled = Shared_Weight.RollWeight(baseWeight)
+	local maxWeight = Shared_Weight.GetLuckyBlockMaxRollWeight(baseWeight, rarityName)
+	return roundWeight(math.min(rolled, maxWeight))
 end
 
 local function getSublinearScale(ratio: number, slope: number): number

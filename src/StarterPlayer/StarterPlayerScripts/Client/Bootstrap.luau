@@ -58,6 +58,7 @@ end
 local function runPostDataSystems()
 	local postDataModules = {
 		{ "Client_Data", "Init" },
+		{ "Client_Tutorial" },
 		{ "Client_PlotBillboards", "Init" },
 		{ "Client_Visuals" },
 		{ "Client_Hotbar" },

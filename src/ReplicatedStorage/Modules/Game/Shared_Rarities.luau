@@ -11,6 +11,9 @@ Shared_Rarities.Balance = {
 		Divine = { Min = 2600, Max = 3900 },
 		Superior = { Min = 3600, Max = 5400 },
 	},
+	MaxRequiredStrength = {
+		Common = 4,
+	},
 	PaybackMultiplier = {
 		Common = 0.9,
 		Rare = 1.05,
@@ -133,6 +136,15 @@ function Shared_Rarities.GetPaybackMultiplier(rarity: string): number
 	local balance = Shared_Rarities.Balance
 	local mult = balance and balance.PaybackMultiplier and balance.PaybackMultiplier[rarity]
 	return mult or 1
+end
+
+function Shared_Rarities.GetMaxRequiredStrength(rarity: string): number?
+	local balance = Shared_Rarities.Balance
+	local value = balance and balance.MaxRequiredStrength and balance.MaxRequiredStrength[rarity]
+	if type(value) == "number" and value > 0 then
+		return math.floor(value)
+	end
+	return nil
 end
 
 return Shared_Rarities

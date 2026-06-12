@@ -41,6 +41,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Shared_BigNum = root.Core.Shared_BigNum,
 	Shared_Sounds = root.Core.Shared_Sounds,
 	Shared_TableUtil = root.Core.Shared_TableUtil,
+	Shared_Tutorial = root.Core.Shared_Tutorial,
 
 	-- Vendor
 	ReplicaController = root.Vendor.ReplicaController,

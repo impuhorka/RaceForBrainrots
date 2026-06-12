@@ -79,7 +79,7 @@ local function addTotalCashEarned(player: Player, amount: number)
 end
 
 local DataTemplate = {
-	Cash = 200,
+	Cash = 0,
 
 	Speed = Shared_SpeedStore.DefaultSpeed,
 	Strength = 1,
@@ -565,6 +565,12 @@ function Module:ResetPlayerData(player: Player): boolean
 	local resetSpeed = resolveMaxSpeed(data.Speed)
 	local slowMode = resolveSlowModeEnabled(data.SlowMode)
 	applyWalkSpeed(player, resetSpeed, slowMode)
+
+	local events = ReplicatedStorage:FindFirstChild("Events")
+	local tutorialHandler = events and events:FindFirstChild("TutorialHandler")
+	if tutorialHandler and tutorialHandler:IsA("RemoteEvent") then
+		tutorialHandler:FireClient(player, "Restart")
+	end
 
 	return true
 end

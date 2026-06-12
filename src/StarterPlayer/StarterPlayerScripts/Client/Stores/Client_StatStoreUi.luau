@@ -4,6 +4,8 @@ local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local ClientLoader = require(script.Parent.Parent.Loader)
+local Client_StatStoreFreeHighlight = require(script.Parent.Client_StatStoreFreeHighlight)
+local Client_TutorialState = require(script.Parent.Parent.Core.Client_TutorialState)
 
 type StatStoreUiConfig = {
 	statName: string,
@@ -17,7 +19,8 @@ type StatStoreUiConfig = {
 
 type PurchaseUi = {
 	amount: number,
-	button: ImageButton,
+	root: GuiObject,
+	button: GuiButton,
 	costLabel: TextLabel?,
 	beforeLabel: TextLabel?,
 	afterLabel: TextLabel?,
@@ -43,19 +46,104 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 
 	local purchaseUis: { PurchaseUi } = {}
 	local plotHandler: RemoteEvent?
+	local storeFrame: GuiObject?
 
 	local function getCurrentValue(): number
 		local defaultValue = config.sharedStore.DefaultValue
 		return math.max(1, math.floor(Client_Data:GetValue(config.statName) or defaultValue))
 	end
 
+	local function findCostLabel(
+		root: Instance,
+		buttonRoot: Instance?,
+		button: GuiButton,
+		excludeLabels: { TextLabel? }
+	): TextLabel?
+		local function isExcluded(label: TextLabel): boolean
+			for _, excluded in excludeLabels do
+				if excluded == label then
+					return true
+				end
+			end
+			return false
+		end
+
+		for _, searchRoot in { button, buttonRoot, root } do
+			if searchRoot then
+				local found = searchRoot:FindFirstChild("Cost", true)
+				if found and found:IsA("TextLabel") and not isExcluded(found) then
+					return found
+				end
+			end
+		end
+
+		if buttonRoot then
+			for _, descendant in buttonRoot:GetDescendants() do
+				if descendant:IsA("TextLabel") and not isExcluded(descendant) then
+					return descendant
+				end
+			end
+		end
+
+		for _, descendant in root:GetDescendants() do
+			if not descendant:IsA("TextLabel") or isExcluded(descendant) then
+				continue
+			end
+
+			local nameLower = string.lower(descendant.Name)
+			if nameLower == "cost" or nameLower == "price" then
+				return descendant
+			end
+		end
+
+		for _, descendant in root:GetDescendants() do
+			if not descendant:IsA("TextLabel") or isExcluded(descendant) then
+				continue
+			end
+
+			local text = string.upper(string.gsub(descendant.Text, "^%s*(.-)%s*$", "%1"))
+			if text == "FREE" or string.find(text, "$", 1, true) then
+				return descendant
+			end
+		end
+
+		return nil
+	end
+
+	local function shouldHighlightPurchase(option: PurchaseUi, cost: number): boolean
+		if cost > 0 or config.frameName ~= "StrengthStore" then
+			return false
+		end
+		if not Client_TutorialState.highlightStrengthStoreFree then
+			return false
+		end
+		return option.amount == 1
+	end
+
 	local function renderOption(option: PurchaseUi, currentValue: number)
 		local nextValue = config.sharedStore.GetValueAfterPurchase(currentValue, option.amount)
 		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount)
+		local highlight = shouldHighlightPurchase(option, cost)
+
+		if not option.costLabel or not option.costLabel.Parent then
+			option.costLabel = findCostLabel(
+				option.root,
+				option.root:FindFirstChild("Button"),
+				option.button,
+				{ option.beforeLabel, option.afterLabel }
+			)
+		end
 
 		if option.costLabel then
 			option.costLabel.Text = if cost <= 0 then "FREE" else ("$%s"):format(Shared_Abbreviation:Number(cost))
 		end
+
+		Client_StatStoreFreeHighlight.setPurchaseHighlight(
+			option.costLabel,
+			option.button,
+			option.button,
+			highlight
+		)
 		if option.beforeLabel then
 			option.beforeLabel.Text = tostring(currentValue)
 		end
@@ -72,24 +160,33 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 	end
 
 	local function setupPurchaseUi(amount: number, root: Instance)
+		if not root:IsA("GuiObject") then
+			return
+		end
+
 		local buttonRoot = root:FindFirstChild("Button")
-		local imageButton = if buttonRoot then buttonRoot:FindFirstChildWhichIsA("ImageButton", true) else nil
-		if not imageButton then
+		local button = if buttonRoot then buttonRoot:FindFirstChildWhichIsA("GuiButton", true) else nil
+		if not button then
+			button = root:FindFirstChildWhichIsA("GuiButton", true)
+		end
+		if not button then
 			return
 		end
 
 		local numbersRoot = root:FindFirstChild("Numbers")
+		local beforeLabel = if numbersRoot then findTextLabel(numbersRoot, "Before") else nil
+		local afterLabel = if numbersRoot then findTextLabel(numbersRoot, "After") else nil
 		local option: PurchaseUi = {
 			amount = amount,
-			button = imageButton,
-			costLabel = findTextLabel(imageButton, "Cost")
-				or (if buttonRoot then findTextLabel(buttonRoot, "Cost") else nil),
-			beforeLabel = if numbersRoot then findTextLabel(numbersRoot, "Before") else nil,
-			afterLabel = if numbersRoot then findTextLabel(numbersRoot, "After") else nil,
+			root = root,
+			button = button,
+			costLabel = findCostLabel(root, buttonRoot, button, { beforeLabel, afterLabel }),
+			beforeLabel = beforeLabel,
+			afterLabel = afterLabel,
 		}
 
 		table.insert(purchaseUis, option)
-		imageButton.MouseButton1Click:Connect(function()
+		button.MouseButton1Click:Connect(function()
 			if plotHandler then
 				plotHandler:FireServer(config.buyRemoteAction, amount)
 			end
@@ -99,7 +196,7 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 	local function setupUi()
 		local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 		local frames = playerGui:WaitForChild("Main"):WaitForChild("Frames")
-		local storeFrame = frames:WaitForChild(config.frameName)
+		storeFrame = frames:WaitForChild(config.frameName) :: GuiObject
 		local holder = storeFrame:WaitForChild("Holder")
 
 		table.clear(purchaseUis)
@@ -154,7 +251,18 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 			setupUi()
 			Client_Data:ListenToChange(config.statName, renderAll)
 			hookPurchaseResponses()
+
+			if storeFrame then
+				storeFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+					if storeFrame and storeFrame.Visible then
+						renderAll()
+					end
+				end)
+			end
+
+			task.defer(renderAll)
 		end,
+		Refresh = renderAll,
 	}
 end
 

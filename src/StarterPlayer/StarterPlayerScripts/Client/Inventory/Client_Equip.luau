@@ -67,8 +67,20 @@ local function syncEquippedToServer()
 	end
 end
 
+local function refreshEquippedStrokes()
+	for slotIndex = 1, Client_Hotbar.GetSize() do
+		local button = Client_Hotbar.GetSlotButton(slotIndex)
+		local inventoryIndex = Client_Hotbar.GetSlotInventoryIndex(slotIndex)
+		Client_Equip.SetStroke(button, inventoryIndex)
+	end
+end
+
 local function notifyEquipChanged()
 	syncEquippedToServer()
+	refreshEquippedStrokes()
+	if refreshAll then
+		refreshAll()
+	end
 	for _, listener in equipListeners do
 		listener()
 	end

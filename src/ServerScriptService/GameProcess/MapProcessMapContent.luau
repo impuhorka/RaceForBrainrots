@@ -318,7 +318,7 @@ local function placeLuckyBlockOnHoleFloor(
 	prepareLuckyBlockModel(luckyBlock)
 
 	local baseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
-	local rolledWeight = Shared_Weight.RollWeight(baseWeight)
+	local rolledWeight = Shared_Weight.RollLuckyBlockWeight(baseWeight, rarityName)
 	Shared_Weight.ApplyLuckyBlockScale(luckyBlock, baseWeight, rolledWeight)
 	Shared_Weight.SyncLuckyBlockPivot(luckyBlock)
 
@@ -807,7 +807,7 @@ local function spawnLuckyBlocksForHoleFloor(
 	local previewBlock = luckyBlockTemplate:Clone()
 	prepareLuckyBlockModel(previewBlock)
 	local previewBaseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
-	local previewMaxWeight = previewBaseWeight * 9
+	local previewMaxWeight = Shared_Weight.GetLuckyBlockMaxRollWeight(previewBaseWeight, rarityName)
 	Shared_Weight.ApplyLuckyBlockScale(previewBlock, previewBaseWeight, previewMaxWeight)
 	local previewSize = getDecorationExtents(previewBlock)
 	previewBlock:Destroy()

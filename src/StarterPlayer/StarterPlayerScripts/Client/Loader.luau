@@ -56,6 +56,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_SpeedStore = root.Stores.Client_SpeedStore,
 	Client_StrengthStore = root.Stores.Client_StrengthStore,
 	Client_TadaEffect = root.Core.Client_TadaEffect,
+	Client_Tutorial = root.Core.Client_Tutorial,
 	Client_Visuals = root.Core.Client_Visuals,
 	Client_VisualSettings = root.Core.Client_VisualSettings,
 }

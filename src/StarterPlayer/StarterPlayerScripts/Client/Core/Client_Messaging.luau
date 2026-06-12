@@ -11,6 +11,7 @@ local Client_SoundPreload = ClientLoader.require("Client_SoundPreload")
 local Client_Messaging = {}
 
 local MAX_MESSAGES = 3
+local PERSISTENT_LAYOUT_ORDER = 1_000_000
 local DISPLAY_TIME = 4
 local FADE_TIME = 0.45
 local POP_UP_SCALE = 1.08
@@ -36,12 +37,15 @@ type ActiveMessage = {
 	fadeTweens: { Tween }?,
 	popTweens: { Tween }?,
 	popToken: number,
+	persistent: boolean?,
+	persistentId: string?,
 }
 
 local messagingFrame: Frame?
 local messageTemplates: Folder?
 local activeMessages: { ActiveMessage } = {}
 local messagesByKey: { [string]: ActiveMessage } = {}
+local persistentMessagesById: { [string]: ActiveMessage } = {}
 local adminFeedbackConnected = false
 
 local function playSfx(soundId: string, volume: number)
@@ -64,13 +68,21 @@ local function formatMessageText(baseText: string, count: number): string
 end
 
 local function getNextLayoutOrder(): number
-	if #activeMessages == 0 then
-		return 0
+	local minOrder: number? = nil
+
+	for _, entry in activeMessages do
+		if entry.persistent then
+			continue
+		end
+
+		local order = entry.clone.LayoutOrder
+		if minOrder == nil or order < minOrder then
+			minOrder = order
+		end
 	end
 
-	local minOrder = activeMessages[1].clone.LayoutOrder
-	for index = 2, #activeMessages do
-		minOrder = math.min(minOrder, activeMessages[index].clone.LayoutOrder)
+	if minOrder == nil then
+		return 0
 	end
 
 	return minOrder - 1
@@ -231,6 +243,10 @@ local function fadeAndDestroy(entry: ActiveMessage, lifecycleId: number)
 end
 
 local function scheduleLifecycle(entry: ActiveMessage)
+	if entry.persistent then
+		return
+	end
+
 	cancelFadeTweens(entry)
 	entry.lifecycleId += 1
 	local lifecycleId = entry.lifecycleId
@@ -243,19 +259,30 @@ local function scheduleLifecycle(entry: ActiveMessage)
 	end)
 end
 
-local function removeOldestMessage()
-	if #activeMessages == 0 then
-		return
+local function ensurePersistentMessagesOnTop()
+	for _, entry in activeMessages do
+		if entry.persistent and entry.clone.Parent then
+			entry.clone.LayoutOrder = PERSISTENT_LAYOUT_ORDER
+		end
 	end
+end
 
-	local oldest = activeMessages[1]
-	for index = 2, #activeMessages do
-		if activeMessages[index].clone.LayoutOrder > oldest.clone.LayoutOrder then
-			oldest = activeMessages[index]
+local function removeOldestTransientMessage()
+	local oldest: ActiveMessage? = nil
+
+	for _, entry in activeMessages do
+		if entry.persistent then
+			continue
+		end
+
+		if not oldest or entry.clone.LayoutOrder > oldest.clone.LayoutOrder then
+			oldest = entry
 		end
 	end
 
-	removeEntry(oldest)
+	if oldest then
+		removeEntry(oldest)
+	end
 end
 
 local function getTemplate(color: string): TextLabel?
@@ -318,11 +345,15 @@ function Client_Messaging.Show(message: string, color: string?)
 		setLabelOpaque(existing.clone)
 		scheduleLifecycle(existing)
 		playPopAnimation(existing)
+		ensurePersistentMessagesOnTop()
 		return
 	end
 
 	while #activeMessages >= MAX_MESSAGES do
-		removeOldestMessage()
+		removeOldestTransientMessage()
+		if #activeMessages < MAX_MESSAGES then
+			break
+		end
 	end
 
 	local clone = createMessageClone(formatMessageText(trimmedMessage, 1), normalizedColor)
@@ -344,6 +375,85 @@ function Client_Messaging.Show(message: string, color: string?)
 	messagesByKey[key] = entry
 	scheduleLifecycle(entry)
 	playPopAnimation(entry)
+	ensurePersistentMessagesOnTop()
+end
+
+function Client_Messaging.ShowPersistent(id: string, message: string, color: string?)
+	if not messagingFrame or not messageTemplates then
+		return
+	end
+
+	local trimmedMessage = string.gsub(message, "^%s*(.-)%s*$", "%1")
+	if trimmedMessage == "" then
+		return
+	end
+
+	local normalizedColor = string.lower(color or "white")
+	if not COLOR_TEMPLATES[normalizedColor] then
+		normalizedColor = "white"
+	end
+
+	local existing = persistentMessagesById[id]
+	if existing then
+		existing.baseText = trimmedMessage
+		existing.color = normalizedColor
+		existing.clone.Text = trimmedMessage
+		existing.clone.LayoutOrder = PERSISTENT_LAYOUT_ORDER
+		setLabelOpaque(existing.clone)
+		ensurePersistentMessagesOnTop()
+		return
+	end
+
+	while #activeMessages >= MAX_MESSAGES do
+		local removedPersistent = false
+		for index = #activeMessages, 1, -1 do
+			local entry = activeMessages[index]
+			if not entry.persistent then
+				removeEntry(entry)
+				removedPersistent = true
+				break
+			end
+		end
+		if not removedPersistent then
+			break
+		end
+	end
+
+	local clone = createMessageClone(trimmedMessage, normalizedColor)
+	if not clone then
+		return
+	end
+
+	clone.LayoutOrder = PERSISTENT_LAYOUT_ORDER
+
+	local key = getMessageKey(normalizedColor, trimmedMessage)
+	local entry: ActiveMessage = {
+		key = key,
+		baseText = trimmedMessage,
+		color = normalizedColor,
+		count = 1,
+		clone = clone,
+		lifecycleId = 0,
+		popToken = 0,
+		persistent = true,
+		persistentId = id,
+	}
+
+	table.insert(activeMessages, entry)
+	messagesByKey[key] = entry
+	persistentMessagesById[id] = entry
+	playPopAnimation(entry)
+	ensurePersistentMessagesOnTop()
+end
+
+function Client_Messaging.HidePersistent(id: string)
+	local entry = persistentMessagesById[id]
+	if not entry then
+		return
+	end
+
+	persistentMessagesById[id] = nil
+	removeEntry(entry)
 end
 
 local function waitForMainUiChild(main: Instance, name: string): Instance?

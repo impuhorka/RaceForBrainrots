@@ -428,6 +428,10 @@ function Client_LuckyBlockCarry.IsCarrying(): boolean
 	return localPlayer:GetAttribute("CarryingLuckyBlock") == true
 end
 
+function Client_LuckyBlockCarry.PlayRaceFinishSuccessSfx()
+	playRaceFinishSuccessSfx()
+end
+
 local function waitForInventoryItem(inventoryIndex: number): boolean
 	local deadline = os.clock() + INVENTORY_WAIT_SECONDS
 	while os.clock() < deadline do
@@ -453,8 +457,8 @@ local function onLuckyBlockDelivered(inventoryIndex: number, rarity: string?)
 		end
 
 		playDeliveryCelebration(rarity)
-		Client_Hotbar.AssignItemToHotbar(inventoryIndex)
 		Client_Equip.Equip(inventoryIndex, false)
+		Client_Hotbar.AssignItemToHotbar(inventoryIndex)
 	end)
 end
 

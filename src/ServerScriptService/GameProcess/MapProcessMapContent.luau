@@ -183,7 +183,9 @@ local function getWallInteriorDirection(wall: BasePart): Vector3
 		return Vector3.new(0, 0, -1)
 	elseif side == "Back" then
 		return Vector3.new(0, 0, 1)
-	elseif side == "Outer" then
+	elseif side == "VIP" then
+		return Vector3.new(0, 0, 1)
+	elseif side == "Outer" or side == "VIPOuter" then
 		if string.find(wall.Name, "LeftHole", 1, true) then
 			return Vector3.new(1, 0, 0)
 		end
@@ -192,6 +194,72 @@ local function getWallInteriorDirection(wall: BasePart): Vector3
 		end
 	end
 	return Vector3.new(1, 0, 0)
+end
+
+local function getWallInteriorFace(wall: BasePart): Enum.NormalId
+	local interiorDir = getWallInteriorDirection(wall)
+	if interiorDir.X > 0.5 then
+		return Enum.NormalId.Right
+	end
+	if interiorDir.X < -0.5 then
+		return Enum.NormalId.Left
+	end
+	if interiorDir.Z > 0.5 then
+		return Enum.NormalId.Back
+	end
+	if interiorDir.Z < -0.5 then
+		return Enum.NormalId.Front
+	end
+	return Enum.NormalId.Back
+end
+
+local function getWallExteriorFace(wall: BasePart): Enum.NormalId
+	local interiorFace = getWallInteriorFace(wall)
+	if interiorFace == Enum.NormalId.Right then
+		return Enum.NormalId.Left
+	elseif interiorFace == Enum.NormalId.Left then
+		return Enum.NormalId.Right
+	elseif interiorFace == Enum.NormalId.Back then
+		return Enum.NormalId.Front
+	elseif interiorFace == Enum.NormalId.Front then
+		return Enum.NormalId.Back
+	end
+	return Enum.NormalId.Front
+end
+
+local function getVipRoadWallName(rarityName: string, holeSide: string): string
+	return `{rarityName}{holeSide}VIPRoadWall`
+end
+
+local function attachMinimapWallSurfaceGui(wall: BasePart, guiName: string, face: Enum.NormalId?)
+	if wall:FindFirstChild(guiName) then
+		return
+	end
+
+	local template = MapProcessAssets.getWallSurfaceGuiTemplate()
+	if not template then
+		warn("Missing ReplicatedStorage.Assets.Billboards.WallSurfaceGui")
+		return
+	end
+
+	local surfaceGui = template:Clone()
+	surfaceGui.Name = guiName
+	surfaceGui.Face = face or getWallInteriorFace(wall)
+	surfaceGui.Parent = wall
+end
+
+local function attachVipMinimapWallGuis(parent: Instance, rarityName: string, holeSide: string)
+	local wallPrefix = `{rarityName}{holeSide}Hole`
+
+	local vipWall = parent:FindFirstChild(`{wallPrefix}VIPWall`)
+	if vipWall and vipWall:IsA("BasePart") then
+		attachMinimapWallSurfaceGui(vipWall, "WallSurfaceGui")
+	end
+
+	local vipRoadWall = parent:FindFirstChild(getVipRoadWallName(rarityName, holeSide))
+	if vipRoadWall and vipRoadWall:IsA("BasePart") then
+		attachMinimapWallSurfaceGui(vipRoadWall, "WallSurfaceGui2", getWallExteriorFace(vipRoadWall))
+	end
 end
 
 local function getWallInteriorSurfacePosition(wall: BasePart, worldX: number, worldY: number, worldZ: number): (Vector3, Vector3)
@@ -318,7 +386,10 @@ local function placeLuckyBlockOnHoleFloor(
 	prepareLuckyBlockModel(luckyBlock)
 
 	local baseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
-	local rolledWeight = Shared_Weight.RollLuckyBlockWeight(baseWeight, rarityName)
+	local weightLuckMultiplier = if holeFloor:GetAttribute("IsVIPHoleFloor") == true
+		then Shared_GameProcess.VIPMinimapWeightLuckMultiplier
+		else nil
+	local rolledWeight = Shared_Weight.RollLuckyBlockWeight(baseWeight, rarityName, weightLuckMultiplier)
 	Shared_Weight.ApplyLuckyBlockScale(luckyBlock, baseWeight, rolledWeight)
 	Shared_Weight.SyncLuckyBlockPivot(luckyBlock)
 
@@ -348,6 +419,9 @@ local function placeLuckyBlockOnHoleFloor(
 	luckyBlock:SetAttribute("ConfigName", configName)
 	luckyBlock:SetAttribute("BaseWeight", baseWeight)
 	luckyBlock:SetAttribute("Weight", rolledWeight)
+	if holeFloor:GetAttribute("IsVIPHoleFloor") == true then
+		luckyBlock:SetAttribute("IsVIPZone", true)
+	end
 	Shared_LuckyBlockBillboard.Setup(luckyBlock, configName, baseWeight, rolledWeight)
 	GameProcessService.SetupWorldLuckyBlock(luckyBlock)
 	luckyBlock.Parent = parent
@@ -845,47 +919,146 @@ local function spawnLuckyBlocksForHoleFloor(
 	end
 end
 
+local function placeRoadWall(
+	wallTemplate: BasePart,
+	name: string,
+	position: Vector3,
+	size: Vector3,
+	rarityName: string,
+	side: string,
+	parent: Instance,
+	extraAttributes: { [string]: any }?
+)
+	local wall = wallTemplate:Clone()
+	wall.Name = name
+	wall.Size = size
+	wall.Position = position
+	wall:SetAttribute("Rarity", rarityName)
+	wall:SetAttribute("Side", side)
+	wall:SetAttribute("IsGameProcessWall", true)
+	if extraAttributes then
+		for attributeName, attributeValue in extraAttributes do
+			wall:SetAttribute(attributeName, attributeValue)
+		end
+	end
+	wall.Parent = parent
+end
+
+local function placeSideRoadWalls(
+	floor: BasePart,
+	wallTemplate: BasePart,
+	rarityName: string,
+	side: string,
+	wallX: number,
+	wallY: number,
+	wallBackZ: number,
+	wallFrontZ: number,
+	parent: Instance,
+	vipHoleFloor: BasePart?
+)
+	local originWallSize = wallTemplate.Size
+	local wallThicknessX = originWallSize.X
+	local sideName = if side == "Left" then "Left" else "Right"
+	local floorBackZ = floor.Position.Z - floor.Size.Z / 2
+	local mainRoadBackZ = if vipHoleFloor then floorBackZ else wallBackZ
+
+	if not vipHoleFloor then
+		local wallLengthZ = wallFrontZ - wallBackZ
+		placeRoadWall(
+			wallTemplate,
+			`{rarityName}{sideName}Wall`,
+			Vector3.new(wallX, wallY, (wallBackZ + wallFrontZ) / 2),
+			Vector3.new(wallThicknessX, originWallSize.Y, wallLengthZ),
+			rarityName,
+			side,
+			parent
+		)
+		return
+	end
+
+	local vipHalfZ = vipHoleFloor.Size.Z / 2
+	local vipBackZ = vipHoleFloor.Position.Z - vipHalfZ
+	local vipFrontZ = vipHoleFloor.Position.Z + vipHalfZ
+
+	if mainRoadBackZ < vipBackZ - 0.01 then
+		placeRoadWall(
+			wallTemplate,
+			`{rarityName}{sideName}Wall`,
+			Vector3.new(wallX, wallY, (mainRoadBackZ + vipBackZ) / 2),
+			Vector3.new(wallThicknessX, originWallSize.Y, vipBackZ - mainRoadBackZ),
+			rarityName,
+			side,
+			parent
+		)
+	end
+
+	placeRoadWall(
+		wallTemplate,
+		`{rarityName}{sideName}VIPRoadWall`,
+		Vector3.new(wallX, wallY, vipHoleFloor.Position.Z),
+		Vector3.new(wallThicknessX, originWallSize.Y, vipHoleFloor.Size.Z),
+		rarityName,
+		side,
+		parent,
+		{ IsVIPRoadWall = true }
+	)
+
+	if vipFrontZ < wallFrontZ - 0.01 then
+		placeRoadWall(
+			wallTemplate,
+			`{rarityName}{sideName}FrontRoadWall`,
+			Vector3.new(wallX, wallY, (vipFrontZ + wallFrontZ) / 2),
+			Vector3.new(wallThicknessX, originWallSize.Y, wallFrontZ - vipFrontZ),
+			rarityName,
+			side,
+			parent
+		)
+	end
+end
+
 local function placeWallsForFloor(
 	floor: BasePart,
 	wallTemplate: BasePart,
 	rarityName: string,
-	parent: Instance
+	parent: Instance,
+	leftVipHoleFloor: BasePart?,
+	rightVipHoleFloor: BasePart?
 )
 	local originWallSize = wallTemplate.Size
 	local halfFloorX = floor.Size.X / 2
 	local frontOpening = Shared_GameProcess.WallFrontOpening
 	local wallLengthZ = floor.Size.Z - frontOpening
-	local wallSize = Vector3.new(originWallSize.X, originWallSize.Y, wallLengthZ)
-	local halfWallThicknessX = wallSize.X / 2
-	local halfWallY = wallSize.Y / 2
+	local halfWallThicknessX = originWallSize.X / 2
+	local halfWallY = originWallSize.Y / 2
 	local wallY = floor.Position.Y - floor.Size.Y + halfWallY
 	local wallZ = floor.Position.Z + frontOpening / 2
+	local wallBackZ = wallZ - wallLengthZ / 2
+	local wallFrontZ = wallZ + wallLengthZ / 2
 
-	local leftWall = wallTemplate:Clone()
-	leftWall.Name = `{rarityName}LeftWall`
-	leftWall.Size = wallSize
-	leftWall.Position = Vector3.new(
+	placeSideRoadWalls(
+		floor,
+		wallTemplate,
+		rarityName,
+		"Left",
 		floor.Position.X - halfFloorX - halfWallThicknessX,
 		wallY,
-		wallZ
+		wallBackZ,
+		wallFrontZ,
+		parent,
+		leftVipHoleFloor
 	)
-	leftWall:SetAttribute("Rarity", rarityName)
-	leftWall:SetAttribute("Side", "Left")
-	leftWall:SetAttribute("IsGameProcessWall", true)
-	leftWall.Parent = parent
-
-	local rightWall = wallTemplate:Clone()
-	rightWall.Name = `{rarityName}RightWall`
-	rightWall.Size = wallSize
-	rightWall.Position = Vector3.new(
+	placeSideRoadWalls(
+		floor,
+		wallTemplate,
+		rarityName,
+		"Right",
 		floor.Position.X + halfFloorX + halfWallThicknessX,
 		wallY,
-		wallZ
+		wallBackZ,
+		wallFrontZ,
+		parent,
+		rightVipHoleFloor
 	)
-	rightWall:SetAttribute("Rarity", rarityName)
-	rightWall:SetAttribute("Side", "Right")
-	rightWall:SetAttribute("IsGameProcessWall", true)
-	rightWall.Parent = parent
 end
 
 local function getWallY(floorPart: BasePart, wallHeight: number): number
@@ -899,7 +1072,8 @@ local function placeWall(
 	size: Vector3,
 	rarityName: string,
 	side: string,
-	parent: Instance
+	parent: Instance,
+	extraAttributes: { [string]: any }?
 )
 	local wall = wallTemplate:Clone()
 	wall.Name = name
@@ -909,6 +1083,11 @@ local function placeWall(
 	wall:SetAttribute("Side", side)
 	wall:SetAttribute("IsGameProcessWall", true)
 	wall:SetAttribute("IsMinimapWall", true)
+	if extraAttributes then
+		for attributeName, attributeValue in extraAttributes do
+			wall:SetAttribute(attributeName, attributeValue)
+		end
+	end
 	wall.Parent = parent
 end
 
@@ -1062,10 +1241,11 @@ local function placeHoleFloor(
 	positionX: number,
 	positionZ: number,
 	holeFloorSize: Vector3,
-	parent: Instance
+	parent: Instance,
+	floorName: string?
 ): BasePart
 	local holeFloor = floorTemplate:Clone()
-	holeFloor.Name = `{rarityName}{side}HoleFloor`
+	holeFloor.Name = floorName or `{rarityName}{side}HoleFloor`
 	holeFloor.Size = holeFloorSize
 	holeFloor.Position = Vector3.new(positionX, floor.Position.Y, positionZ)
 	holeFloor.Color = Shared_GameProcess.MinimapFloorColor
@@ -1100,6 +1280,30 @@ local function placeEntranceFloor(
 	entranceFloor.Parent = parent
 end
 
+local function placeMinimapJunctionEntranceFloor(
+	floorTemplate: BasePart,
+	rarityName: string,
+	holeSide: string,
+	centerX: number,
+	centerZ: number,
+	floorY: number,
+	floorHeight: number,
+	widthX: number,
+	depthZ: number,
+	parent: Instance
+)
+	local junctionFloor = floorTemplate:Clone()
+	junctionFloor.Name = `{rarityName}{holeSide}MinimapJunctionFloor`
+	junctionFloor.Size = Vector3.new(widthX, floorHeight, depthZ)
+	junctionFloor.Position = Vector3.new(centerX, floorY, centerZ)
+	junctionFloor.Color = Shared_GameProcess.EntranceFloorColor
+	junctionFloor:SetAttribute("Rarity", rarityName)
+	junctionFloor:SetAttribute("IsEntranceFloor", true)
+	junctionFloor:SetAttribute("IsMinimapJunctionEntrance", true)
+	junctionFloor:SetAttribute("HoleSide", holeSide)
+	junctionFloor.Parent = parent
+end
+
 local function placeWallsForHoleFloor(
 	holeFloor: BasePart,
 	wallTemplate: BasePart,
@@ -1107,7 +1311,8 @@ local function placeWallsForHoleFloor(
 	holeSide: string,
 	footprintCenterX: number,
 	footprintWidthX: number,
-	parent: Instance
+	parent: Instance,
+	vipHoleFloor: BasePart?
 )
 	local originWallSize = wallTemplate.Size
 	local halfHoleX = holeFloor.Size.X / 2
@@ -1115,12 +1320,39 @@ local function placeWallsForHoleFloor(
 	local halfHoleZ = holeFloor.Size.Z / 2
 	local wallY = getWallY(holeFloor, originWallSize.Y)
 	local wallPrefix = `{rarityName}{holeSide}Hole`
+	local mainBackZ = holeFloor.Position.Z - halfHoleZ
+	local mainFrontZ = holeFloor.Position.Z + halfHoleZ
+	local outerWallX = if holeSide == "Left"
+		then footprintCenterX - halfFootprintX
+		else footprintCenterX + halfFootprintX
 
-	if holeSide == "Left" then
+	if vipHoleFloor then
+		local vipHalfZ = vipHoleFloor.Size.Z / 2
+
 		placeWall(
 			wallTemplate,
 			`{wallPrefix}OuterWall`,
-			Vector3.new(footprintCenterX - halfFootprintX, wallY, holeFloor.Position.Z),
+			Vector3.new(outerWallX, wallY, holeFloor.Position.Z),
+			Vector3.new(originWallSize.X, originWallSize.Y, holeFloor.Size.Z),
+			rarityName,
+			"Outer",
+			parent
+		)
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}VIPOuterWall`,
+			Vector3.new(outerWallX, wallY, vipHoleFloor.Position.Z),
+			Vector3.new(originWallSize.X, originWallSize.Y, vipHoleFloor.Size.Z),
+			rarityName,
+			"VIPOuter",
+			parent,
+			{ IsVIPOuterWall = true }
+		)
+	elseif holeSide == "Left" then
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}OuterWall`,
+			Vector3.new(outerWallX, wallY, holeFloor.Position.Z),
 			Vector3.new(originWallSize.X, originWallSize.Y, holeFloor.Size.Z),
 			rarityName,
 			"Outer",
@@ -1130,7 +1362,7 @@ local function placeWallsForHoleFloor(
 		placeWall(
 			wallTemplate,
 			`{wallPrefix}OuterWall`,
-			Vector3.new(footprintCenterX + halfFootprintX, wallY, holeFloor.Position.Z),
+			Vector3.new(outerWallX, wallY, holeFloor.Position.Z),
 			Vector3.new(originWallSize.X, originWallSize.Y, holeFloor.Size.Z),
 			rarityName,
 			"Outer",
@@ -1138,29 +1370,69 @@ local function placeWallsForHoleFloor(
 		)
 	end
 
-	placeWall(
-		wallTemplate,
-		`{wallPrefix}BackWall`,
-		Vector3.new(footprintCenterX, wallY, holeFloor.Position.Z - halfHoleZ),
-		Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
-		rarityName,
-		"Back",
-		parent
-	)
-	placeWall(
-		wallTemplate,
-		`{wallPrefix}FrontWall`,
-		Vector3.new(footprintCenterX, wallY, holeFloor.Position.Z + halfHoleZ),
-		Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
-		rarityName,
-		"Front",
-		parent
-	)
+	if vipHoleFloor then
+		local wallHalfZ = originWallSize.X / 2
+		local mainFrontZ = holeFloor.Position.Z + holeFloor.Size.Z / 2
+		local vipBackZ = vipHoleFloor.Position.Z - vipHoleFloor.Size.Z / 2
+		local vipWallZ = (mainFrontZ + vipBackZ) / 2
+		local vipHalfZ = vipHoleFloor.Size.Z / 2
+		local vipFrontWallZ = vipHoleFloor.Position.Z + vipHalfZ + wallHalfZ
+
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}BackWall`,
+			Vector3.new(footprintCenterX, wallY, mainBackZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"Back",
+			parent
+		)
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}VIPWall`,
+			Vector3.new(footprintCenterX, wallY, vipWallZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"VIP",
+			parent,
+			{ IsVIPWall = true }
+		)
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}FrontWall`,
+			Vector3.new(footprintCenterX, wallY, vipFrontWallZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"Front",
+			parent
+		)
+	else
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}BackWall`,
+			Vector3.new(footprintCenterX, wallY, holeFloor.Position.Z - halfHoleZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"Back",
+			parent
+		)
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}FrontWall`,
+			Vector3.new(footprintCenterX, wallY, holeFloor.Position.Z + halfHoleZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"Front",
+			parent
+		)
+	end
 end
 
 export type HoleFloorLayout = {
 	leftHoleFloor: BasePart,
 	rightHoleFloor: BasePart,
+	leftVipHoleFloor: BasePart?,
+	rightVipHoleFloor: BasePart?,
 	leftFootprintCenterX: number,
 	rightFootprintCenterX: number,
 	holeWidthX: number,
@@ -1169,6 +1441,7 @@ export type HoleFloorLayout = {
 local function placeHoleFloorsAndEntrancesForFloor(
 	floor: BasePart,
 	floorTemplate: BasePart,
+	wallTemplate: BasePart,
 	rarityName: string,
 	parent: Instance
 ): HoleFloorLayout
@@ -1182,8 +1455,11 @@ local function placeHoleFloorsAndEntrancesForFloor(
 	local halfFloorX = floor.Size.X / 2
 	local floorBackZ = floor.Position.Z - floor.Size.Z / 2
 	local holeCenterZ = floorBackZ + halfHoleDepthZ
+	local hasVIPExtension = Shared_GameProcess.HasVIPMinimapExtension(rarityName)
 
-	local mainHoleFloorSize = Vector3.new(mainHoleWidthX, floor.Size.Y, holeDepthZ)
+	local mainHoleDepthZ = if hasVIPExtension then holeDepthZ - entranceDepth else holeDepthZ
+	local mainHoleCenterZ = if hasVIPExtension then holeCenterZ - entranceDepth / 2 else holeCenterZ
+	local mainHoleFloorSize = Vector3.new(mainHoleWidthX, floor.Size.Y, mainHoleDepthZ)
 
 	local leftFootprintCenterX = floor.Position.X - halfFloorX - halfHoleWidthX
 	local leftMainCenterX = leftFootprintCenterX - halfEntranceDepth
@@ -1194,7 +1470,7 @@ local function placeHoleFloorsAndEntrancesForFloor(
 		rarityName,
 		"Left",
 		leftMainCenterX,
-		holeCenterZ,
+		mainHoleCenterZ,
 		mainHoleFloorSize,
 		parent
 	)
@@ -1209,15 +1485,82 @@ local function placeHoleFloorsAndEntrancesForFloor(
 		rarityName,
 		"Right",
 		rightMainCenterX,
-		holeCenterZ,
+		mainHoleCenterZ,
 		mainHoleFloorSize,
 		parent
 	)
 	placeEntranceFloor(rightHoleFloor, floorTemplate, rarityName, "Right", parent)
 
+	local leftVipHoleFloor: BasePart? = nil
+	local rightVipHoleFloor: BasePart? = nil
+
+	if hasVIPExtension then
+		local vipDepthZ = Shared_GameProcess.VIPMinimapExtensionDepth
+		local wallThicknessZ = wallTemplate.Size.X
+		local mainFrontZ = mainHoleCenterZ + mainHoleDepthZ / 2
+		local vipBackZ = mainFrontZ + wallThicknessZ
+		local vipCenterZ = vipBackZ + vipDepthZ / 2
+		local vipFloorSize = Vector3.new(mainHoleWidthX, floor.Size.Y, vipDepthZ)
+		local junctionCenterZ = mainFrontZ + wallThicknessZ / 2
+
+		leftVipHoleFloor = placeHoleFloor(
+			floor,
+			floorTemplate,
+			rarityName,
+			"Left",
+			leftMainCenterX,
+			vipCenterZ,
+			vipFloorSize,
+			parent,
+			`{rarityName}LeftVIPHoleFloor`
+		)
+		leftVipHoleFloor:SetAttribute("IsVIPHoleFloor", true)
+		placeEntranceFloor(leftVipHoleFloor, floorTemplate, rarityName, "Left", parent)
+		placeMinimapJunctionEntranceFloor(
+			floorTemplate,
+			rarityName,
+			"Left",
+			leftFootprintCenterX,
+			junctionCenterZ,
+			floor.Position.Y,
+			floor.Size.Y,
+			holeWidthX,
+			wallThicknessZ,
+			parent
+		)
+
+		rightVipHoleFloor = placeHoleFloor(
+			floor,
+			floorTemplate,
+			rarityName,
+			"Right",
+			rightMainCenterX,
+			vipCenterZ,
+			vipFloorSize,
+			parent,
+			`{rarityName}RightVIPHoleFloor`
+		)
+		rightVipHoleFloor:SetAttribute("IsVIPHoleFloor", true)
+		placeEntranceFloor(rightVipHoleFloor, floorTemplate, rarityName, "Right", parent)
+		placeMinimapJunctionEntranceFloor(
+			floorTemplate,
+			rarityName,
+			"Right",
+			rightFootprintCenterX,
+			junctionCenterZ,
+			floor.Position.Y,
+			floor.Size.Y,
+			holeWidthX,
+			wallThicknessZ,
+			parent
+		)
+	end
+
 	return {
 		leftHoleFloor = leftHoleFloor,
 		rightHoleFloor = rightHoleFloor,
+		leftVipHoleFloor = leftVipHoleFloor,
+		rightVipHoleFloor = rightVipHoleFloor,
 		leftFootprintCenterX = leftFootprintCenterX,
 		rightFootprintCenterX = rightFootprintCenterX,
 		holeWidthX = holeWidthX,
@@ -1237,8 +1580,12 @@ local function placeHoleFloorWallsForFloor(
 		"Left",
 		layout.leftFootprintCenterX,
 		layout.holeWidthX,
-		parent
+		parent,
+		layout.leftVipHoleFloor
 	)
+	if layout.leftVipHoleFloor then
+		attachVipMinimapWallGuis(parent, rarityName, "Left")
+	end
 	placeWallsForHoleFloor(
 		layout.rightHoleFloor,
 		wallTemplate,
@@ -1246,8 +1593,12 @@ local function placeHoleFloorWallsForFloor(
 		"Right",
 		layout.rightFootprintCenterX,
 		layout.holeWidthX,
-		parent
+		parent,
+		layout.rightVipHoleFloor
 	)
+	if layout.rightVipHoleFloor then
+		attachVipMinimapWallGuis(parent, rarityName, "Right")
+	end
 end
 
 local function placeHoleFloorDecorationsForFloor(
@@ -1285,6 +1636,101 @@ local function placeHoleFloorDecorationsForFloor(
 
 	placeMushroomsForHoleFloor(leftHoleFloor, mushroomTemplates, rarityName, "Left", leftPlacedSpots, parent)
 	placeMushroomsForHoleFloor(rightHoleFloor, mushroomTemplates, rarityName, "Right", rightPlacedSpots, parent)
+end
+
+local function placeLightVIPHoleDecorations(
+	vipHoleFloor: BasePart,
+	decorationTemplates: { Model },
+	flowerTemplates: { Model },
+	grassTemplates: { Model },
+	rarityName: string,
+	holeSide: string,
+	parent: Instance
+)
+	local counts = Shared_GameProcess.VIPDecorationsPerHole
+	local placedSpots: { PlacedSpot } = {}
+	local decorationIndex = 0
+
+	local function placeCount(templates: { Model }, count: number, overlapPadding: number?, scaleKind: string?)
+		for _ = 1, count do
+			if #templates == 0 then
+				break
+			end
+			decorationIndex += 1
+			local template = templates[math.random(1, #templates)]
+			placeDecorationOnHoleFloor(
+				vipHoleFloor,
+				template,
+				rarityName,
+				holeSide,
+				decorationIndex,
+				placedSpots,
+				parent,
+				overlapPadding,
+				scaleKind
+			)
+		end
+	end
+
+	placeCount(getMinimapRockTemplates(decorationTemplates), counts.Rocks, nil, "rock")
+	placeCount(getMinimapBushTemplates(decorationTemplates), counts.Bushes, Shared_GameProcess.BushOverlapPadding, "bush")
+
+	if counts.GrassStacks > 0 and #grassTemplates > 0 then
+		local stackModels = tryPlaceGrassStack(vipHoleFloor, grassTemplates, 1, placedSpots)
+		if stackModels then
+			local grassIndex = 0
+			for _, grass in stackModels do
+				grassIndex += 1
+				grass.Name = `{rarityName}{holeSide}VIPGrass{grassIndex}`
+				grass:SetAttribute("Rarity", rarityName)
+				grass:SetAttribute("HoleSide", holeSide)
+				grass.Parent = parent
+			end
+		end
+	end
+
+	if counts.Flowers > 0 and #flowerTemplates > 0 then
+		decorationIndex += 1
+		local template = flowerTemplates[math.random(1, #flowerTemplates)]
+		placeFlowerOnHoleFloor(vipHoleFloor, template, rarityName, holeSide, decorationIndex, placedSpots, parent)
+	end
+end
+
+local function placeVIPHoleFloorDecorationsForFloor(
+	layout: HoleFloorLayout,
+	decorationTemplates: { Model },
+	flowerTemplates: { Model },
+	grassTemplates: { Model },
+	mushroomTemplates: { Model },
+	rarityName: string,
+	parent: Instance
+)
+	if not Shared_GameProcess.HasVIPMinimapExtension(rarityName) then
+		return
+	end
+
+	if layout.leftVipHoleFloor then
+		placeLightVIPHoleDecorations(
+			layout.leftVipHoleFloor,
+			decorationTemplates,
+			flowerTemplates,
+			grassTemplates,
+			rarityName,
+			"Left",
+			parent
+		)
+	end
+	if layout.rightVipHoleFloor then
+		placeLightVIPHoleDecorations(
+			layout.rightVipHoleFloor,
+			decorationTemplates,
+			flowerTemplates,
+			grassTemplates,
+			rarityName,
+			"Right",
+			parent
+		)
+	end
 end
 
 local function collectDecorationSpotsOnHoleFloor(holeFloor: BasePart, zoneModels: { Model }): { PlacedSpot }
@@ -1590,12 +2036,19 @@ local function collectLiveMapEntries(floorsFolder: Folder): { RarityBuildEntry }
 		local halfHoleWidthX = holeWidthX / 2
 		local halfFloorX = floor.Size.X / 2
 
+		local leftVipHoleFloor = floorsFolder:FindFirstChild(`{rarityName}LeftVIPHoleFloor`)
+		local rightVipHoleFloor = floorsFolder:FindFirstChild(`{rarityName}RightVIPHoleFloor`)
+		local leftVipPart = if leftVipHoleFloor and leftVipHoleFloor:IsA("BasePart") then leftVipHoleFloor else nil
+		local rightVipPart = if rightVipHoleFloor and rightVipHoleFloor:IsA("BasePart") then rightVipHoleFloor else nil
+
 		table.insert(entries, {
 			floor = floor,
 			rarityName = rarityName,
 			holeLayout = {
 				leftHoleFloor = leftHoleFloor,
 				rightHoleFloor = rightHoleFloor,
+				leftVipHoleFloor = leftVipPart,
+				rightVipHoleFloor = rightVipPart,
 				leftFootprintCenterX = floor.Position.X - halfFloorX - halfHoleWidthX,
 				rightFootprintCenterX = floor.Position.X + halfFloorX + halfHoleWidthX,
 				holeWidthX = holeWidthX,
@@ -1650,7 +2103,7 @@ local function buildMapGeometry(parent: Instance): boolean
 		floor:SetAttribute("IsGameProcessRoadFloor", true)
 		floor.Parent = parent
 
-		local holeLayout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, rarityName, parent)
+		local holeLayout = placeHoleFloorsAndEntrancesForFloor(floor, floorTemplate, wallTemplate, rarityName, parent)
 		table.insert(buildEntries, {
 			floor = floor,
 			rarityName = rarityName,
@@ -1661,7 +2114,14 @@ local function buildMapGeometry(parent: Instance): boolean
 	end
 
 	for _, entry in buildEntries do
-		placeWallsForFloor(entry.floor, wallTemplate, entry.rarityName, parent)
+		placeWallsForFloor(
+			entry.floor,
+			wallTemplate,
+			entry.rarityName,
+			parent,
+			entry.holeLayout.leftVipHoleFloor,
+			entry.holeLayout.rightVipHoleFloor
+		)
 		placeHoleFloorWallsForFloor(wallTemplate, entry.rarityName, entry.holeLayout, parent)
 	end
 
@@ -1729,8 +2189,8 @@ local function buildLuckyZoneSpawnPlans(
 		end
 
 		local zones = {
-			{ holeFloor = entry.holeLayout.leftHoleFloor, holeSide = "Left" },
-			{ holeFloor = entry.holeLayout.rightHoleFloor, holeSide = "Right" },
+			{ holeFloor = entry.holeLayout.leftHoleFloor, vipHoleFloor = entry.holeLayout.leftVipHoleFloor, holeSide = "Left" },
+			{ holeFloor = entry.holeLayout.rightHoleFloor, vipHoleFloor = entry.holeLayout.rightVipHoleFloor, holeSide = "Right" },
 		}
 
 		for _, zone in zones do
@@ -1747,6 +2207,21 @@ local function buildLuckyZoneSpawnPlans(
 				decorationSpots = collectDecorationSpotsOnHoleFloor(zone.holeFloor, zoneModels),
 				parent = floorsFolder,
 			})
+
+			if zone.vipHoleFloor and Shared_GameProcess.HasVIPMinimapExtension(entry.rarityName) then
+				local vipLuckyBlockCount = Shared_GameProcess.VIPLuckyBlocksPerHole
+				totalSlots += vipLuckyBlockCount
+				table.insert(plans, {
+					holeFloor = zone.vipHoleFloor,
+					luckyBlockTemplate = luckyBlockTemplate,
+					configName = luckyBlockConfigName,
+					rarityName = entry.rarityName,
+					holeSide = zone.holeSide,
+					luckyBlockCount = vipLuckyBlockCount,
+					decorationSpots = collectDecorationSpotsOnHoleFloor(zone.holeFloor, zoneModels),
+					parent = floorsFolder,
+				})
+			end
 		end
 	end
 
@@ -1758,6 +2233,7 @@ MapProcessMapContent.hasMapGeometry = hasMapGeometry
 MapProcessMapContent.buildMapGeometry = buildMapGeometry
 MapProcessMapContent.getLayoutGenerationInputs = getLayoutGenerationInputs
 MapProcessMapContent.placeHoleFloorDecorationsForFloor = placeHoleFloorDecorationsForFloor
+MapProcessMapContent.placeVIPHoleFloorDecorationsForFloor = placeVIPHoleFloorDecorationsForFloor
 MapProcessMapContent.placeLianasOnRarityWalls = placeLianasOnRarityWalls
 MapProcessMapContent.placeLiliesOnRarityWalls = placeLiliesOnRarityWalls
 MapProcessMapContent.repositionMinimapDecorationsOnly = repositionMinimapDecorationsOnly

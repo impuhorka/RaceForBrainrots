@@ -9,6 +9,8 @@ Shared_Carry.MaxSlowPercent = 0.72
 Shared_Carry.MinWalkSpeedMultiplier = 0.18
 Shared_Carry.SpeedReliefMin = 0.35
 Shared_Carry.SpeedReliefMax = 1
+Shared_Carry.MinCarryWalkSpeedWarning = 4
+Shared_Carry.LowCarrySpeedPickupMessage = "You need more strength to pick this up!"
 
 function Shared_Carry.GetMaxCarryWeight(strength: number): number
 	local safeStrength = math.max(1, tonumber(strength) or 1)
@@ -63,6 +65,19 @@ function Shared_Carry.GetCarryWalkSpeed(
 	end
 
 	return math.max(1, safeBase * Shared_Carry.GetCarryWalkSpeedMultiplier(weightKg, strength, speed))
+end
+
+function Shared_Carry.GetPickupSpeedWarning(
+	weightKg: number,
+	strength: number,
+	speed: number
+): string?
+	local safeSpeed = math.max(Shared_Carry.DefaultWalkSpeed, tonumber(speed) or Shared_Carry.DefaultWalkSpeed)
+	local carrySpeed = Shared_Carry.GetCarryWalkSpeed(safeSpeed, weightKg, strength, safeSpeed)
+	if carrySpeed < Shared_Carry.MinCarryWalkSpeedWarning then
+		return Shared_Carry.LowCarrySpeedPickupMessage
+	end
+	return nil
 end
 
 return Shared_Carry

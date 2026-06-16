@@ -36,6 +36,16 @@ function MapProcessAssets.getWallTemplate(): BasePart?
 	return nil
 end
 
+function MapProcessAssets.getWallSurfaceGuiTemplate(): SurfaceGui?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local billboards = assets and assets:FindFirstChild("Billboards")
+	local surfaceGui = billboards and billboards:FindFirstChild("WallSurfaceGui")
+	if surfaceGui and surfaceGui:IsA("SurfaceGui") then
+		return surfaceGui
+	end
+	return nil
+end
+
 function MapProcessAssets.getLianaTemplates(): { Model }
 	local gameProcessAssets = MapProcessAssets.getGameProcessAssets()
 	local lianasFolder = gameProcessAssets and gameProcessAssets:FindFirstChild("Lianas")

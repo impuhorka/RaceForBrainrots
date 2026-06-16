@@ -20,6 +20,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_GradientBar = root.World.Client_GradientBar,
 	Client_Leaderboards = root.World.Client_Leaderboards,
 	Client_GameProcess = root.World.Client_GameProcess,
+	Client_VIPWalls = root.World.Client_VIPWalls,
 	Client_GameProcessBrainrots = root.LuckyBlocks.Client_GameProcessBrainrots,
 	Client_GameProcessLuckyBlocks = root.LuckyBlocks.Client_GameProcessLuckyBlocks,
 	Client_BrainrotDrop = root.Inventory.Client_BrainrotDrop,

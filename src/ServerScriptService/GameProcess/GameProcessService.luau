@@ -605,6 +605,20 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 		return
 	end
 
+	if worldLuckyBlock:GetAttribute("IsVIPZone") == true then
+		local Server_Marketplace = require(script.Parent.Parent.Core.Server_Marketplace)
+		if not Server_Marketplace.PlayerOwnsGamepass(player, Shared_GameProcess.VIPGamepassConfigKey) then
+			if gameProcessHandler then
+				gameProcessHandler:FireClient(
+					player,
+					"CarryFeedback",
+					Shared_GameProcess.VIPRequiredPickupMessage
+				)
+			end
+			return
+		end
+	end
+
 	local blockWeight = tonumber(worldLuckyBlock:GetAttribute("Weight"))
 	if not blockWeight then
 		local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
@@ -613,12 +627,10 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 	end
 
 	local strength = Server_Data:GetValue(player, "Strength") or 1
-	local canCarry, carryMessage = Shared_Carry.CanCarryWeight(blockWeight, strength)
-	if not canCarry then
-		if gameProcessHandler and carryMessage then
-			gameProcessHandler:FireClient(player, "CarryFeedback", carryMessage)
-		end
-		return
+	local speed = Server_Data:GetValue(player, "Speed") or Shared_Carry.DefaultWalkSpeed
+	local speedWarning = Shared_Carry.GetPickupSpeedWarning(blockWeight, strength, speed)
+	if speedWarning and gameProcessHandler then
+		gameProcessHandler:FireClient(player, "CarryFeedback", speedWarning)
 	end
 
 	pickupLocks[player] = true

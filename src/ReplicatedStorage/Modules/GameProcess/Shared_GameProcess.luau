@@ -97,6 +97,22 @@ Shared_GameProcess.UnluckyMapCloseMessage = "Unlucky! The map closed — your Lu
 Shared_GameProcess.UnluckyRaceEndMessage = "Unlucky! Next time maybe."
 Shared_GameProcess.RaceTimeRanOutMessage = "Time ran out!"
 Shared_GameProcess.AlreadyCarryingLuckyBlockMessage = "You're already carrying a Lucky Block!"
+Shared_GameProcess.VIPMinimapExtensionDepth = 75
+Shared_GameProcess.VIPMinimapCloserOffset = 20
+Shared_GameProcess.VIPGamepassConfigKey = "VIP"
+Shared_GameProcess.VIPLuckyBlocksPerHole = 4
+Shared_GameProcess.VIPMinimapWeightLuckMultiplier = 2.5
+Shared_GameProcess.VIPDecorationsPerHole = {
+	Rocks = 1,
+	Bushes = 1,
+	GrassStacks = 1,
+	Flowers = 1,
+}
+Shared_GameProcess.VIPRequiredPickupMessage = "You need VIP to collect lucky blocks from this area!"
+
+function Shared_GameProcess.HasVIPMinimapExtension(rarityName: string): boolean
+	return rarityName ~= "Common" and rarityName ~= "Rare"
+end
 
 function Shared_GameProcess.GetScheduledSlotTime(
 	phaseStartTime: number,

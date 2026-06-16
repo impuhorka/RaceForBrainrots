@@ -40,8 +40,13 @@ function Shared_Weight.GetRatio(baseWeight: number, rolledWeight: number): numbe
 	return rolled / base
 end
 
-function Shared_Weight.RollWeightMultiplier(): number
+function Shared_Weight.RollWeightMultiplier(weightLuckMultiplier: number?): number
 	local roll = math.random() * 100
+	local luck = tonumber(weightLuckMultiplier) or 1
+	if luck > 1 then
+		roll = roll + (100 - roll) * (1 - 1 / luck)
+	end
+
 	local cumulative = 0
 
 	for _, tier in Shared_Weight.RollTiers do
@@ -54,9 +59,9 @@ function Shared_Weight.RollWeightMultiplier(): number
 	return 1
 end
 
-function Shared_Weight.RollWeight(baseWeight: number): number
+function Shared_Weight.RollWeight(baseWeight: number, weightLuckMultiplier: number?): number
 	local safeBase = math.max(0.01, tonumber(baseWeight) or 1)
-	return roundWeight(safeBase * Shared_Weight.RollWeightMultiplier())
+	return roundWeight(safeBase * Shared_Weight.RollWeightMultiplier(weightLuckMultiplier))
 end
 
 function Shared_Weight.GetLuckyBlockMaxRollWeight(baseWeight: number, rarityName: string): number
@@ -69,8 +74,12 @@ function Shared_Weight.GetLuckyBlockMaxRollWeight(baseWeight: number, rarityName
 	return roundWeight(safeBase * 9)
 end
 
-function Shared_Weight.RollLuckyBlockWeight(baseWeight: number, rarityName: string): number
-	local rolled = Shared_Weight.RollWeight(baseWeight)
+function Shared_Weight.RollLuckyBlockWeight(
+	baseWeight: number,
+	rarityName: string,
+	weightLuckMultiplier: number?
+): number
+	local rolled = Shared_Weight.RollWeight(baseWeight, weightLuckMultiplier)
 	local maxWeight = Shared_Weight.GetLuckyBlockMaxRollWeight(baseWeight, rarityName)
 	return roundWeight(math.min(rolled, maxWeight))
 end

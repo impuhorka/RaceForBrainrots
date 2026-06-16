@@ -36,6 +36,15 @@ function GameProcessFloors.SpawnPersistentMapDecorations()
 			entry.rarityName,
 			floorsFolder
 		)
+		MapProcessMapContent.placeVIPHoleFloorDecorationsForFloor(
+			entry.holeLayout,
+			context.decorationTemplates,
+			context.flowerTemplates,
+			context.grassTemplates,
+			context.mushroomTemplates,
+			entry.rarityName,
+			floorsFolder
+		)
 		if index % 2 == 0 then
 			task.wait()
 		end

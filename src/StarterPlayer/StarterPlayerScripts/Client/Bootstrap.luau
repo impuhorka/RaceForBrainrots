@@ -83,6 +83,7 @@ local function runPostDataSystems()
 		{ "Client_LuckyBlockOpening" },
 		{ "Client_GameProcessLuckyBlocks" },
 		{ "Client_GameProcessBrainrots" },
+		{ "Client_VIPWalls" },
 		{ "Client_BrainrotDrop" },
 		{ "Client_LuckyBlockCarry" },
 		{ "Client_GradientBar" },

@@ -15,6 +15,8 @@ type StatStoreUiConfig = {
 	successRemoteAction: string,
 	failedRemoteAction: string,
 	successMessage: (addedAmount: number, paidCost: number) -> string,
+	purchaseCostContextKeys: { string }?,
+	getPurchaseCostContext: (() -> any)?,
 }
 
 type PurchaseUi = {
@@ -120,9 +122,16 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 		return option.amount == 1
 	end
 
+	local function getPurchaseCostContext(): any
+		if config.getPurchaseCostContext then
+			return config.getPurchaseCostContext()
+		end
+		return nil
+	end
+
 	local function renderOption(option: PurchaseUi, currentValue: number)
 		local nextValue = config.sharedStore.GetValueAfterPurchase(currentValue, option.amount)
-		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount)
+		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount, getPurchaseCostContext())
 		local highlight = shouldHighlightPurchase(option, cost)
 
 		if not option.costLabel or not option.costLabel.Parent then
@@ -250,6 +259,11 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 
 			setupUi()
 			Client_Data:ListenToChange(config.statName, renderAll)
+			if config.purchaseCostContextKeys then
+				for _, key in config.purchaseCostContextKeys do
+					Client_Data:ListenToChange(key, renderAll)
+				end
+			end
 			hookPurchaseResponses()
 
 			if storeFrame then

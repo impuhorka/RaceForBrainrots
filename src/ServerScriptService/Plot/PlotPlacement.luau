@@ -205,6 +205,10 @@ function PlotPlacement.PlaceBrainrot(player: Player, plot, slotId: number, inven
 end
 
 function PlotPlacement.UpgradeBrainrot(player: Player, plot, slotId: number): boolean
+	if not Shared_Brainrots.AreUpgradesEnabled() then
+		return false
+	end
+
 	local cooldownKey = getUpgradeCooldownKey(player, slotId)
 
 	if slotUpgradeLocks[cooldownKey] then

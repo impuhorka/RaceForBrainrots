@@ -11,11 +11,11 @@ Shared_Leaderboards.BoardIds = {
 Shared_Leaderboards.BoardConfig = {
 	MaxSpeed = {
 		modelName = "MaxSpeed",
-		orderedStoreName = "RFB_MaxSpeed_v1",
+		orderedStoreName = "RFB_MaxSpeed_v2",
 	},
 	TotalCash = {
 		modelName = "TotalCash",
-		orderedStoreName = "RFB_TotalCash_v1",
+		orderedStoreName = "RFB_TotalCash_v2",
 	},
 }
 

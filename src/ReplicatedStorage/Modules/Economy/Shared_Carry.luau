@@ -3,8 +3,8 @@ local Shared_SpeedStore = require(script.Parent.Shared_SpeedStore)
 local Shared_Carry = {}
 
 Shared_Carry.DefaultWalkSpeed = Shared_SpeedStore.DefaultSpeed
--- 6 kg per strength: Common ~str 2, Secret base ~str 67, Superior ~str 167.
-Shared_Carry.CarryKgPerStrength = 6
+-- 10 kg per strength: Common 10kg at str 1, Superior 1000kg at str 100, max rolls scale with tier.
+Shared_Carry.CarryKgPerStrength = 10
 Shared_Carry.MaxSlowPercent = 0.72
 Shared_Carry.MinWalkSpeedMultiplier = 0.18
 Shared_Carry.SpeedReliefMin = 0.35

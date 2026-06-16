@@ -275,7 +275,9 @@ local function getEquippedBrainrotSellCost(): number?
 
 	local level = math.max(1, item.Data and item.Data.Level or 1)
 	local modifier = item.Data and item.Data.Modifier or "Normal"
-	return Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
+	local baseWeight = item.Data and tonumber(item.Data.BaseWeight)
+	local rolledWeight = item.Data and tonumber(item.Data.Weight)
+	return Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier, baseWeight, rolledWeight)
 end
 
 local function hookPriceButton(billboard: BillboardGui)

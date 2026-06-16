@@ -144,17 +144,27 @@ local function fetchBoard(boardId: string): { any }
 
 	local pageEntries = pages:GetCurrentPage()
 	local entries: { any } = {}
-	for index, item in pageEntries do
+	for _, item in pageEntries do
 		local userId = tonumber(item.key)
 		local storedValue = tonumber(item.value)
-		if userId and storedValue and storedValue > 0 then
-			local displayValue = storedValue
-			local onlinePlayer = Players:GetPlayerByUserId(userId)
-			if onlinePlayer then
-				displayValue = getScoreForBoard(boardId, onlinePlayer)
-			end
-			table.insert(entries, buildEntry(boardId, index, userId, displayValue))
+		if not userId or not storedValue or storedValue < 1 then
+			continue
 		end
+
+		local displayValue = storedValue
+		local onlinePlayer = Players:GetPlayerByUserId(userId)
+		if onlinePlayer then
+			local liveScore = getScoreForBoard(boardId, onlinePlayer)
+			if liveScore >= 1 then
+				displayValue = liveScore
+			end
+		end
+
+		if displayValue < 1 then
+			continue
+		end
+
+		table.insert(entries, buildEntry(boardId, #entries + 1, userId, displayValue))
 	end
 
 	return entries
@@ -193,18 +203,23 @@ function Server_Leaderboards.SubmitPlayer(player: Player)
 	lastSubmitAt[player] = now
 
 	for boardId in Shared_Leaderboards.BoardConfig do
-		local score = getScoreForBoard(boardId, player)
-		if score <= 0 then
-			continue
-		end
-
 		local store = getOrderedStore(boardId)
 		if not store then
 			continue
 		end
 
+		local score = getScoreForBoard(boardId, player)
+		local key = tostring(player.UserId)
+
+		if score < 1 then
+			pcall(function()
+				store:RemoveAsync(key)
+			end)
+			continue
+		end
+
 		pcall(function()
-			store:SetAsync(tostring(player.UserId), score)
+			store:SetAsync(key, score)
 		end)
 	end
 end

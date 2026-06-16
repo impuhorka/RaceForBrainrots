@@ -76,6 +76,8 @@ local function runPostDataSystems()
 		{ "Client_InteractStorePrompts" },
 		{ "Client_SpeedStore" },
 		{ "Client_StrengthStore" },
+		{ "Client_Marketplace" },
+		{ "Client_RobuxStore" },
 		{ "Client_SlowModeButton" },
 		{ "Client_BackgroundMusic" },
 		{ "Client_LuckyBlockOpening" },
@@ -111,6 +113,9 @@ function Bootstrap.start()
 	end)
 
 	ClientLoader.require("Client_Messaging").Init()
+	ClientLoader.require("Client_SpiralSway").Init()
+	ClientLoader.require("Client_UiPulse").Init()
+	ClientLoader.require("Client_UiWiggle").Init()
 	ClientLoader.require("Client_ProximityPrompts").Init()
 	ClientLoader.require("Client_PlotSlotSurfaces").Init()
 	ClientLoader.require("Client_FOV").init()

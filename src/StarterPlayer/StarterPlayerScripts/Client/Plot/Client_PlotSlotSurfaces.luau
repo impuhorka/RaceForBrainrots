@@ -119,7 +119,15 @@ local function findOwnSlotModel(slotId: number): Model?
 	return nil
 end
 
+local function areUpgradesEnabled(): boolean
+	return Shared_Brainrots.AreUpgradesEnabled()
+end
+
 local function tryUpgrade(slotModel: Model)
+	if not areUpgradesEnabled() then
+		return
+	end
+
 	if not hasBrainrot(slotModel) then
 		return
 	end
@@ -202,8 +210,10 @@ end
 
 local function updateSlotVisuals(slotModel: Model, upgradeGui: SurfaceGui?)
 	if upgradeGui and upgradeGui.Parent then
-		upgradeGui.Enabled = hasBrainrot(slotModel)
-		updateUpgradeLabels(slotModel, upgradeGui)
+		upgradeGui.Enabled = areUpgradesEnabled() and hasBrainrot(slotModel)
+		if upgradeGui.Enabled then
+			updateUpgradeLabels(slotModel, upgradeGui)
+		end
 	end
 end
 
@@ -227,6 +237,11 @@ local function cleanupSlotSurface(slotModel: Model)
 end
 
 local function setupSlotSurface(slotModel: Model)
+	if not areUpgradesEnabled() then
+		cleanupSlotSurface(slotModel)
+		return
+	end
+
 	if slotGuis[slotModel] then
 		updateSlotVisuals(slotModel, slotGuis[slotModel])
 		return
@@ -380,7 +395,10 @@ function Client_PlotSlotSurfaces.Init()
 	plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent
 
 	plotHandler.OnClientEvent:Connect(function(action: string, slotId: number, level: number)
-		if action ~= "UpgradeSuccess" or type(slotId) ~= "number" or type(level) ~= "number" then
+		if action ~= "UpgradeSuccess" or not areUpgradesEnabled() then
+			return
+		end
+		if type(slotId) ~= "number" or type(level) ~= "number" then
 			return
 		end
 

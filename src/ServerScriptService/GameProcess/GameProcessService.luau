@@ -605,18 +605,17 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 		return
 	end
 
-	local blockWeight = worldLuckyBlock:GetAttribute("Weight")
-	if type(blockWeight) ~= "number" then
-		blockWeight = worldLuckyBlock:GetAttribute("BaseWeight")
-	end
-	if type(blockWeight) ~= "number" then
-		blockWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
+	local blockWeight = tonumber(worldLuckyBlock:GetAttribute("Weight"))
+	if not blockWeight then
+		local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(configName)
+		local _, rolledWeight = Shared_Weight.ResolveLuckyBlockWeights(nil, defaultBaseWeight)
+		blockWeight = rolledWeight
 	end
 
-	local strength = math.max(1, math.floor(Server_Data:GetValue(player, "Strength") or 1))
+	local strength = Server_Data:GetValue(player, "Strength") or 1
 	local canCarry, carryMessage = Shared_Carry.CanCarryWeight(blockWeight, strength)
 	if not canCarry then
-		if gameProcessHandler then
+		if gameProcessHandler and carryMessage then
 			gameProcessHandler:FireClient(player, "CarryFeedback", carryMessage)
 		end
 		return

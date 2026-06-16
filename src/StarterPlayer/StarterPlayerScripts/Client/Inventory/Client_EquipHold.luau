@@ -19,6 +19,7 @@ local Client_EquipHold = {}
 
 local HELD_MODEL_NAME = "EquippedBrainrot"
 local HOLD_ANIMATION_NAME = "TwoHandsHolding"
+local HOLD_ANIMATION_ID = "rbxassetid://70677894867741"
 local TORSO_FORWARD_OFFSET = 1
 local TORSO_HEIGHT_OFFSET = 0.75
 local LUCKYBLOCK_FORWARD_OFFSET_DELTA = 0.25
@@ -57,18 +58,21 @@ local EQUIPPED_ATTRS = {
 	"EquippedWeight",
 }
 
-local function shouldPlayAnimations(): boolean
+local function shouldPlayBrainrotIdleAnimations(): boolean
 	return Client_Data:GetValue("Animations") ~= false
 end
 
-local function getHoldAnimation(): Animation?
+local function getHoldAnimation(): Animation
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local otherAnimations = assets and assets:FindFirstChild("OtherAnimations")
 	local anim = otherAnimations and otherAnimations:FindFirstChild(HOLD_ANIMATION_NAME)
 	if anim and anim:IsA("Animation") then
 		return anim
 	end
-	return nil
+
+	local fallback = Instance.new("Animation")
+	fallback.AnimationId = HOLD_ANIMATION_ID
+	return fallback
 end
 
 local function getBrainrotModel(configName: string, modifier: string): Model?
@@ -162,7 +166,7 @@ end
 local function playHoldAnimation(character: Model, aggressiveForMovement: boolean)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	local animation = getHoldAnimation()
-	if not humanoid or not animation then
+	if not humanoid then
 		return
 	end
 
@@ -350,7 +354,7 @@ local function mountHeldModel(
 	character: Model,
 	modelName: string,
 	itemType: string,
-	playCharacterAnimations: boolean
+	playBrainrotIdle: boolean
 ): boolean
 	local forwardOffsetDelta = model:GetAttribute("_ForwardOffsetDelta")
 	local heightOffsetDelta = model:GetAttribute("_HeightOffsetDelta")
@@ -367,13 +371,11 @@ local function mountHeldModel(
 		return false
 	end
 
-	if playCharacterAnimations then
-		playHoldAnimation(character, itemType == "LuckyBlock")
-		if itemType == "Brainrot" then
-			local configName = model:GetAttribute("ConfigName")
-			if type(configName) == "string" and configName ~= "" then
-				Shared_BrainrotAnimations.PlayIdle(model, configName)
-			end
+	playHoldAnimation(character, true)
+	if itemType == "Brainrot" and playBrainrotIdle then
+		local configName = model:GetAttribute("ConfigName")
+		if type(configName) == "string" and configName ~= "" then
+			Shared_BrainrotAnimations.PlayIdle(model, configName)
 		end
 	end
 
@@ -464,7 +466,7 @@ local function refreshLocalHeldVisual()
 		return
 	end
 
-	if not mountHeldModel(model, character, HELD_MODEL_NAME, item.ItemType, shouldPlayAnimations()) then
+	if not mountHeldModel(model, character, HELD_MODEL_NAME, item.ItemType, shouldPlayBrainrotIdleAnimations()) then
 		model:Destroy()
 		return
 	end
@@ -505,18 +507,15 @@ local function refreshHeldAnimations()
 		return
 	end
 
-	if not shouldPlayAnimations() then
-		stopHoldAnimation(character)
+	playHoldAnimation(character, true)
+
+	if shouldPlayBrainrotIdleAnimations() then
+		local configName = heldModel:GetAttribute("ConfigName")
+		if type(configName) == "string" and configName ~= "" then
+			Shared_BrainrotAnimations.PlayIdle(heldModel, configName)
+		end
+	else
 		Shared_BrainrotAnimations.StopIdle(heldModel)
-		return
-	end
-
-	local itemType = heldModel:GetAttribute("_UseLuckyBlockSizing") == true and "LuckyBlock" or "Brainrot"
-	playHoldAnimation(character, itemType == "LuckyBlock")
-
-	local configName = heldModel:GetAttribute("ConfigName")
-	if type(configName) == "string" and configName ~= "" then
-		Shared_BrainrotAnimations.PlayIdle(heldModel, configName)
 	end
 end
 

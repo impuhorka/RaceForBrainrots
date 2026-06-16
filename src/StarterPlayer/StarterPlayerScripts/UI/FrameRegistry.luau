@@ -4,25 +4,20 @@ local BlurController = require(script.Parent.BlurController)
 local FrameController = require(script.Parent.FrameController)
 local ClientLoader = require(script.Parent.Parent.Client.Loader)
 local Client_FOV = ClientLoader.require("Client_FOV")
+local Client_GameProcess = ClientLoader.require("Client_GameProcess")
+local Client_GradientBar = ClientLoader.require("Client_GradientBar")
 
 local FrameRegistry = {}
 
 local player = Players.LocalPlayer
 local hooked: { [GuiObject]: boolean } = {}
 
-local function isAnyOpen(frames: Folder): boolean
-	for _, child in frames:GetChildren() do
-		if child:IsA("GuiObject") and FrameController.isOpenForBlur(child) then
-			return true
-		end
-	end
-	return false
-end
-
-local function update(frames: Folder)
-	local anyOpen = isAnyOpen(frames)
+local function update(_frames: Folder)
+	local anyOpen = FrameController.isAnyNonInventoryFrameOpen()
 	BlurController.setOpen(anyOpen)
 	Client_FOV.setFrameZoomActive(anyOpen)
+	Client_GameProcess.setSuppressedByFrame(anyOpen)
+	Client_GradientBar.setSuppressedByFrame(anyOpen)
 end
 
 local function hookFrame(frame: GuiObject, frames: Folder)

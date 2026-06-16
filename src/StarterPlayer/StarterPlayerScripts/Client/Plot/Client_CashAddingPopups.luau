@@ -15,7 +15,6 @@ local Client_Visuals = ClientLoader.require("Client_Visuals")
 local Client_CashAddingPopups = {}
 
 local POPUP_COUNT = 3
-local SPIRAL_SWAY_AMPLITUDE = 18
 local POPUP_STAY_TIME = 1.5
 local POPUP_GROW_TIME = 0.18
 local POPUP_SHRINK_TIME = 0.22
@@ -28,8 +27,19 @@ local STATIC_PULSE_ROTATION_AMPLITUDE = 4
 local STATIC_PULSE_SPEED = 5.5
 
 local popupFrame: Frame?
-local template: GuiObject?
+local defaultTemplate: GuiObject?
+local templatesByName: { [string]: GuiObject } = {}
 local cashVisualFrame: GuiObject?
+
+local function resolveTemplate(templateName: string?): GuiObject?
+	if templateName then
+		local namedTemplate = templatesByName[templateName]
+		if namedTemplate then
+			return namedTemplate
+		end
+	end
+	return defaultTemplate
+end
 
 local function disablePopupInput(root: GuiObject)
 	root.Active = false
@@ -108,24 +118,6 @@ local function getCashTargetPosition(): UDim2?
 	return UDim2.fromOffset(localPos.X, localPos.Y)
 end
 
-local function startSpiralSway(popup: GuiObject): RBXScriptConnection?
-	local spiral = popup:FindFirstChild("Spiral", true)
-	if not spiral or not spiral:IsA("ImageLabel") then
-		return nil
-	end
-
-	local startPhase = math.random() * math.pi * 2
-	local startTime = os.clock()
-
-	return RunService.Heartbeat:Connect(function()
-		if not popup.Parent then
-			return
-		end
-		local t = (os.clock() - startTime) * STATIC_PULSE_SPEED + startPhase
-		spiral.Rotation = math.sin(t) * SPIRAL_SWAY_AMPLITUDE
-	end)
-end
-
 local function scaleUdim2(size: UDim2, factor: number): UDim2
 	return UDim2.new(
 		size.X.Scale * factor,
@@ -151,17 +143,17 @@ local function startStaticPulse(popup: GuiObject, baseSize: UDim2, startPhase: n
 	end)
 end
 
-local function spawnPopup(amount: number, popupIndex: number)
-	if not popupFrame or not template then
+local function spawnPopup(amount: number, popupIndex: number, popupTemplate: GuiObject)
+	if not popupFrame then
 		return
 	end
 
-	local popup = template:Clone()
+	local popup = popupTemplate:Clone()
 	popup.Visible = true
 	disablePopupInput(popup)
 	popup.Parent = popupFrame
 
-	local originSize = template.Size
+	local originSize = popupTemplate.Size
 	popup.AnchorPoint = Vector2.new(0.5, 0.5)
 	popup.Size = UDim2.fromOffset(0, 0)
 	local startPosition, targetPosition = getRandomAppearPositions(popup)
@@ -170,14 +162,9 @@ local function spawnPopup(amount: number, popupIndex: number)
 	end
 	setPopupAmountText(popup, amount)
 
-	local spinConn = startSpiralSway(popup)
 	local pulseConn: RBXScriptConnection? = nil
 	local pulseStartPhase = math.random() * math.pi * 2
 	popup.Destroying:Once(function()
-		if spinConn then
-			spinConn:Disconnect()
-			spinConn = nil
-		end
 		if pulseConn then
 			pulseConn:Disconnect()
 			pulseConn = nil
@@ -251,15 +238,20 @@ local function spawnPopup(amount: number, popupIndex: number)
 	end)
 end
 
-function Client_CashAddingPopups.Show(amount: number, popupCount: number?)
+function Client_CashAddingPopups.Show(amount: number, popupCount: number?, templateName: string?)
 	if Client_Data:GetValue("PopUps") == false then
+		return
+	end
+
+	local popupTemplate = resolveTemplate(templateName)
+	if not popupTemplate then
 		return
 	end
 
 	local count = popupCount or POPUP_COUNT
 	for index = 1, count do
 		task.delay((index - 1) * POPUP_SPAWN_STAGGER, function()
-			spawnPopup(amount, index)
+			spawnPopup(amount, index, popupTemplate)
 		end)
 	end
 end
@@ -268,10 +260,21 @@ function Client_CashAddingPopups.Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local main = playerGui:WaitForChild("Main")
 	popupFrame = main:WaitForChild("CashAdding") :: Frame
-	template = popupFrame:WaitForChild("Template") :: GuiObject
-	template.Visible = false
+	defaultTemplate = popupFrame:WaitForChild("Template") :: GuiObject
+	defaultTemplate.Visible = false
+	templatesByName.default = defaultTemplate
+	templatesByName.Template = defaultTemplate
+
+	for _, child in popupFrame:GetChildren() do
+		if child:IsA("GuiObject") and child ~= defaultTemplate then
+			child.Visible = false
+			disablePopupInput(child)
+			templatesByName[child.Name] = child
+		end
+	end
+
 	disablePopupInput(popupFrame)
-	disablePopupInput(template)
+	disablePopupInput(defaultTemplate)
 	popupFrame:SetAttribute("LuckyBlockInputIgnore", true)
 
 	popupFrame.DescendantAdded:Connect(function(descendant)

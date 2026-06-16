@@ -3,6 +3,32 @@ local Module = {}
 -- Load BigNum for handling large numbers
 local BigNum = require(script.Parent.Shared_BigNum)
 
+local CASH_LETTER_ABBREV_THRESHOLD = 100_000_000_000
+
+function Module:CashDisplay(Val)
+	if type(Val) == "table" and Val.m and Val.e then
+		return BigNum:ToString(Val)
+	end
+
+	if type(Val) ~= "number" then
+		return "0"
+	end
+
+	if Val == math.huge or Val >= 1e308 or Val ~= Val then
+		return "∞"
+	end
+
+	if Val > 9007199254740992 then
+		return BigNum:ToString(BigNum:FromNumber(Val))
+	end
+
+	if Val <= CASH_LETTER_ABBREV_THRESHOLD then
+		return self:NumberPoint(math.floor(Val))
+	end
+
+	return self:Number(Val)
+end
+
 function Module:Number(Val)
 	-- Handle BigNum format {m, e}
 	if type(Val) == "table" and Val.m and Val.e then

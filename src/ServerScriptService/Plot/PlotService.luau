@@ -91,12 +91,41 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 		return nil
 	end
 
+	local blacklistSet = buildBlacklistSet(luckyBlockData.Blacklist)
+	local rewardBrainrots = Shared_LuckyBlocks.GetRewardBrainrots(luckyBlockConfigName)
+	if rewardBrainrots then
+		local candidates = {}
+		for _, configName in rewardBrainrots do
+			if not blacklistSet[normalizeName(configName)] then
+				table.insert(candidates, configName)
+			end
+		end
+
+		if #candidates > 0 then
+			return candidates[math.random(1, #candidates)]
+		end
+	end
+
+	local rewardRarities = Shared_LuckyBlocks.GetRewardRarities(luckyBlockConfigName)
+	if rewardRarities then
+		local rarity = rewardRarities[math.random(1, #rewardRarities)]
+		local candidates = {}
+		for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
+			if not blacklistSet[normalizeName(configName)] then
+				table.insert(candidates, configName)
+			end
+		end
+
+		if #candidates > 0 then
+			return candidates[math.random(1, #candidates)]
+		end
+	end
+
 	local rarity = luckyBlockData.Rarity
 	if type(rarity) ~= "string" or rarity == "" then
 		return nil
 	end
 
-	local blacklistSet = buildBlacklistSet(luckyBlockData.Blacklist)
 	local candidates = {}
 	for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
 		if not blacklistSet[normalizeName(configName)] then
@@ -260,7 +289,9 @@ local function sellEquippedBrainrot(player: Player, inventoryIndex: number): (bo
 
 	local level = math.max(1, tonumber(item.Data and item.Data.Level) or 1)
 	local modifier = item.Data and item.Data.Modifier or "Normal"
-	local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
+	local baseWeight = item.Data and tonumber(item.Data.BaseWeight)
+	local rolledWeight = item.Data and tonumber(item.Data.Weight)
+	local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier, baseWeight, rolledWeight)
 	if sellWorth <= 0 then
 		return false, nil
 	end
@@ -284,7 +315,9 @@ local function sellAllBrainrots(player: Player): (number, number)
 		if item and item.ItemType == "Brainrot" and type(item.ConfigName) == "string" then
 			local level = math.max(1, tonumber(item.Data and item.Data.Level) or 1)
 			local modifier = item.Data and item.Data.Modifier or "Normal"
-			local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier)
+			local baseWeight = item.Data and tonumber(item.Data.BaseWeight)
+			local rolledWeight = item.Data and tonumber(item.Data.Weight)
+			local sellWorth = Shared_Brainrots.GetSellWorth(item.ConfigName, level, modifier, baseWeight, rolledWeight)
 			if sellWorth > 0 then
 				soldCount += 1
 				totalWorth += sellWorth
@@ -355,7 +388,12 @@ local function tryBuyStrength(player: Player, amount: number): (boolean, string?
 		return false, "AtCap", nil, currentStrength
 	end
 
-	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount)
+	local freePointsUsed = math.clamp(
+		math.floor(Server_Data:GetValue(player, "FreeStrengthPointsUsed") or 0),
+		0,
+		Shared_StrengthStore.FreeStrengthPoints
+	)
+	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount, freePointsUsed)
 	local currentCash = Server_Data:GetValue(player, "Cash") or 0
 
 	if currentCash < cost then
@@ -366,6 +404,15 @@ local function tryBuyStrength(player: Player, amount: number): (boolean, string?
 
 	local newStrength = Shared_StrengthStore.GetStrengthAfterPurchase(currentStrength, safeAmount)
 	Server_Data:SetValue(player, "Strength", newStrength)
+
+	local freePointsGranted = Shared_StrengthStore.GetFreePointsInPurchase(currentStrength, safeAmount, freePointsUsed)
+	if freePointsGranted > 0 then
+		Server_Data:SetValue(
+			player,
+			"FreeStrengthPointsUsed",
+			math.min(Shared_StrengthStore.FreeStrengthPoints, freePointsUsed + freePointsGranted)
+		)
+	end
 
 	return true, nil, cost, newStrength
 end

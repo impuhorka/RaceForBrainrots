@@ -34,6 +34,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Shared_StatStore = root.Economy.Shared_StatStore,
 	Shared_StrengthStore = root.Economy.Shared_StrengthStore,
 	Shared_Carry = root.Economy.Shared_Carry,
+	Shared_Marketplace = root.Economy.Shared_Marketplace,
 
 	-- Core
 	Shared_Abbreviation = root.Core.Shared_Abbreviation,

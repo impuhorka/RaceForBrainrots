@@ -1,5 +1,7 @@
 local LuckyBlocks = {}
 
+LuckyBlocks.DefaultBillboardYOffsetAdd = 0.35
+
 LuckyBlocks.DefaultModifierChances = {
 	Normal = 70,
 	Golden = 18,
@@ -141,32 +143,146 @@ LuckyBlocks.Data = {
 		MinLevel = 8,
 		MaxLevel = 18,
 	},
+	VIPLuckyBlock = {
+		DisplayName = "VIP Lucky Block",
+		Image = "rbxassetid://79236053187843",
+		BaseWeight = 500,
+		BillboardYOffsetAdd = 2,
+		BillboardTextScale = 1.45,
+		IsDonate = true,
+		DisplayStyle = {
+			Label = "VIP",
+			Color = Color3.fromRGB(255, 220, 120),
+			ColorGradient = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 60, 255)),
+			}),
+			GradientRotation = 90,
+		},
+		ModifierChances = {
+			Normal = 12,
+			Golden = 24,
+			Diamond = 24,
+			Galaxy = 20,
+			Lava = 12,
+			Rainbow = 8,
+		},
+		RewardBrainrots = {
+			"Trollface",
+			"TralalitaTralala",
+			"OdinDinDinDun",
+			"TricTracBarabum",
+			"SmurfCat",
+			"BrrBrrPatapim",
+			"CappuccinoAssassino",
+			"Mateo",
+			"TralaleroTralala",
+			"GirafaCelestre",
+			"DragonCannelloni",
+			"PipiPotato",
+			"SixSeven",
+			"Pakrahmatmamat",
+			"TatatataSahur",
+		},
+		Blacklist = {},
+	},
 }
+
+function LuckyBlocks.GetBillboardTextScale(configName: string): number?
+	local config = LuckyBlocks.Data[configName]
+	if config and type(config.BillboardTextScale) == "number" and config.BillboardTextScale > 0 then
+		return config.BillboardTextScale
+	end
+	return nil
+end
+
+function LuckyBlocks.GetBillboardYOffsetAdd(configName: string): number
+	local config = LuckyBlocks.Data[configName]
+	if config and type(config.BillboardYOffsetAdd) == "number" then
+		return config.BillboardYOffsetAdd
+	end
+	return LuckyBlocks.DefaultBillboardYOffsetAdd or 0.35
+end
+
+function LuckyBlocks.IsDonateBlock(configName: string): boolean
+	local config = LuckyBlocks.Data[configName]
+	return config ~= nil and config.IsDonate == true
+end
+
+function LuckyBlocks.IsMapSpawnable(configName: string): boolean
+	return LuckyBlocks.Data[configName] ~= nil and not LuckyBlocks.IsDonateBlock(configName)
+end
+
+function LuckyBlocks.GetDisplayStyle(configName: string): { [string]: any }?
+	local config = LuckyBlocks.Data[configName]
+	if not config or type(config.DisplayStyle) ~= "table" then
+		return nil
+	end
+	return config.DisplayStyle
+end
+
+function LuckyBlocks.GetRewardBrainrots(configName: string): { string }?
+	local config = LuckyBlocks.Data[configName]
+	if not config then
+		return nil
+	end
+
+	local rewardBrainrots = config.RewardBrainrots
+	if type(rewardBrainrots) ~= "table" or #rewardBrainrots == 0 then
+		return nil
+	end
+
+	local resolved: { string } = {}
+	for _, brainrotName in rewardBrainrots do
+		if type(brainrotName) == "string" and brainrotName ~= "" then
+			table.insert(resolved, brainrotName)
+		end
+	end
+
+	if #resolved == 0 then
+		return nil
+	end
+
+	return resolved
+end
+
+function LuckyBlocks.GetRewardRarities(configName: string): { string }?
+	local config = LuckyBlocks.Data[configName]
+	if not config then
+		return nil
+	end
+
+	local rewardRarities = config.RewardRarities
+	if type(rewardRarities) ~= "table" or #rewardRarities == 0 then
+		return nil
+	end
+
+	local resolved: { string } = {}
+	for _, rarity in rewardRarities do
+		if type(rarity) == "string" and rarity ~= "" then
+			table.insert(resolved, rarity)
+		end
+	end
+
+	if #resolved == 0 then
+		return nil
+	end
+
+	return resolved
+end
 
 function LuckyBlocks.GetConfigNameForRarity(rarity: string): string?
 	for configName, config in LuckyBlocks.Data do
-		if config.Rarity == rarity then
+		if not config.IsDonate and config.Rarity == rarity then
 			return configName
 		end
 	end
 	return nil
 end
 
-function LuckyBlocks.RollRewardLevel(configName: string): number
-	local config = LuckyBlocks.Data[configName]
-	if not config then
-		return 1
-	end
-
-	local minLevel = math.max(1, math.floor(config.MinLevel or 1))
-	local maxLevel = math.max(minLevel, math.floor(config.MaxLevel or minLevel))
-	if maxLevel <= minLevel then
-		return minLevel
-	end
-
-	local rollA = math.random(minLevel, maxLevel)
-	local rollB = math.random(minLevel, maxLevel)
-	return math.min(rollA, rollB)
+function LuckyBlocks.RollRewardLevel(_configName: string): number
+	return 1
 end
 
 function LuckyBlocks.GetBaseWeight(configName: string): number

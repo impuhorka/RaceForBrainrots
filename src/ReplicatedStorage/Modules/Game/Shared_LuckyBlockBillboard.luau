@@ -8,8 +8,12 @@ local Shared_LuckyBlockBillboard = {}
 
 local DESPAWN_TIME_FORMAT = "%d seconds"
 
-local function getBillboardAttachmentYOffset(primaryPart: BasePart): number
+local function getBaseBillboardAttachmentYOffset(primaryPart: BasePart): number
 	return primaryPart.Size.Y * 0.5 + 0.5
+end
+
+local function getBillboardAttachmentYOffset(primaryPart: BasePart, configName: string): number
+	return getBaseBillboardAttachmentYOffset(primaryPart) + Shared_LuckyBlocks.GetBillboardYOffsetAdd(configName)
 end
 
 local function setFrameTextLabel(billboard: Instance, frameName: string, text: string)
@@ -80,6 +84,22 @@ local function applyTextLabelGradient(textLabel: TextLabel, colorGradient: Color
 	gradient.Enabled = true
 end
 
+local function scaleBillboardTextLabelsY(billboard: Instance, scale: number)
+	for _, descendant in billboard:GetDescendants() do
+		if not descendant:IsA("TextLabel") then
+			continue
+		end
+
+		local size = descendant.Size
+		descendant.Size = UDim2.new(
+			size.X.Scale,
+			size.X.Offset,
+			size.Y.Scale * scale,
+			math.floor(size.Y.Offset * scale + 0.5)
+		)
+	end
+end
+
 function Shared_LuckyBlockBillboard.Setup(
 	luckyBlockModel: Model,
 	configName: string,
@@ -107,7 +127,7 @@ function Shared_LuckyBlockBillboard.Setup(
 
 	local billboardAttachment = Instance.new("Attachment")
 	billboardAttachment.Name = "BillboardAttachment"
-	billboardAttachment.Position = Vector3.new(0, getBillboardAttachmentYOffset(primaryPart), 0)
+	billboardAttachment.Position = Vector3.new(0, getBillboardAttachmentYOffset(primaryPart, configName), 0)
 	billboardAttachment.Parent = primaryPart
 
 	local billboard = billboardTemplate:Clone()
@@ -120,21 +140,46 @@ function Shared_LuckyBlockBillboard.Setup(
 	)
 	setFrameTextLabel(billboard, "Weight", Shared_Weight.FormatKg(resolvedWeight))
 
-	local rarityConfig = Shared_Rarities.Data[config.Rarity]
-	if rarityConfig then
+	local displayStyle = config.DisplayStyle
+	if type(displayStyle) == "table" then
 		setFrameVisible(billboard, "Rarity", true)
 
 		local rarityLabel = getFrameTextLabel(billboard, "Rarity")
 		if rarityLabel then
-			rarityLabel.Text = rarityConfig.DisplayName or config.Rarity
-			if rarityConfig.ColorGradient then
+			rarityLabel.Text = displayStyle.Label or config.DisplayName or configName
+			if displayStyle.Color then
+				rarityLabel.TextColor3 = displayStyle.Color
+			end
+			if displayStyle.ColorGradient then
 				applyTextLabelGradient(
 					rarityLabel,
-					rarityConfig.ColorGradient,
-					rarityConfig.GradientRotation or 90
+					displayStyle.ColorGradient,
+					displayStyle.GradientRotation or 90
 				)
 			end
 		end
+	elseif type(config.Rarity) == "string" then
+		local rarityConfig = Shared_Rarities.Data[config.Rarity]
+		if rarityConfig then
+			setFrameVisible(billboard, "Rarity", true)
+
+			local rarityLabel = getFrameTextLabel(billboard, "Rarity")
+			if rarityLabel then
+				rarityLabel.Text = rarityConfig.DisplayName or config.Rarity
+				if rarityConfig.ColorGradient then
+					applyTextLabelGradient(
+						rarityLabel,
+						rarityConfig.ColorGradient,
+						rarityConfig.GradientRotation or 90
+					)
+				end
+			end
+		end
+	end
+
+	local textScale = Shared_LuckyBlocks.GetBillboardTextScale(configName)
+	if textScale then
+		scaleBillboardTextLabelsY(billboard, textScale)
 	end
 
 	setFrameVisible(billboard, "DespawnTime", false)

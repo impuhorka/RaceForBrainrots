@@ -9,6 +9,8 @@ local Shared_RoadGradient = SharedModules.require("Shared_RoadGradient")
 
 local Client_GradientBar = {}
 
+local suppressedByFrame = false
+
 local localPlayer = Players.LocalPlayer
 local GENERATED_FOLDER_NAME = "GeneratedSegments"
 local PLAYER_ICONS_FOLDER_NAME = "PlayerIcons"
@@ -45,9 +47,23 @@ local function updateGradientBarVisibility()
 		return
 	end
 
+	if suppressedByFrame then
+		gradientBarFrameRef.Visible = false
+		return
+	end
+
 	local gameFolder = Workspace:FindFirstChild("Game")
 	local phase = gameFolder and gameFolder:GetAttribute("ProcessPhase")
 	gradientBarFrameRef.Visible = Shared_GameProcess.IsRaceActivePhase(phase)
+end
+
+function Client_GradientBar.setSuppressedByFrame(suppressed: boolean)
+	if suppressedByFrame == suppressed then
+		return
+	end
+
+	suppressedByFrame = suppressed
+	updateGradientBarVisibility()
 end
 
 local function clearGenerated(roadFrame: GuiObject)

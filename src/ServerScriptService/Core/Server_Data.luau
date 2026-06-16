@@ -12,6 +12,7 @@ local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
 local Shared_Carry = SharedModules.require("Shared_Carry")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
+local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 
 local Module = {}
@@ -36,6 +37,17 @@ local function reconcileLeaderboardStats(data: { [string]: any })
 	local speed = resolveMaxSpeed(data.Speed)
 	data.MaxSpeedRecorded = math.max(math.floor(tonumber(data.MaxSpeedRecorded) or 0), speed)
 	data.TotalCashEarned = math.max(0, math.floor(tonumber(data.TotalCashEarned) or 0))
+end
+
+local function reconcileFreeStrength(data: { [string]: any })
+	local used = math.clamp(math.floor(tonumber(data.FreeStrengthPointsUsed) or 0), 0, Shared_StrengthStore.FreeStrengthPoints)
+	data.FreeStrengthPointsUsed = used
+
+	local strength = math.max(Shared_StrengthStore.DefaultValue, math.floor(tonumber(data.Strength) or Shared_StrengthStore.DefaultValue))
+	local freeThreshold = Shared_StrengthStore.DefaultValue + Shared_StrengthStore.FreeStrengthPoints
+	if strength >= freeThreshold and used < Shared_StrengthStore.FreeStrengthPoints then
+		data.FreeStrengthPointsUsed = Shared_StrengthStore.FreeStrengthPoints
+	end
 end
 
 local function updateMaxSpeedRecorded(player: Player, speedValue: any)
@@ -83,6 +95,7 @@ local DataTemplate = {
 
 	Speed = Shared_SpeedStore.DefaultSpeed,
 	Strength = 1,
+	FreeStrengthPointsUsed = 0,
 	MaxSpeedRecorded = Shared_SpeedStore.DefaultSpeed,
 	TotalCashEarned = 0,
 
@@ -197,7 +210,7 @@ local function applyWalkSpeed(player: Player, maxSpeed: any, slowMode: any)
 	applyWalkSpeedToCharacter(character, player, maxSpeed, slowMode)
 end
 
-local PlayerStore = ProfileStore.New("RunForBrainrots_v1", DataTemplate)
+local PlayerStore = ProfileStore.New("RunForBrainrots_v2", DataTemplate)
 local ReplicaClassToken = ReplicaService.NewClassToken("PlayerData")
 
 local function getStore()
@@ -453,7 +466,13 @@ local function normalizeInventoryItem(item: any)
 			item.Data.BaseWeight = Shared_LuckyBlocks.GetBaseWeight(item.ConfigName)
 		end
 		if type(item.Data.Weight) ~= "number" then
-			item.Data.Weight = Shared_Weight.RollWeight(item.Data.BaseWeight)
+			if Shared_LuckyBlocks.IsDonateBlock(item.ConfigName) then
+				item.Data.Weight = Shared_Weight.RollWeight(item.Data.BaseWeight)
+			else
+				local config = Shared_LuckyBlocks.Data[item.ConfigName]
+				local rarity = if config and type(config.Rarity) == "string" then config.Rarity else "Common"
+				item.Data.Weight = Shared_Weight.RollLuckyBlockWeight(item.Data.BaseWeight, rarity)
+			end
 		end
 		return
 	end
@@ -630,6 +649,7 @@ local function onPlayerAdded(player)
 	profile:Reconcile()
 	migrateInventoryWeights(profile)
 	reconcileLeaderboardStats(profile.Data)
+	reconcileFreeStrength(profile.Data)
 
 	if USE_TEST_INVENTORY then
 		local plot = profile.Data.Plot or {}

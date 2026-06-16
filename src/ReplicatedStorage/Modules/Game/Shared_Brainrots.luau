@@ -5,6 +5,7 @@ local Shared_Weight = require(script.Parent.Shared_Weight)
 local Brainrots = {}
 
 Brainrots.MaxLevel = 150
+Brainrots.UpgradesEnabled = false
 
 Brainrots.DefaultBaseWeight = 15
 
@@ -20,7 +21,7 @@ Brainrots.Balance = {
 		StepMultiplierPhase2 = 1.55,
 		Phase1StepCount = 20,
 	},
-	SellWorthSeconds = 10,
+	SellWorthSeconds = 30,
 }
 
 -- PowerTier (1-10) sets base $/s inside each rarity band from Shared_Rarities.BaseIncome.
@@ -119,12 +120,23 @@ local function roundEconomy(value: number): number
 	return math.floor(value / step + 0.5) * step
 end
 
+function Brainrots.AreUpgradesEnabled(): boolean
+	return Brainrots.UpgradesEnabled == true
+end
+
+function Brainrots.GetIncomeLevel(level: number): number
+	if not Brainrots.AreUpgradesEnabled() then
+		return 1
+	end
+	return math.max(1, level or 1)
+end
+
 local function getRawCashPerSecond(configName: string, level: number, modifier: string): number
 	local baseCps = Brainrots.GetBaseCashPerSecond(configName)
 	local modMultiplier = Shared_Modifiers.GetIncomeMultiplier(modifier)
 	local incomeLevelMult = Brainrots.Balance.IncomeLevelMultiplier or 1
 
-	local safeLevel = math.max(1, level or 1)
+	local safeLevel = Brainrots.GetIncomeLevel(level)
 	local levelFactor = incomeLevelMult ^ (safeLevel - 1)
 
 	return baseCps * levelFactor * modMultiplier
@@ -247,6 +259,10 @@ function Brainrots.GetUpgradeCost(
 	baseWeight: number?,
 	rolledWeight: number?
 ): number
+	if not Brainrots.AreUpgradesEnabled() then
+		return 0
+	end
+
 	local config = Brainrots.Data[configName]
 	if not config then
 		return 0
@@ -281,13 +297,19 @@ function Brainrots.GetUpgradeCost(
 	return roundEconomy(delta * paybackSeconds)
 end
 
-function Brainrots.GetSellWorth(configName: string, level: number, modifier: string): number
+function Brainrots.GetSellWorth(
+	configName: string,
+	level: number,
+	modifier: string,
+	baseWeight: number?,
+	rolledWeight: number?
+): number
 	if not Brainrots.Data[configName] then
 		return 0
 	end
 
-	local income = getRawCashPerSecond(configName, level, modifier)
-	local secondsWorth = Brainrots.Balance.SellWorthSeconds or 10
+	local income = Brainrots.GetCashPerSecond(configName, level, modifier, baseWeight, rolledWeight)
+	local secondsWorth = Brainrots.Balance.SellWorthSeconds or 30
 	return roundEconomy(income * secondsWorth)
 end
 

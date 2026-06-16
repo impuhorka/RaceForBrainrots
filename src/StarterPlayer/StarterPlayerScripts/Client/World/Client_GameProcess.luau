@@ -42,6 +42,7 @@ local entranceWallUi: EntranceWallUi = {}
 local lastEntranceWallUiPhase: string? = nil
 local lastProcessPhase: string? = nil
 local lastUiUpdateAt = 0
+local suppressedByFrame = false
 local UI_UPDATE_INTERVAL = 0.1
 local baseGameProcessSize: UDim2? = nil
 local carrySizeTween: Tween? = nil
@@ -331,7 +332,7 @@ local function updateUi(force: boolean?)
 
 	if gameProcessGui then
 		local hasActivePhase = phase ~= nil and phaseFrames[phase] ~= nil
-		gameProcessGui.Visible = hasActivePhase
+		gameProcessGui.Visible = hasActivePhase and not suppressedByFrame
 
 		for phaseName, frame in phaseFrames do
 			local isActive = phaseName == phase
@@ -396,6 +397,15 @@ local function bindRaceTimeRanOutHandler()
 			Client_Messaging.Show(message, "red")
 		end
 	end)
+end
+
+function Client_GameProcess.setSuppressedByFrame(suppressed: boolean)
+	if suppressedByFrame == suppressed then
+		return
+	end
+
+	suppressedByFrame = suppressed
+	updateUi(true)
 end
 
 function Client_GameProcess.Init()

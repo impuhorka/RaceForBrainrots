@@ -360,6 +360,20 @@ function FrameController.isOpenForBlur(frame: GuiObject): boolean
 	return frame.Visible
 end
 
+function FrameController.isAnyNonInventoryFrameOpen(): boolean
+	if not framesFolder then
+		return false
+	end
+
+	for _, child in framesFolder:GetChildren() do
+		if child:IsA("GuiObject") and countsForBlur(child) and FrameController.isOpenForBlur(child) then
+			return true
+		end
+	end
+
+	return false
+end
+
 function FrameController.closeAllInstant()
 	if not framesFolder then
 		return

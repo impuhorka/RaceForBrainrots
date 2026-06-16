@@ -69,34 +69,6 @@ local function refreshAllPromptVisibility()
 	end
 end
 
-local function isAnyNonInventoryFrameOpen(): boolean
-	local playerGui = localPlayer:FindFirstChild("PlayerGui")
-	if not playerGui then
-		return false
-	end
-
-	local main = playerGui:FindFirstChild("Main")
-	if not main then
-		return false
-	end
-
-	local frames = main:FindFirstChild("Frames")
-	if not frames or not frames:IsA("Folder") then
-		return false
-	end
-
-	for _, child in frames:GetChildren() do
-		if child:IsA("GuiObject")
-			and FrameController.countsForBlur(child)
-			and FrameController.isOpenForBlur(child)
-		then
-			return true
-		end
-	end
-
-	return false
-end
-
 local function setPromptSuppressed(suppressed: boolean)
 	if promptsSuppressed == suppressed then
 		return
@@ -106,7 +78,7 @@ local function setPromptSuppressed(suppressed: boolean)
 end
 
 local function refreshSuppressionNow()
-	setPromptSuppressed(isAnyNonInventoryFrameOpen())
+	setPromptSuppressed(FrameController.isAnyNonInventoryFrameOpen())
 end
 
 local function getPromptTemplate(): BillboardGui

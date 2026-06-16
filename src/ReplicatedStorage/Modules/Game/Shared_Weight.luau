@@ -26,8 +26,8 @@ Shared_Weight.Balance = {
 	-- Brainrots only scale from the weight roll, not lucky-block base tier.
 	BrainrotSizeRatioSlope = 0.25,
 	BrainrotMaxSizeMultiplier = 1.35,
-	IncomeRatioSlope = 0.375,
-	MaxIncomeMultiplier = 3,
+	IncomeRatioSlope = 0.55,
+	MaxIncomeMultiplier = 5.5,
 }
 
 local function roundWeight(value: number): number

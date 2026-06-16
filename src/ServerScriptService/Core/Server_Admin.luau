@@ -322,8 +322,26 @@ local function executeAddLuckyBlock(actor: Player, args: { string }): string
 	return ("Added %d x %s to %s"):format(addedCount, configName, target.Name)
 end
 
+local function executeSkipTutorial(actor: Player, args: { string }): string
+	local target = actor
+	if args[1] then
+		local resolvedTarget, targetError = resolveTargetPlayer(actor, args[1])
+		if not resolvedTarget then
+			return targetError or "Usage: /skiptutorial [me|player]"
+		end
+		target = resolvedTarget
+	end
+
+	if Server_Data:GetValue(target, "TutorialCompleted") == true then
+		return ("%s has already completed the tutorial"):format(target.Name)
+	end
+
+	Server_Data:SetValue(target, "TutorialCompleted", true)
+	return ("Skipped tutorial for %s"):format(target.Name)
+end
+
 local function executeHelp(): string
-	return "Commands: /addcash, /setcash, /addspeed, /setspeed, /addstrength, /setstrength [me|player] [amount], /addbrainrot [me|player] [ConfigName|all] [Modifier=Normal] [Level=1] [Amount=1], /addluckyblock [me|player] [ConfigName|all] [Amount=1], /wipe-data [me|player]"
+	return "Commands: /addcash, /setcash, /addspeed, /setspeed, /addstrength, /setstrength [me|player] [amount], /addbrainrot [me|player] [ConfigName|all] [Modifier=Normal] [Level=1] [Amount=1], /addluckyblock [me|player] [ConfigName|all] [Amount=1], /skiptutorial [me|player], /wipe-data [me|player]"
 end
 
 local function executeWipeData(actor: Player, args: { string }): string
@@ -390,6 +408,8 @@ local function handleCommand(player: Player, message: string)
 		result = executeAddBrainrot(player, parts)
 	elseif command == "addluckyblock" then
 		result = executeAddLuckyBlock(player, parts)
+	elseif command == "skiptutorial" then
+		result = executeSkipTutorial(player, parts)
 	elseif command == "wipe-data" or command == "wipedata" then
 		result = executeWipeData(player, parts)
 	elseif command == "adminhelp" then
@@ -424,6 +444,7 @@ local function initTextChatCommands()
 		{ Name = "setstrength", Alias = "/setstrength" },
 		{ Name = "addbrainrot", Alias = "/addbrainrot" },
 		{ Name = "addluckyblock", Alias = "/addluckyblock" },
+		{ Name = "skiptutorial", Alias = "/skiptutorial" },
 		{ Name = "wipe_data", Alias = "/wipe-data" },
 		{ Name = "adminhelp", Alias = "/adminhelp" },
 	}

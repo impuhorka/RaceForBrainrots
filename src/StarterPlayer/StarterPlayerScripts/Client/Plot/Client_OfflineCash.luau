@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
+local Shared_Marketplace = SharedModules.require("Shared_Marketplace")
 local Client_CashAddingPopups = ClientLoader.require("Client_CashAddingPopups")
 local Client_Messaging = ClientLoader.require("Client_Messaging")
 local FrameController = require(script.Parent.Parent.Parent.UI.FrameController)
@@ -28,6 +29,8 @@ local offlineFrame: GuiObject?
 local timeLabel: TextLabel?
 local cashLabel: TextLabel?
 local collectButton: ImageButton?
+local robuxBuyButton: ImageButton?
+local robuxCostLabel: TextLabel?
 
 local pendingCash = 0
 local collected = false
@@ -116,6 +119,33 @@ local function formatDuration(seconds: number): string
 	return ("%ds"):format(secs)
 end
 
+local function findTextLabel(root: Instance, name: string): TextLabel?
+	local direct = root:FindFirstChild(name)
+	if direct and direct:IsA("TextLabel") then
+		return direct
+	end
+
+	local nested = root:FindFirstChild(name, true)
+	if nested and nested:IsA("TextLabel") then
+		return nested
+	end
+
+	return nil
+end
+
+local function refreshRobuxBuyUi()
+	if not robuxCostLabel then
+		return
+	end
+
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	local configKey = Shared_Marketplace.OfflineCashRobuxProductKey
+	local robuxPrice = Client_Marketplace.GetRobuxDisplayPrice(configKey)
+	if robuxPrice then
+		robuxCostLabel.Text = Shared_Marketplace.FormatRobuxPrice(robuxPrice)
+	end
+end
+
 local function collectParticleEmitters(root: Instance): { ParticleEmitter }
 	local emitters: { ParticleEmitter } = {}
 
@@ -200,6 +230,7 @@ local function showOfflineFrame(cash: number, offlineSeconds: number)
 	collected = false
 	collecting = false
 	updateFrame(cash, offlineSeconds)
+	refreshRobuxBuyUi()
 	FrameController.open(offlineFrame)
 end
 
@@ -216,6 +247,30 @@ local function bindUi()
 	cashLabel = cashRoot:WaitForChild("TextLabel") :: TextLabel
 	collectButton = holder:WaitForChild("Collect"):WaitForChild("ImageButton") :: ImageButton
 
+	local robuxBuyRoot = holder:FindFirstChild("RobuxBuy")
+	if robuxBuyRoot then
+		local imageButton: ImageButton? = if robuxBuyRoot:IsA("GuiButton")
+			then robuxBuyRoot :: ImageButton
+			else robuxBuyRoot:FindFirstChild("ImageButton") :: ImageButton?
+		if not imageButton or not imageButton:IsA("ImageButton") then
+			imageButton = robuxBuyRoot:FindFirstChildWhichIsA("ImageButton", true)
+		end
+
+		if imageButton then
+			robuxBuyButton = imageButton
+			robuxCostLabel = findTextLabel(imageButton, "Cost") or findTextLabel(robuxBuyRoot, "Cost")
+
+			imageButton.MouseButton1Click:Connect(function()
+				if collected or collecting or pendingCash <= 0 then
+					return
+				end
+
+				local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+				Client_Marketplace.PromptProductPurchase(Shared_Marketplace.OfflineCashRobuxProductKey)
+			end)
+		end
+	end
+
 	offlineFrame.Visible = false
 
 	collectButton.MouseButton1Click:Connect(function()
@@ -225,6 +280,7 @@ local function bindUi()
 	offlineFrame:GetPropertyChangedSignal("Visible"):Connect(function()
 		if offlineFrame.Visible then
 			startCashLabelPulse()
+			refreshRobuxBuyUi()
 			return
 		end
 
@@ -241,6 +297,15 @@ function Client_OfflineCash.Init()
 
 	local events = ReplicatedStorage:WaitForChild("Events")
 	plotHandler = events:WaitForChild("PlotHandler") :: RemoteEvent
+
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	Client_Marketplace.OnPricesChanged(refreshRobuxBuyUi)
+	Client_Marketplace.OnCatalogChanged(refreshRobuxBuyUi)
+
+	task.spawn(function()
+		Client_Marketplace.WaitUntilReady()
+		refreshRobuxBuyUi()
+	end)
 
 	plotHandler.OnClientEvent:Connect(function(action: string, arg1: any, arg2: any)
 		if action == "OfflineCash" then

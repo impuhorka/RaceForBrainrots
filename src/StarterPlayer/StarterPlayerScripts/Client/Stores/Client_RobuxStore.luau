@@ -43,7 +43,7 @@ local function findTextLabel(root: Instance, name: string): TextLabel?
 end
 
 local function formatRobux(amount: number): string
-	return tostring(math.max(0, math.floor(amount)))
+	return Shared_Marketplace.FormatRobuxPrice(amount)
 end
 
 local function formatCash(amount: number): string
@@ -58,6 +58,14 @@ local function getPurchaseSuccessMessage(configKey: string): string
 
 	if Shared_Marketplace.IsCashProduct(configKey) then
 		return string.format("Purchased $%s!", formatCash(Shared_Marketplace.GetGrantCash(configKey)))
+	end
+
+	if Shared_Marketplace.IsSpeedProduct(configKey) then
+		return `Purchased +{Shared_Marketplace.GetGrantAmount(configKey)} speed!`
+	end
+
+	if Shared_Marketplace.IsStrengthProduct(configKey) then
+		return `Purchased +{Shared_Marketplace.GetGrantAmount(configKey)} strength!`
 	end
 
 	local grantAmount = Shared_Marketplace.GetGrantAmount(configKey)
@@ -86,7 +94,7 @@ local function updateLuckyBlockBundleUi(bundleAmount: number)
 	local price = Client_Marketplace.GetUserPriceInRobux(configKey)
 	local costLabel = luckyBlockCostLabels[bundleAmount]
 	if costLabel and price then
-		costLabel.Text = `{formatRobux(price)} R$`
+		costLabel.Text = formatRobux(price)
 	end
 
 	local discountLabel = luckyBlockDiscountLabels[bundleAmount]
@@ -96,7 +104,7 @@ local function updateLuckyBlockBundleUi(bundleAmount: number)
 
 	local discount = Client_Marketplace.GetBundleDiscount(configKey, UNIT_CONFIG_KEY)
 	if discount > 0 then
-		discountLabel.Text = `-{formatRobux(discount)}R$`
+		discountLabel.Text = `-{formatRobux(discount)}`
 	else
 		discountLabel.Text = ""
 	end
@@ -118,7 +126,7 @@ local function updateCashTierUi(tier: number)
 	local price = Client_Marketplace.GetUserPriceInRobux(configKey)
 	local costLabel = cashCostLabels[tier]
 	if costLabel and price then
-		costLabel.Text = `{formatRobux(price)} R$`
+		costLabel.Text = formatRobux(price)
 	end
 end
 
@@ -142,7 +150,7 @@ local function updateGamePassUi(configKey: string)
 
 	local price = Client_Marketplace.GetUserPriceInRobux(configKey)
 	if price then
-		ui.costLabel.Text = `{formatRobux(price)} R$`
+		ui.costLabel.Text = formatRobux(price)
 	end
 	if ui.costGradient then
 		ui.costGradient.Enabled = false
@@ -247,6 +255,27 @@ local function setupGamePassUi()
 	end
 
 	CollectionService:GetInstanceAddedSignal(GAMEPASS_TAG):Connect(bindGamePassFrame)
+
+	local playerGui = localPlayer:FindFirstChild("PlayerGui")
+	local main = playerGui and playerGui:FindFirstChild("Main")
+	local frames = main and main:FindFirstChild("Frames")
+	local robuxStore = frames and frames:FindFirstChild("RobuxStore")
+	local scrollingFrame = robuxStore and robuxStore:FindFirstChild("ScrollingFrame")
+	if not scrollingFrame then
+		return
+	end
+
+	for configKey, config in Shared_Marketplace.GetAllProducts() do
+		if config.ProductType ~= Shared_Marketplace.ProductType.GamePass then
+			continue
+		end
+
+		local frame = scrollingFrame:FindFirstChild(configKey, true)
+			or scrollingFrame:FindFirstChild(tostring(config.ProductId), true)
+		if frame then
+			bindGamePassFrame(frame)
+		end
+	end
 end
 
 local function onProductPurchaseClicked(configKey: string, requiresPaidRandomItems: boolean)

@@ -9,7 +9,13 @@ local function roundToCoolThousands(value: number): number
 end
 
 function Shared_PlotConfig.getNextSlotCost(currentSlotCount: number): number
-	local rawCost = 1000 * (currentSlotCount + 1) ^ 1.25
+	if currentSlotCount < 10 then
+		local rawCost = 1000 * (currentSlotCount + 1) ^ 1.25
+		return roundToCoolThousands(rawCost)
+	end
+
+	local extraSlots = currentSlotCount - 9
+	local rawCost = 50000 * extraSlots ^ 2.8
 	return roundToCoolThousands(rawCost)
 end
 

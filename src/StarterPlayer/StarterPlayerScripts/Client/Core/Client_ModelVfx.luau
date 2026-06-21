@@ -1,3 +1,7 @@
+local RunService = game:GetService("RunService")
+
+local ClientLoader = require(script.Parent.Parent.Loader)
+
 local Client_ModelVfx = {}
 
 local VFX_CLASS_NAMES = {
@@ -12,10 +16,18 @@ local VFX_CLASS_NAMES = {
 	"SurfaceLight",
 }
 
+local PROXIMITY_REFRESH_INTERVAL = 0.25
+
 local savedEnabled: { [Instance]: boolean } = {}
 local descendantConnections: { [Model]: RBXScriptConnection } = {}
 local destroyHooked: { [Model]: boolean } = {}
 local modelEffectsEnabled: { [Model]: boolean } = {}
+local proximityAccumulator = 0
+local proximityConnection: RBXScriptConnection?
+
+local function getLocalWorldState()
+	return ClientLoader.require("Client_LocalWorldState")
+end
 
 local function isVfxInstance(instance: Instance): boolean
 	for _, className in VFX_CLASS_NAMES do
@@ -44,6 +56,14 @@ local function clearSavedStatesForModel(model: Model)
 	for _, descendant in model:GetDescendants() do
 		savedEnabled[descendant] = nil
 	end
+end
+
+local function resolveEffectsEnabled(model: Model, settingsEnabled: boolean): boolean
+	if not settingsEnabled then
+		return false
+	end
+
+	return getLocalWorldState().IsWithinEffectsRange(model:GetPivot().Position)
 end
 
 local function applyVfxInstance(instance: Instance, effectsEnabled: boolean)
@@ -77,19 +97,49 @@ local function applyVfxInstance(instance: Instance, effectsEnabled: boolean)
 	setVfxEnabled(instance, false)
 end
 
-function Client_ModelVfx.ApplyToModel(model: Model, effectsEnabled: boolean)
-	if descendantConnections[model] then
-		modelEffectsEnabled[model] = effectsEnabled
+local function refreshTrackedProximity()
+	for model, settingsEnabled in modelEffectsEnabled do
+		if model.Parent then
+			Client_ModelVfx.ApplyToModel(model, settingsEnabled == true)
+		end
+	end
+end
+
+local function ensureProximityLoop()
+	if proximityConnection then
+		return
 	end
 
+	proximityConnection = RunService.Heartbeat:Connect(function(dt)
+		if next(modelEffectsEnabled) == nil then
+			return
+		end
+
+		proximityAccumulator += dt
+		if proximityAccumulator < PROXIMITY_REFRESH_INTERVAL then
+			return
+		end
+
+		proximityAccumulator = 0
+		refreshTrackedProximity()
+	end)
+end
+
+function Client_ModelVfx.ApplyToModel(model: Model, settingsEnabled: boolean)
+	if descendantConnections[model] then
+		modelEffectsEnabled[model] = settingsEnabled
+	end
+
+	local effectsEnabled = resolveEffectsEnabled(model, settingsEnabled)
 	for _, descendant in model:GetDescendants() do
 		applyVfxInstance(descendant, effectsEnabled)
 	end
 end
 
-function Client_ModelVfx.TrackModel(model: Model, effectsEnabled: boolean)
-	modelEffectsEnabled[model] = effectsEnabled
-	Client_ModelVfx.ApplyToModel(model, effectsEnabled)
+function Client_ModelVfx.TrackModel(model: Model, settingsEnabled: boolean)
+	modelEffectsEnabled[model] = settingsEnabled
+	Client_ModelVfx.ApplyToModel(model, settingsEnabled)
+	ensureProximityLoop()
 
 	local existingConnection = descendantConnections[model]
 	if existingConnection then
@@ -97,7 +147,7 @@ function Client_ModelVfx.TrackModel(model: Model, effectsEnabled: boolean)
 	end
 
 	descendantConnections[model] = model.DescendantAdded:Connect(function(descendant)
-		local enabled = modelEffectsEnabled[model] == true
+		local enabled = resolveEffectsEnabled(model, modelEffectsEnabled[model] == true)
 		applyVfxInstance(descendant, enabled)
 	end)
 
@@ -110,6 +160,7 @@ function Client_ModelVfx.TrackModel(model: Model, effectsEnabled: boolean)
 				descendantConnections[model] = nil
 			end
 			destroyHooked[model] = nil
+			modelEffectsEnabled[model] = nil
 			clearSavedStatesForModel(model)
 		end)
 	end

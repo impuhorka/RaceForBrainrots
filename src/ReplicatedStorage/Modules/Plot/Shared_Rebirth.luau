@@ -12,10 +12,18 @@ Shared_Rebirth.BaseSpeedCap = 80
 Shared_Rebirth.BaseStrengthCap = 100
 
 Shared_Rebirth.Economy = {
-	BaseCost = 3_500_000,
-	GrowthPerRebirth = 2.18,
-	CostAcceleration = 0.14,
+	-- First rebirth stays at BaseCost; 2nd+ scales faster via Growth + SecondRebirthCostMultiplier.
+	BaseCost = 100_000,
+	GrowthPerRebirth = 4.35,
+	CostAcceleration = 0.12,
+	SecondRebirthCostMultiplier = 1.45,
 	RoundTo = 10_000,
+}
+
+-- Robux tiers: cheap early rebirths (T1), mid wall (T2), late grind (T3).
+Shared_Rebirth.RobuxTierByRebirthCount = {
+	EasyMaxRebirth = 2,
+	MidMaxRebirth = 5,
 }
 
 local function roundToStep(value: number, step: number): number
@@ -102,7 +110,26 @@ function Shared_Rebirth.GetCost(rebirths: any): number
 	local acceleration = economy.CostAcceleration or 0
 	local effectiveExponent = count * (1 + count * acceleration)
 	local rawCost = economy.BaseCost * (economy.GrowthPerRebirth ^ effectiveExponent)
+	if count >= 1 then
+		rawCost *= economy.SecondRebirthCostMultiplier or 1
+	end
 	return roundToStep(rawCost, economy.RoundTo)
+end
+
+function Shared_Rebirth.GetRobuxTier(rebirths: any): number
+	local count = Shared_Rebirth.GetRebirthCount(rebirths)
+	local tiers = Shared_Rebirth.RobuxTierByRebirthCount
+	if count <= (tiers.EasyMaxRebirth or 2) then
+		return 1
+	end
+	if count <= (tiers.MidMaxRebirth or 5) then
+		return 2
+	end
+	return 3
+end
+
+function Shared_Rebirth.GetRobuxProductConfigKey(rebirths: any): string
+	return `RebirthT{Shared_Rebirth.GetRobuxTier(rebirths)}`
 end
 
 return Shared_Rebirth

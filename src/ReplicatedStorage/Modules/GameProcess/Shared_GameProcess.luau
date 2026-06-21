@@ -101,6 +101,7 @@ Shared_GameProcess.VIPMinimapExtensionDepth = 75
 Shared_GameProcess.VIPMinimapCloserOffset = 20
 Shared_GameProcess.VIPGamepassConfigKey = "VIP"
 Shared_GameProcess.VIPLuckyBlocksPerHole = 4
+Shared_GameProcess.SuperiorVIPLuckyBlocksPerHole = 7
 Shared_GameProcess.VIPMinimapWeightLuckMultiplier = 2.5
 Shared_GameProcess.VIPDecorationsPerHole = {
 	Rocks = 1,
@@ -109,9 +110,62 @@ Shared_GameProcess.VIPDecorationsPerHole = {
 	Flowers = 1,
 }
 Shared_GameProcess.VIPRequiredPickupMessage = "You need VIP to collect lucky blocks from this area!"
+Shared_GameProcess.JumpBarrierThickness = 4
+Shared_GameProcess.JumpBarrierPaddingX = 4
+Shared_GameProcess.JumpBarrierPaddingZ = 4
 
 function Shared_GameProcess.HasVIPMinimapExtension(rarityName: string): boolean
 	return rarityName ~= "Common" and rarityName ~= "Rare"
+end
+
+function Shared_GameProcess.ShouldMarkLuckyBlockAsVIPZone(_rarityName: string, isVipHoleFloor: boolean): boolean
+	return isVipHoleFloor == true
+end
+
+function Shared_GameProcess.IsVipLuckyBlockModel(luckyBlock: Instance): boolean
+	if luckyBlock:GetAttribute("IsVIPZone") == true then
+		return true
+	end
+
+	local configName = luckyBlock:GetAttribute("ConfigName")
+	return type(configName) == "string" and configName == "VIPLuckyBlock"
+end
+
+function Shared_GameProcess.GetVIPLuckyBlocksPerHole(rarityName: string): number
+	if rarityName == "Superior" then
+		return Shared_GameProcess.SuperiorVIPLuckyBlocksPerHole
+	end
+	return Shared_GameProcess.VIPLuckyBlocksPerHole
+end
+
+function Shared_GameProcess.IsUnwantedVipSideRoadWall(wall: Instance): boolean
+	if not wall:IsA("BasePart") then
+		return false
+	end
+
+	if wall:GetAttribute("IsGameProcessWall") ~= true then
+		return false
+	end
+
+	if wall:GetAttribute("IsVIPRoadWall") == true then
+		return false
+	end
+
+	if wall:GetAttribute("IsMainRoadWall") == true then
+		return true
+	end
+
+	local rarityName = wall:GetAttribute("Rarity")
+	if type(rarityName) ~= "string" or not Shared_GameProcess.HasVIPMinimapExtension(rarityName) then
+		return false
+	end
+
+	local side = wall:GetAttribute("Side")
+	if side ~= "Left" and side ~= "Right" then
+		return false
+	end
+
+	return wall.Name == `{rarityName}{side}Wall` or wall.Name == `{rarityName}{side}MainRoadWall`
 end
 
 function Shared_GameProcess.GetScheduledSlotTime(

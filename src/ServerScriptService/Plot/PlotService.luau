@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 local Plot = require(script.Parent.Plot)
 local Shared_PlotConfig = SharedModules.require("Shared_PlotConfig")
 local PlotCash = require(script.Parent.PlotCash)
+local Server_Marketplace = require(script.Parent.Parent.Core.Server_Marketplace)
 local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
@@ -21,6 +22,9 @@ local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
 local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 
 local luckyBlockOpenLocks: { [Player]: boolean } = {}
+local collectAllCooldowns: { [Player]: number } = {}
+local activePlotService: any = nil
+local COLLECT_ALL_COOLDOWN = 1
 local plotHandler: RemoteEvent
 
 local function clearEquippedVisual(player: Player)
@@ -92,11 +96,17 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 	end
 
 	local blacklistSet = buildBlacklistSet(luckyBlockData.Blacklist)
+
+	local weightedReward = Shared_LuckyBlocks.RollRewardBrainrot(luckyBlockConfigName)
+	if weightedReward then
+		return weightedReward
+	end
+
 	local rewardBrainrots = Shared_LuckyBlocks.GetRewardBrainrots(luckyBlockConfigName)
 	if rewardBrainrots then
 		local candidates = {}
 		for _, configName in rewardBrainrots do
-			if not blacklistSet[normalizeName(configName)] then
+			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
 				table.insert(candidates, configName)
 			end
 		end
@@ -111,7 +121,7 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 		local rarity = rewardRarities[math.random(1, #rewardRarities)]
 		local candidates = {}
 		for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
-			if not blacklistSet[normalizeName(configName)] then
+			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
 				table.insert(candidates, configName)
 			end
 		end
@@ -128,7 +138,7 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 
 	local candidates = {}
 	for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
-		if not blacklistSet[normalizeName(configName)] then
+		if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
 			table.insert(candidates, configName)
 		end
 	end
@@ -223,8 +233,7 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 	local rewardedLevel = Shared_LuckyBlocks.RollRewardLevel(luckyBlockConfigName)
 	local rewardedModifier = rollLuckyBlockModifier(luckyBlockData)
 	local defaultBaseWeight = Shared_LuckyBlocks.GetBaseWeight(luckyBlockConfigName)
-	local baseWeight, blockWeight =
-		Shared_Weight.ResolveLuckyBlockWeights(removedItem.Data, defaultBaseWeight)
+	local baseWeight, luckyBlockWeight = Shared_Weight.ResolveLuckyBlockWeights(removedItem.Data, defaultBaseWeight)
 
 	local rewardIndex = Server_Data:AddInventoryItem(player, {
 		ItemType = "Brainrot",
@@ -233,9 +242,18 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 			Level = rewardedLevel,
 			Modifier = rewardedModifier,
 			BaseWeight = baseWeight,
-			Weight = blockWeight,
+			Weight = luckyBlockWeight,
 		},
 	})
+
+	local rolledWeight = luckyBlockWeight
+	if rewardIndex then
+		local inventory = Server_Data:GetValue(player, "Inventory") or {}
+		local rewardedItem = inventory[rewardIndex]
+		if rewardedItem and type(rewardedItem.Data) == "table" and type(rewardedItem.Data.Weight) == "number" then
+			rolledWeight = rewardedItem.Data.Weight
+		end
+	end
 
 	if not rewardIndex then
 		local newInventory = Server_Data:GetValue(player, "Inventory") or {}
@@ -270,9 +288,9 @@ local function openLuckyBlock(player: Player, inventoryIndex: number): { [string
 		pickedLevel = rewardedLevel,
 		pickedModifier = rewardedModifier,
 		blockBaseWeight = baseWeight,
-		blockWeight = blockWeight,
+		blockWeight = rolledWeight,
 		pickedBaseWeight = baseWeight,
-		pickedWeight = blockWeight,
+		pickedWeight = rolledWeight,
 		rewardInventoryIndex = rewardIndex,
 	}
 
@@ -393,7 +411,8 @@ local function tryBuyStrength(player: Player, amount: number): (boolean, string?
 		0,
 		Shared_StrengthStore.FreeStrengthPoints
 	)
-	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount, freePointsUsed)
+	local rebirths = Server_Data:GetValue(player, "Rebirths")
+	local cost = Shared_StrengthStore.GetPurchaseCost(currentStrength, safeAmount, freePointsUsed, rebirths)
 	local currentCash = Server_Data:GetValue(player, "Cash") or 0
 
 	if currentCash < cost then
@@ -405,7 +424,12 @@ local function tryBuyStrength(player: Player, amount: number): (boolean, string?
 	local newStrength = Shared_StrengthStore.GetStrengthAfterPurchase(currentStrength, safeAmount)
 	Server_Data:SetValue(player, "Strength", newStrength)
 
-	local freePointsGranted = Shared_StrengthStore.GetFreePointsInPurchase(currentStrength, safeAmount, freePointsUsed)
+	local freePointsGranted = Shared_StrengthStore.GetFreePointsInPurchase(
+		currentStrength,
+		safeAmount,
+		freePointsUsed,
+		rebirths
+	)
 	if freePointsGranted > 0 then
 		Server_Data:SetValue(
 			player,
@@ -422,6 +446,18 @@ local function setSlowMode(player: Player, enabled: boolean): boolean
 	return true
 end
 
+local function applyRebirthState(player: Player)
+	local rebirths = Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
+	Server_Data:SetValue(player, "Rebirths", rebirths + 1)
+	Server_Data:SetValue(player, "Cash", 0)
+	Server_Data:SetValue(player, "Speed", Shared_SpeedStore.DefaultSpeed)
+	Server_Data:SetValue(player, "Strength", Shared_StrengthStore.DefaultStrength)
+	Server_Data:SetValue(player, "FreeStrengthPointsUsed", Shared_StrengthStore.FreeStrengthPoints)
+
+	local plot = if activePlotService then activePlotService:GetPlotByPlayer(player) else nil
+	PlotCash.ClearAllUncollectedCash(player, plot)
+end
+
 local function tryRebirth(player: Player): (boolean, string?, number?)
 	local rebirths = Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
 	local cost = Shared_Rebirth.GetCost(rebirths)
@@ -431,10 +467,7 @@ local function tryRebirth(player: Player): (boolean, string?, number?)
 		return false, "NotEnoughCash", cost
 	end
 
-	Server_Data:SetValue(player, "Rebirths", rebirths + 1)
-	Server_Data:SetValue(player, "Cash", 0)
-	Server_Data:SetValue(player, "Speed", Shared_SpeedStore.DefaultSpeed)
-	Server_Data:SetValue(player, "Strength", Shared_StrengthStore.DefaultStrength)
+	applyRebirthState(player)
 
 	return true, nil, cost
 end
@@ -445,6 +478,30 @@ end
 
 local PlotService = {}
 PlotService.__index = PlotService
+
+function PlotService:CompleteRebirth(player: Player, cost: number?)
+	local plot = self:GetPlotByPlayer(player)
+	if plot then
+		plot.Model:SetAttribute(
+			"OwnerRebirths",
+			Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
+		)
+	end
+
+	local plotHandler = ReplicatedStorage:FindFirstChild("Events")
+		and (ReplicatedStorage.Events :: Folder):FindFirstChild("PlotHandler")
+	if plotHandler and plotHandler:IsA("RemoteEvent") then
+		local remote = plotHandler :: RemoteEvent
+		remote:FireClient(player, "RebirthSuccess", cost or 0)
+		remote:FireClient(player, "OfflineCash", 0, 0)
+	end
+end
+
+function PlotService:GrantRobuxRebirth(player: Player): boolean
+	applyRebirthState(player)
+	self:CompleteRebirth(player, 0)
+	return true
+end
 
 function PlotService.new()
 	local self = setmetatable({}, PlotService)
@@ -572,6 +629,7 @@ function PlotService:AddSlot(player: Player): Model?
 end
 
 function PlotService:Init()
+	activePlotService = self
 	self:LoadPlots()
 
 	plotHandler = ReplicatedStorage:WaitForChild("Events"):WaitForChild("PlotHandler") :: RemoteEvent
@@ -593,6 +651,26 @@ function PlotService:Init()
 
 			local plot = self:GetPlotByPlayer(player)
 			PlotCash.Collect(player, plot, slotId)
+			return
+		end
+
+		if action == "CollectAll" then
+			if not Server_Marketplace.PlayerOwnsFastCollect(player) then
+				return
+			end
+
+			local now = os.clock()
+			local lastCollect = collectAllCooldowns[player]
+			if lastCollect and now - lastCollect < COLLECT_ALL_COOLDOWN then
+				return
+			end
+			collectAllCooldowns[player] = now
+
+			local plot = self:GetPlotByPlayer(player)
+			local totalCollected = PlotCash.CollectAll(player, plot)
+			if totalCollected > 0 then
+				plotHandler:FireClient(player, "CollectAllSuccess", totalCollected)
+			end
 			return
 		end
 
@@ -694,14 +772,7 @@ function PlotService:Init()
 		if action == "Rebirth" then
 			local rebirthed, reason, cost = tryRebirth(player)
 			if rebirthed then
-				local plot = self:GetPlotByPlayer(player)
-				if plot then
-					plot.Model:SetAttribute(
-						"OwnerRebirths",
-						Shared_Rebirth.GetRebirthCount(Server_Data:GetValue(player, "Rebirths"))
-					)
-				end
-				plotHandler:FireClient(player, "RebirthSuccess", cost)
+				self:CompleteRebirth(player, cost)
 			else
 				plotHandler:FireClient(player, "RebirthFailed", reason, cost)
 			end
@@ -721,6 +792,7 @@ function PlotService:Init()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		collectAllCooldowns[player] = nil
 		self:DetachPlayer(player)
 	end)
 end

@@ -4,7 +4,7 @@ Modifiers.Data = {
 	Normal = {
 		DisplayName = "Normal",
 		LayoutOrder = 1,
-		IncomeMultiplier = 1.0,
+		IncomeMultiplier = 1,
 		UpgradeCostMultiplier = 1.0,
 
 		ColorGradient = ColorSequence.new({
@@ -16,7 +16,7 @@ Modifiers.Data = {
 	Golden = {
 		DisplayName = "Golden",
 		LayoutOrder = 2,
-		IncomeMultiplier = 1.5,
+		IncomeMultiplier = 1.6,
 		UpgradeCostMultiplier = 1.02,
 
 		ColorGradient = ColorSequence.new({
@@ -28,7 +28,7 @@ Modifiers.Data = {
 	Diamond = {
 		DisplayName = "Diamond",
 		LayoutOrder = 3,
-		IncomeMultiplier = 2.0,
+		IncomeMultiplier = 2.2,
 		UpgradeCostMultiplier = 1.04,
 
 		ColorGradient = ColorSequence.new({
@@ -40,7 +40,7 @@ Modifiers.Data = {
 	Galaxy = {
 		DisplayName = "Galaxy",
 		LayoutOrder = 4,
-		IncomeMultiplier = 2.5,
+		IncomeMultiplier = 2.8,
 		UpgradeCostMultiplier = 1.06,
 
 		ColorGradient = ColorSequence.new({
@@ -52,7 +52,7 @@ Modifiers.Data = {
 	Lava = {
 		DisplayName = "Lava",
 		LayoutOrder = 5,
-		IncomeMultiplier = 3.0,
+		IncomeMultiplier = 3.5,
 		UpgradeCostMultiplier = 1.08,
 
 		ColorGradient = ColorSequence.new({
@@ -64,7 +64,7 @@ Modifiers.Data = {
 	Rainbow = {
 		DisplayName = "Rainbow",
 		LayoutOrder = 6,
-		IncomeMultiplier = 3.5,
+		IncomeMultiplier = 4.5,
 		UpgradeCostMultiplier = 1.1,
 
 		ColorGradient = ColorSequence.new({

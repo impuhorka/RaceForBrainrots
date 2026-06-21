@@ -159,6 +159,11 @@ local function forEachRarityWall(
 	end
 end
 
+local function isVipSurfaceGuiWall(wall: BasePart): boolean
+	return wall:GetAttribute("IsVIPRoadWall") == true
+		or (wall:GetAttribute("IsVIPWall") == true and wall:GetAttribute("Side") == "VIP")
+end
+
 local function getWallAlongWallOffsetPosition(wall: BasePart, alongWallOffset: number?): (number, number)
 	local edgeMargin = Shared_GameProcess.LianaWallEdgeMargin
 	local runsAlongZ = wallRunsAlongZ(wall)
@@ -919,6 +924,22 @@ local function spawnLuckyBlocksForHoleFloor(
 	end
 end
 
+local function applyWallExtras(wall: BasePart, extraAttributes: { [string]: any }?)
+	if not extraAttributes then
+		return
+	end
+
+	for key, value in extraAttributes do
+		if key == "CanCollide" and typeof(value) == "boolean" then
+			wall.CanCollide = value
+		elseif key == "Transparency" and typeof(value) == "number" then
+			wall.Transparency = value
+		else
+			wall:SetAttribute(key, value)
+		end
+	end
+end
+
 local function placeRoadWall(
 	wallTemplate: BasePart,
 	name: string,
@@ -936,11 +957,7 @@ local function placeRoadWall(
 	wall:SetAttribute("Rarity", rarityName)
 	wall:SetAttribute("Side", side)
 	wall:SetAttribute("IsGameProcessWall", true)
-	if extraAttributes then
-		for attributeName, attributeValue in extraAttributes do
-			wall:SetAttribute(attributeName, attributeValue)
-		end
-	end
+	applyWallExtras(wall, extraAttributes)
 	wall.Parent = parent
 end
 
@@ -959,8 +976,6 @@ local function placeSideRoadWalls(
 	local originWallSize = wallTemplate.Size
 	local wallThicknessX = originWallSize.X
 	local sideName = if side == "Left" then "Left" else "Right"
-	local floorBackZ = floor.Position.Z - floor.Size.Z / 2
-	local mainRoadBackZ = if vipHoleFloor then floorBackZ else wallBackZ
 
 	if not vipHoleFloor then
 		local wallLengthZ = wallFrontZ - wallBackZ
@@ -977,20 +992,7 @@ local function placeSideRoadWalls(
 	end
 
 	local vipHalfZ = vipHoleFloor.Size.Z / 2
-	local vipBackZ = vipHoleFloor.Position.Z - vipHalfZ
 	local vipFrontZ = vipHoleFloor.Position.Z + vipHalfZ
-
-	if mainRoadBackZ < vipBackZ - 0.01 then
-		placeRoadWall(
-			wallTemplate,
-			`{rarityName}{sideName}Wall`,
-			Vector3.new(wallX, wallY, (mainRoadBackZ + vipBackZ) / 2),
-			Vector3.new(wallThicknessX, originWallSize.Y, vipBackZ - mainRoadBackZ),
-			rarityName,
-			side,
-			parent
-		)
-	end
 
 	placeRoadWall(
 		wallTemplate,
@@ -1083,11 +1085,7 @@ local function placeWall(
 	wall:SetAttribute("Side", side)
 	wall:SetAttribute("IsGameProcessWall", true)
 	wall:SetAttribute("IsMinimapWall", true)
-	if extraAttributes then
-		for attributeName, attributeValue in extraAttributes do
-			wall:SetAttribute(attributeName, attributeValue)
-		end
-	end
+	applyWallExtras(wall, extraAttributes)
 	wall.Parent = parent
 end
 
@@ -1117,6 +1115,7 @@ local function placeLianaOnWall(
 	local bboxBottomY = bboxCF.Position.Y - bboxSize.Y / 2
 	liana:PivotTo(liana:GetPivot() + Vector3.new(0, targetBottomY - bboxBottomY, 0))
 	liana:SetAttribute("Rarity", rarityName)
+	liana:SetAttribute("HostWallName", wall.Name)
 	Shared_MapDecorationBlueprint.MarkModel(liana, "Lianas", template.Name)
 	liana.Parent = parent
 end
@@ -1134,6 +1133,10 @@ local function placeLianasOnRarityWalls(
 	local lianaIndex = 0
 
 	forEachRarityWall(wallsRoot, rarityName, function(wall)
+		if isVipSurfaceGuiWall(wall) then
+			return
+		end
+
 		local lianaCount = getLianaCountForWall(wall)
 		if lianaCount <= 0 then
 			return
@@ -1203,6 +1206,7 @@ local function placeLilyOnWall(
 	flushModelToInteriorWallSurface(lily, surfacePosition, interiorDir, Shared_GameProcess.LilyWallClearance)
 
 	lily:SetAttribute("Rarity", rarityName)
+	lily:SetAttribute("HostWallName", wall.Name)
 	Shared_MapDecorationBlueprint.MarkModel(lily, "Lily", template.Name)
 	lily.Parent = parent
 end
@@ -1220,6 +1224,10 @@ local function placeLiliesOnRarityWalls(
 	local lilyIndex = 0
 
 	forEachRarityWall(wallsRoot, rarityName, function(wall)
+		if isVipSurfaceGuiWall(wall) then
+			return
+		end
+
 		local lilyCount = getLilyCountForWall(wall)
 		if lilyCount <= 0 then
 			return
@@ -1404,7 +1412,18 @@ local function placeWallsForHoleFloor(
 			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
 			rarityName,
 			"Front",
-			parent
+			parent,
+			{ IsVIPWall = true }
+		)
+		placeWall(
+			wallTemplate,
+			`{wallPrefix}VIPBackWall`,
+			Vector3.new(footprintCenterX, wallY, vipBackZ),
+			Vector3.new(footprintWidthX, originWallSize.Y, originWallSize.X),
+			rarityName,
+			"VIPBack",
+			parent,
+			{ IsRoadEndWall = true }
 		)
 	else
 		placeWall(
@@ -1993,6 +2012,9 @@ local function isPersistentMapGeometry(instance: Instance): boolean
 	if instance:GetAttribute("IsGameProcessRoadFloor") == true then
 		return true
 	end
+	if instance:GetAttribute("IsJumpBarrier") == true then
+		return true
+	end
 
 	local rarity = instance:GetAttribute("Rarity")
 	if type(rarity) == "string" and instance.Name == `{rarity}Floor` then
@@ -2057,6 +2079,121 @@ local function collectLiveMapEntries(floorsFolder: Folder): { RarityBuildEntry }
 	end
 
 	return entries
+end
+
+local function getRoadRearmostBackZ(entry: RarityBuildEntry): number
+	local floor = entry.floor
+	local backZ = floor.Position.Z - floor.Size.Z / 2
+	local layout = entry.holeLayout
+
+	if layout.leftVipHoleFloor then
+		backZ = math.min(backZ, layout.leftVipHoleFloor.Position.Z - layout.leftVipHoleFloor.Size.Z / 2)
+	end
+	if layout.rightVipHoleFloor then
+		backZ = math.min(backZ, layout.rightVipHoleFloor.Position.Z - layout.rightVipHoleFloor.Size.Z / 2)
+	end
+
+	return backZ
+end
+
+local function placeRoadEndWall(
+	lastEntry: RarityBuildEntry,
+	wallTemplate: BasePart,
+	roadWidthX: number,
+	parent: Instance
+)
+	local floor = lastEntry.floor
+	local rarityName = lastEntry.rarityName
+	local originWallSize = wallTemplate.Size
+	local halfWallY = originWallSize.Y / 2
+	local wallY = floor.Position.Y - floor.Size.Y + halfWallY
+	local backZ = getRoadRearmostBackZ(lastEntry)
+	local wallHalfThickness = originWallSize.X / 2
+
+	placeRoadWall(
+		wallTemplate,
+		`{rarityName}RoadEndWall`,
+		Vector3.new(floor.Position.X, wallY, backZ - wallHalfThickness),
+		Vector3.new(roadWidthX, originWallSize.Y, originWallSize.X),
+		rarityName,
+		"RoadEnd",
+		parent,
+		{ IsRoadEndWall = true }
+	)
+end
+
+local function extendZBounds(minZ: number, maxZ: number, floorPart: BasePart): (number, number)
+	local partMinZ = floorPart.Position.Z - floorPart.Size.Z / 2
+	local partMaxZ = floorPart.Position.Z + floorPart.Size.Z / 2
+	return math.min(minZ, partMinZ), math.max(maxZ, partMaxZ)
+end
+
+local function placeRoadMinimapJumpBarrier(
+	buildEntries: { RarityBuildEntry },
+	wallTemplate: BasePart,
+	parent: Instance
+)
+	if #buildEntries == 0 then
+		return
+	end
+
+	local existing = parent:FindFirstChild("RoadMinimapJumpBarrier")
+	if existing then
+		existing:Destroy()
+	end
+
+	local holeWidthX = Shared_GameProcess.HoleFloorSize
+	local minX = math.huge
+	local maxX = -math.huge
+	local minZ = math.huge
+	local maxZ = -math.huge
+	local referenceFloor = buildEntries[1].floor
+	local floorY = referenceFloor.Position.Y
+	local floorHeight = referenceFloor.Size.Y
+
+	for _, entry in buildEntries do
+		local floor = entry.floor
+		local layout = entry.holeLayout
+		local halfRoadX = floor.Size.X / 2
+
+		minX = math.min(minX, floor.Position.X - halfRoadX - holeWidthX)
+		maxX = math.max(maxX, floor.Position.X + halfRoadX + holeWidthX)
+		minZ, maxZ = extendZBounds(minZ, maxZ, floor)
+		minZ, maxZ = extendZBounds(minZ, maxZ, layout.leftHoleFloor)
+		minZ, maxZ = extendZBounds(minZ, maxZ, layout.rightHoleFloor)
+
+		if layout.leftVipHoleFloor then
+			minZ, maxZ = extendZBounds(minZ, maxZ, layout.leftVipHoleFloor)
+		end
+		if layout.rightVipHoleFloor then
+			minZ, maxZ = extendZBounds(minZ, maxZ, layout.rightVipHoleFloor)
+		end
+	end
+
+	local paddingX = Shared_GameProcess.JumpBarrierPaddingX or 0
+	local paddingZ = Shared_GameProcess.JumpBarrierPaddingZ or 0
+	minX -= paddingX
+	maxX += paddingX
+	minZ -= paddingZ
+	maxZ += paddingZ
+
+	local thickness = Shared_GameProcess.JumpBarrierThickness or 4
+	local wallHeight = wallTemplate.Size.Y
+	local ceilingY = floorY - floorHeight + wallHeight + thickness / 2
+
+	local barrier = Instance.new("Part")
+	barrier.Name = "RoadMinimapJumpBarrier"
+	barrier.Size = Vector3.new(maxX - minX, thickness, maxZ - minZ)
+	barrier.Position = Vector3.new((minX + maxX) / 2, ceilingY, (minZ + maxZ) / 2)
+	barrier.Anchored = true
+	barrier.CanCollide = true
+	barrier.CanQuery = false
+	barrier.CanTouch = false
+	barrier.Transparency = 1
+	barrier.CastShadow = false
+	barrier:SetAttribute("IsJumpBarrier", true)
+	barrier:SetAttribute("IsGameProcessGeometry", true)
+	barrier.Parent = parent
 end
 
 local function buildMapGeometry(parent: Instance): boolean
@@ -2124,6 +2261,13 @@ local function buildMapGeometry(parent: Instance): boolean
 		)
 		placeHoleFloorWallsForFloor(wallTemplate, entry.rarityName, entry.holeLayout, parent)
 	end
+
+	local lastEntry = buildEntries[#buildEntries]
+	if lastEntry then
+		placeRoadEndWall(lastEntry, wallTemplate, enterSize.X, parent)
+	end
+
+	placeRoadMinimapJumpBarrier(buildEntries, wallTemplate, parent)
 
 	return #buildEntries > 0
 end
@@ -2209,7 +2353,8 @@ local function buildLuckyZoneSpawnPlans(
 			})
 
 			if zone.vipHoleFloor and Shared_GameProcess.HasVIPMinimapExtension(entry.rarityName) then
-				local vipLuckyBlockCount = Shared_GameProcess.VIPLuckyBlocksPerHole
+				local vipLuckyBlockCount = Shared_GameProcess.GetVIPLuckyBlocksPerHole(entry.rarityName)
+				local vipZoneModels = MapProcessDecorationQuery.getZoneModels(zoneIndex, entry.rarityName, zone.holeSide)
 				totalSlots += vipLuckyBlockCount
 				table.insert(plans, {
 					holeFloor = zone.vipHoleFloor,
@@ -2218,7 +2363,7 @@ local function buildLuckyZoneSpawnPlans(
 					rarityName = entry.rarityName,
 					holeSide = zone.holeSide,
 					luckyBlockCount = vipLuckyBlockCount,
-					decorationSpots = collectDecorationSpotsOnHoleFloor(zone.holeFloor, zoneModels),
+					decorationSpots = collectDecorationSpotsOnHoleFloor(zone.vipHoleFloor, vipZoneModels),
 					parent = floorsFolder,
 				})
 			end
@@ -2226,6 +2371,21 @@ local function buildLuckyZoneSpawnPlans(
 	end
 
 	return plans, totalSlots
+end
+
+local function ensureJumpBarrier()
+	local floorsFolder = getFloorsFolder()
+	if not hasMapGeometry(floorsFolder) or floorsFolder:FindFirstChild("RoadMinimapJumpBarrier") then
+		return
+	end
+
+	local context = getBuildContext()
+	local buildEntries = collectLiveMapEntries(floorsFolder)
+	if not context or #buildEntries == 0 then
+		return
+	end
+
+	placeRoadMinimapJumpBarrier(buildEntries, context.wallTemplate, floorsFolder)
 end
 
 MapProcessMapContent.getFloorsFolder = getFloorsFolder
@@ -2241,5 +2401,6 @@ MapProcessMapContent.refreshMinimapTreesRandom = refreshMinimapTreesRandom
 MapProcessMapContent.spawnLuckyBlocksForHoleFloor = spawnLuckyBlocksForHoleFloor
 MapProcessMapContent.collectLuckyBlocks = collectLuckyBlocks
 MapProcessMapContent.buildLuckyZoneSpawnPlans = buildLuckyZoneSpawnPlans
+MapProcessMapContent.ensureJumpBarrier = ensureJumpBarrier
 
 return MapProcessMapContent

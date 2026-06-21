@@ -75,6 +75,65 @@ function PlotCash.Collect(player: Player, plot, slotId: number): boolean
 	return true
 end
 
+function PlotCash.CollectAll(player: Player, plot): number
+	if not plot or plot.Owner ~= player then
+		return 0
+	end
+
+	local totalCollected = 0
+
+	for slotId, slotModel in plot.Slots do
+		if not slotHasBrainrot(slotModel) then
+			continue
+		end
+
+		local cashToCollect = slotModel:GetAttribute("CashToCollect") or 0
+		if cashToCollect <= 0 then
+			continue
+		end
+
+		totalCollected += cashToCollect
+		slotModel:SetAttribute("CashToCollect", 0)
+
+		local slotData = Server_Data:GetPlotSlot(player, slotId)
+		if slotData then
+			slotData.CashToCollect = 0
+			Server_Data:SetPlotSlot(player, slotId, slotData)
+		end
+	end
+
+	if totalCollected > 0 then
+		Server_Data:AddValue(player, "Cash", totalCollected)
+	end
+
+	return totalCollected
+end
+
+function PlotCash.ClearAllUncollectedCash(player: Player, plot: any?)
+	local data = Server_Data:GetData(player)
+	if data and type(data.Plot) == "table" then
+		for slotKey, slotData in data.Plot do
+			if type(slotData) == "table" and (slotData.CashToCollect or 0) ~= 0 then
+				slotData.CashToCollect = 0
+				local slotId = tonumber(slotKey)
+				if slotId then
+					Server_Data:SetPlotSlot(player, slotId, slotData)
+				end
+			end
+		end
+	end
+
+	if plot and plot.Slots then
+		for _, slotModel in plot.Slots do
+			if slotModel then
+				slotModel:SetAttribute("CashToCollect", 0)
+			end
+		end
+	end
+
+	Server_Data:SetValue(player, "PendingOfflineCash", 0)
+end
+
 function PlotCash.TickPlot(plot)
 	if not plot or not plot.Owner then
 		return

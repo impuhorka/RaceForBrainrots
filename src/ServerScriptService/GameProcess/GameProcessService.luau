@@ -26,6 +26,7 @@ local roadFrontZ: number? = nil
 local gameProcessHandler: RemoteEvent? = nil
 local despawnTimers: { [Model]: thread } = {}
 local brainrotDropLocks: { [Player]: boolean } = {}
+local plotService: any = nil
 
 local TORSO_HEIGHT_OFFSET = 0.75
 local LUCKYBLOCK_HEIGHT_OFFSET_DELTA = -1
@@ -582,6 +583,39 @@ function GameProcessService.IsPlayerCarrying(player: Player): boolean
 	return carriedByPlayer[player] ~= nil
 end
 
+local function playerOwnsVIP(player: Player): boolean
+	local Server_Marketplace = require(script.Parent.Parent.Core.Server_Marketplace)
+	return Server_Marketplace.PlayerOwnsGamepass(player, Shared_GameProcess.VIPGamepassConfigKey)
+end
+
+local function getPickupMaxDistance(): number
+	local pickUpPreset = Shared_ProximityPrompt.GetPreset("PickUpWorld")
+	return (pickUpPreset.MaxActivationDistance or 6) * 2 + 6
+end
+
+function GameProcessService.PlayerCanPickupLuckyBlock(player: Player, worldLuckyBlock: Model): (boolean, string?)
+	if worldLuckyBlock:GetAttribute("IsWorldLuckyBlock") ~= true or not worldLuckyBlock.Parent then
+		return false, nil
+	end
+
+	if Shared_GameProcess.IsVipLuckyBlockModel(worldLuckyBlock) and not playerOwnsVIP(player) then
+		return false, Shared_GameProcess.VIPRequiredPickupMessage
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return false, nil
+	end
+
+	local blockPosition = worldLuckyBlock:GetPivot().Position
+	if (root.Position - blockPosition).Magnitude > getPickupMaxDistance() then
+		return false, nil
+	end
+
+	return true, nil
+end
+
 function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBlock: Model)
 	if collecting[worldLuckyBlock] or not worldLuckyBlock.Parent then
 		return
@@ -605,18 +639,12 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 		return
 	end
 
-	if worldLuckyBlock:GetAttribute("IsVIPZone") == true then
-		local Server_Marketplace = require(script.Parent.Parent.Core.Server_Marketplace)
-		if not Server_Marketplace.PlayerOwnsGamepass(player, Shared_GameProcess.VIPGamepassConfigKey) then
-			if gameProcessHandler then
-				gameProcessHandler:FireClient(
-					player,
-					"CarryFeedback",
-					Shared_GameProcess.VIPRequiredPickupMessage
-				)
-			end
-			return
+	local canAccess, accessMessage = GameProcessService.PlayerCanPickupLuckyBlock(player, worldLuckyBlock)
+	if not canAccess then
+		if accessMessage and gameProcessHandler then
+			gameProcessHandler:FireClient(player, "CarryFeedback", accessMessage)
 		end
+		return
 	end
 
 	local blockWeight = tonumber(worldLuckyBlock:GetAttribute("Weight"))
@@ -628,9 +656,13 @@ function GameProcessService.PickupWorldLuckyBlock(player: Player, worldLuckyBloc
 
 	local strength = Server_Data:GetValue(player, "Strength") or 1
 	local speed = Server_Data:GetValue(player, "Speed") or Shared_Carry.DefaultWalkSpeed
-	local speedWarning = Shared_Carry.GetPickupSpeedWarning(blockWeight, strength, speed)
-	if speedWarning and gameProcessHandler then
-		gameProcessHandler:FireClient(player, "CarryFeedback", speedWarning)
+
+	local canPickup, pickupMessage = Shared_Carry.CanPickupLuckyBlock(blockWeight, strength, speed)
+	if not canPickup then
+		if pickupMessage and gameProcessHandler then
+			gameProcessHandler:FireClient(player, "CarryFeedback", pickupMessage)
+		end
+		return
 	end
 
 	pickupLocks[player] = true
@@ -721,7 +753,6 @@ function GameProcessService.DeliverCarriedLuckyBlock(player: Player)
 
 	local configName = luckyBlock:GetAttribute("ConfigName")
 	local baseWeight = luckyBlock:GetAttribute("BaseWeight")
-	local weight = luckyBlock:GetAttribute("Weight")
 	local rarity = luckyBlock:GetAttribute("Rarity")
 	if type(rarity) ~= "string" or rarity == "" then
 		if type(configName) == "string" then
@@ -742,9 +773,6 @@ function GameProcessService.DeliverCarriedLuckyBlock(player: Player)
 		if type(baseWeight) == "number" then
 			itemData.BaseWeight = baseWeight
 		end
-		if type(weight) == "number" then
-			itemData.Weight = weight
-		end
 
 		local newIndex = Server_Data:AddInventoryItem(player, {
 			ItemType = "LuckyBlock",
@@ -758,6 +786,51 @@ function GameProcessService.DeliverCarriedLuckyBlock(player: Player)
 	end
 
 	delivering[player] = nil
+end
+
+function GameProcessService.SetPlotService(service: any)
+	plotService = service
+end
+
+local function getCarriedLuckyBlockRarity(luckyBlock: Model): string?
+	local rarity = luckyBlock:GetAttribute("Rarity")
+	if type(rarity) == "string" and rarity ~= "" then
+		return rarity
+	end
+
+	local configName = luckyBlock:GetAttribute("ConfigName")
+	if type(configName) == "string" then
+		local config = Shared_LuckyBlocks.Data[configName]
+		if config and type(config.Rarity) == "string" and config.Rarity ~= "" then
+			return config.Rarity
+		end
+	end
+
+	return nil
+end
+
+function GameProcessService.CanPurchaseTeleportHome(player: Player, expectedRarity: string): boolean
+	local luckyBlock = carriedByPlayer[player]
+	if not luckyBlock then
+		return false
+	end
+
+	local rarity = getCarriedLuckyBlockRarity(luckyBlock)
+	return type(rarity) == "string" and rarity == expectedRarity
+end
+
+function GameProcessService.GrantTeleportHome(player: Player, expectedRarity: string): (boolean, string?)
+	if not GameProcessService.CanPurchaseTeleportHome(player, expectedRarity) then
+		return false, "Not carrying lucky block"
+	end
+
+	GameProcessService.DeliverCarriedLuckyBlock(player)
+
+	if plotService and plotService.TeleportPlayerToPlot then
+		plotService:TeleportPlayerToPlot(player)
+	end
+
+	return true, nil
 end
 
 local function createWorldBrainrotFromItem(item: any): Model?
@@ -956,6 +1029,10 @@ function GameProcessService.SetupWorldLuckyBlock(luckyBlock: Model)
 		ObjectText = "",
 		MaxActivationDistance = pickupDistance,
 	})
+
+	if Shared_GameProcess.IsVipLuckyBlockModel(luckyBlock) then
+		prompt:SetAttribute("RequiresVIP", true)
+	end
 
 	prompt.Triggered:Connect(function(triggerPlayer)
 		GameProcessService.PickupWorldLuckyBlock(triggerPlayer, luckyBlock)

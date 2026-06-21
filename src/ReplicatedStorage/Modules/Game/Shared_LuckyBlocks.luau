@@ -169,21 +169,12 @@ LuckyBlocks.Data = {
 			Rainbow = 8,
 		},
 		RewardBrainrots = {
-			"Trollface",
-			"TralalitaTralala",
-			"OdinDinDinDun",
-			"TricTracBarabum",
-			"SmurfCat",
-			"BrrBrrPatapim",
-			"CappuccinoAssassino",
-			"Mateo",
-			"TralaleroTralala",
-			"GirafaCelestre",
-			"DragonCannelloni",
-			"PipiPotato",
-			"SixSeven",
-			"Pakrahmatmamat",
-			"TatatataSahur",
+			{ ConfigName = "PepeFrogy", Weight = 4000 },
+			{ ConfigName = "BurbalolliLulilolli", Weight = 3000 },
+			{ ConfigName = "Ben", Weight = 2000 },
+			{ ConfigName = "NyanCat", Weight = 800 },
+			{ ConfigName = "GirafaCelestre", Weight = 175 },
+			{ ConfigName = "LaVaccaSaturnoSaturnita", Weight = 25 },
 		},
 		Blacklist = {},
 	},
@@ -234,14 +225,103 @@ function LuckyBlocks.GetRewardBrainrots(configName: string): { string }?
 	end
 
 	local resolved: { string } = {}
-	for _, brainrotName in rewardBrainrots do
-		if type(brainrotName) == "string" and brainrotName ~= "" then
-			table.insert(resolved, brainrotName)
+	for _, entry in rewardBrainrots do
+		if type(entry) == "string" and entry ~= "" then
+			table.insert(resolved, entry)
+		elseif type(entry) == "table" and type(entry.ConfigName) == "string" and entry.ConfigName ~= "" then
+			table.insert(resolved, entry.ConfigName)
 		end
 	end
 
 	if #resolved == 0 then
 		return nil
+	end
+
+	return resolved
+end
+
+function LuckyBlocks.RollRewardBrainrot(luckyBlockConfigName: string): string?
+	local config = LuckyBlocks.Data[luckyBlockConfigName]
+	if not config or type(config.RewardBrainrots) ~= "table" or #config.RewardBrainrots == 0 then
+		return nil
+	end
+
+	local Shared_Brainrots = require(script.Parent.Shared_Brainrots)
+	local totalWeight = 0
+	local entries: { { ConfigName: string, Weight: number } } = {}
+
+	for _, entry in config.RewardBrainrots do
+		local configName: string? = nil
+		local weight = 0
+
+		if type(entry) == "string" and entry ~= "" then
+			configName = entry
+			weight = 1
+		elseif type(entry) == "table" and type(entry.ConfigName) == "string" and entry.ConfigName ~= "" then
+			configName = entry.ConfigName
+			weight = math.max(0, tonumber(entry.Weight) or tonumber(entry.Chance) or 0)
+		end
+
+		if configName and weight > 0 and Shared_Brainrots.Data[configName] then
+			totalWeight += weight
+			table.insert(entries, { ConfigName = configName, Weight = weight })
+		end
+	end
+
+	if totalWeight <= 0 or #entries == 0 then
+		return nil
+	end
+
+	local roll = math.random() * totalWeight
+	local cumulative = 0
+	for _, entry in entries do
+		cumulative += entry.Weight
+		if roll <= cumulative then
+			return entry.ConfigName
+		end
+	end
+
+	return entries[#entries].ConfigName
+end
+
+function LuckyBlocks.GetRewardBrainrotChances(luckyBlockConfigName: string): { { ConfigName: string, ChancePercent: number } }?
+	local config = LuckyBlocks.Data[luckyBlockConfigName]
+	if not config or type(config.RewardBrainrots) ~= "table" or #config.RewardBrainrots == 0 then
+		return nil
+	end
+
+	local Shared_Brainrots = require(script.Parent.Shared_Brainrots)
+	local totalWeight = 0
+	local entries: { { ConfigName: string, Weight: number } } = {}
+
+	for _, entry in config.RewardBrainrots do
+		local configName: string? = nil
+		local weight = 0
+
+		if type(entry) == "string" and entry ~= "" then
+			configName = entry
+			weight = 1
+		elseif type(entry) == "table" and type(entry.ConfigName) == "string" and entry.ConfigName ~= "" then
+			configName = entry.ConfigName
+			weight = math.max(0, tonumber(entry.Weight) or tonumber(entry.Chance) or 0)
+		end
+
+		if configName and weight > 0 and Shared_Brainrots.Data[configName] then
+			totalWeight += weight
+			table.insert(entries, { ConfigName = configName, Weight = weight })
+		end
+	end
+
+	if totalWeight <= 0 then
+		return nil
+	end
+
+	local resolved = {}
+	for _, entry in entries do
+		table.insert(resolved, {
+			ConfigName = entry.ConfigName,
+			ChancePercent = (entry.Weight / totalWeight) * 100,
+		})
 	end
 
 	return resolved

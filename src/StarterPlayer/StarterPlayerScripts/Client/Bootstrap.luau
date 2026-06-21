@@ -57,6 +57,7 @@ end
 
 local function runPostDataSystems()
 	local postDataModules = {
+		{ "Client_LocalWorldState" },
 		{ "Client_Data", "Init" },
 		{ "Client_Tutorial" },
 		{ "Client_PlotBillboards", "Init" },
@@ -73,10 +74,12 @@ local function runPostDataSystems()
 		{ "Client_PlotSpawnAnimation" },
 		{ "Client_SellBillboard" },
 		{ "Client_PlotUpgradeSign" },
+		{ "Client_Marketplace" },
+		{ "Client_VIPButton" },
+		{ "Client_PlotCollectAllSign" },
 		{ "Client_InteractStorePrompts" },
 		{ "Client_SpeedStore" },
 		{ "Client_StrengthStore" },
-		{ "Client_Marketplace" },
 		{ "Client_RobuxStore" },
 		{ "Client_SlowModeButton" },
 		{ "Client_BackgroundMusic" },
@@ -86,6 +89,7 @@ local function runPostDataSystems()
 		{ "Client_VIPWalls" },
 		{ "Client_BrainrotDrop" },
 		{ "Client_LuckyBlockCarry" },
+		{ "Client_TeleportHome" },
 		{ "Client_GradientBar" },
 		{ "Client_Leaderboards" },
 		{ "Client_GameProcess" },

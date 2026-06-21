@@ -89,7 +89,7 @@ local function startIdleFloat(model: Model, dropSpin: DropSpinState?)
 			return
 		end
 
-		if not Client_VisualSettings.AreEffectsEnabled() then
+		if not Client_VisualSettings.AreEffectsEnabledNear(model:GetPivot().Position) then
 			return
 		end
 

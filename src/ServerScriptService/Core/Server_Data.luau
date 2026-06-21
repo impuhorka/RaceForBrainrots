@@ -11,8 +11,10 @@ local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
 local Shared_Carry = SharedModules.require("Shared_Carry")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
+local Shared_Marketplace = SharedModules.require("Shared_Marketplace")
 local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
 local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
+local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 
 local Module = {}
@@ -40,6 +42,11 @@ local function reconcileLeaderboardStats(data: { [string]: any })
 end
 
 local function reconcileFreeStrength(data: { [string]: any })
+	if Shared_Rebirth.GetRebirthCount(data.Rebirths) > 0 then
+		data.FreeStrengthPointsUsed = Shared_StrengthStore.FreeStrengthPoints
+		return
+	end
+
 	local used = math.clamp(math.floor(tonumber(data.FreeStrengthPointsUsed) or 0), 0, Shared_StrengthStore.FreeStrengthPoints)
 	data.FreeStrengthPointsUsed = used
 
@@ -320,6 +327,10 @@ function Module:RefreshWalkSpeed(player: Player)
 	applyWalkSpeed(player, self:GetValue(player, "Speed"), self:GetValue(player, "SlowMode"))
 end
 
+function Module:GetExpectedWalkSpeed(player: Player): number
+	return resolveAppliedWalkSpeed(player, self:GetValue(player, "Speed"), self:GetValue(player, "SlowMode"))
+end
+
 function Module:SetValue(player, path, value)
 	local data = self:GetData(player)
 	if not data then
@@ -454,12 +465,13 @@ function Module:RemovePlotSlot(player: Player, slotId: number): boolean
 	return true
 end
 
-local function normalizeInventoryItem(item: any)
+local function normalizeInventoryItem(item: any, weightLuckMultiplier: number?)
 	if type(item) ~= "table" or type(item.ConfigName) ~= "string" then
 		return
 	end
 
 	item.Data = if type(item.Data) == "table" then item.Data else {}
+	local luckMultiplier = math.max(1, tonumber(weightLuckMultiplier) or 1)
 
 	if item.ItemType == "LuckyBlock" then
 		if type(item.Data.BaseWeight) ~= "number" then
@@ -467,11 +479,12 @@ local function normalizeInventoryItem(item: any)
 		end
 		if type(item.Data.Weight) ~= "number" then
 			if Shared_LuckyBlocks.IsDonateBlock(item.ConfigName) then
-				item.Data.Weight = Shared_Weight.RollWeight(item.Data.BaseWeight)
+				item.Data.Weight = Shared_Weight.RollWeight(item.Data.BaseWeight, luckMultiplier)
 			else
 				local config = Shared_LuckyBlocks.Data[item.ConfigName]
 				local rarity = if config and type(config.Rarity) == "string" then config.Rarity else "Common"
-				item.Data.Weight = Shared_Weight.RollLuckyBlockWeight(item.Data.BaseWeight, rarity)
+				item.Data.Weight =
+					Shared_Weight.RollLuckyBlockWeight(item.Data.BaseWeight, rarity, luckMultiplier)
 			end
 		end
 		return
@@ -479,6 +492,15 @@ local function normalizeInventoryItem(item: any)
 
 	if item.ItemType == "Brainrot" then
 		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(item.Data, item.ConfigName)
+		if type(item.Data.Weight) ~= "number" then
+			local config = Shared_Brainrots.Data[item.ConfigName]
+			local rarity = config and config.Rarity
+			if type(rarity) == "string" then
+				rolledWeight = Shared_Weight.RollLuckyBlockWeight(baseWeight, rarity, luckMultiplier)
+			else
+				rolledWeight = Shared_Weight.RollWeight(baseWeight, luckMultiplier)
+			end
+		end
 		item.Data.BaseWeight = baseWeight
 		item.Data.Weight = rolledWeight
 	end
@@ -495,6 +517,14 @@ local function migrateInventoryWeights(profile)
 	end
 end
 
+local function getPlayerWeightLuckMultiplier(player: Player): number
+	local data = Module:GetData(player)
+	if not data then
+		return 1
+	end
+	return Shared_Marketplace.GetWeightLuckMultiplierFromGamepasses(data.DataGamepasses)
+end
+
 function Module:AddInventoryItem(player: Player, item: any): number?
 	local data = self:GetData(player)
 	if not data then
@@ -509,7 +539,7 @@ function Module:AddInventoryItem(player: Player, item: any): number?
 		return nil
 	end
 
-	normalizeInventoryItem(item)
+	normalizeInventoryItem(item, getPlayerWeightLuckMultiplier(player))
 	table.insert(data.Inventory, item)
 	local newIndex = #data.Inventory
 	local indexChanged = addBrainrotToIndex(data, item)

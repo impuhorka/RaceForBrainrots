@@ -1,15 +1,16 @@
 local Shared_Rarities = {}
 
 Shared_Rarities.Balance = {
+	-- Zones 1-3 (Common/Rare/Epic): ~10/s start, ~5K/s peak. Zone 4+ ramps hard to billions.
 	BaseIncome = {
-		Common = { Min = 50, Max = 150 },
-		Rare = { Min = 150, Max = 350 },
-		Epic = { Min = 700, Max = 1300 },
-		Legendary = { Min = 1000, Max = 1500 },
-		Mythical = { Min = 1400, Max = 2100 },
-		Secret = { Min = 2000, Max = 3000 },
-		Divine = { Min = 2600, Max = 3900 },
-		Superior = { Min = 3600, Max = 5400 },
+		Common = { Min = 10, Max = 50 },
+		Rare = { Min = 50, Max = 450 },
+		Epic = { Min = 450, Max = 5000 },
+		Legendary = { Min = 6000, Max = 85000 },
+		Mythical = { Min = 70000, Max = 650000 },
+		Secret = { Min = 550000, Max = 5500000 },
+		Divine = { Min = 4500000, Max = 45000000 },
+		Superior = { Min = 30000000, Max = 300000000 },
 	},
 	MaxRequiredStrength = {
 		Common = 9,
@@ -20,6 +21,28 @@ Shared_Rarities.Balance = {
 		Secret = 360,
 		Divine = 585,
 		Superior = 900,
+	},
+	-- Minimum strength to pick up any lucky block from this rarity zone.
+	MinPickupStrength = {
+		Common = 1,
+		Rare = 14,
+		Epic = 30,
+		Legendary = 58,
+		Mythical = 117,
+		Secret = 234,
+		Divine = 380,
+		Superior = 585,
+	},
+	-- Default carry weight (kg) for brainrots / rolls when no lucky-block origin is stored.
+	DefaultCarryBaseWeight = {
+		Common = 10,
+		Rare = 25,
+		Epic = 50,
+		Legendary = 100,
+		Mythical = 200,
+		Secret = 400,
+		Divine = 650,
+		Superior = 1000,
 	},
 	PaybackMultiplier = {
 		Common = 0.9,
@@ -152,6 +175,24 @@ function Shared_Rarities.GetMaxRequiredStrength(rarity: string): number?
 		return math.floor(value)
 	end
 	return nil
+end
+
+function Shared_Rarities.GetMinPickupStrength(rarity: string): number?
+	local balance = Shared_Rarities.Balance
+	local value = balance and balance.MinPickupStrength and balance.MinPickupStrength[rarity]
+	if type(value) == "number" and value > 0 then
+		return math.floor(value)
+	end
+	return nil
+end
+
+function Shared_Rarities.GetDefaultCarryBaseWeight(rarity: string): number
+	local balance = Shared_Rarities.Balance
+	local value = balance and balance.DefaultCarryBaseWeight and balance.DefaultCarryBaseWeight[rarity]
+	if type(value) == "number" and value > 0 then
+		return value
+	end
+	return 15
 end
 
 return Shared_Rarities

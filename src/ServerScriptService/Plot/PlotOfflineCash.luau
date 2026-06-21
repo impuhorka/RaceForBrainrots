@@ -100,4 +100,20 @@ function PlotOfflineCash.Collect(player: Player, plotHandler: RemoteEvent): bool
 	return true
 end
 
+function PlotOfflineCash.GrantRobuxCollect(player: Player, plotHandler: RemoteEvent, multiplier: number): (boolean, number)
+	local pendingCash = Server_Data:GetValue(player, "PendingOfflineCash") or 0
+	if pendingCash <= 0 then
+		return false, 0
+	end
+
+	local safeMultiplier = math.max(1, math.floor(tonumber(multiplier) or 1))
+	local totalCash = pendingCash * safeMultiplier
+
+	Server_Data:AddValue(player, "Cash", totalCash)
+	Server_Data:SetValue(player, "PendingOfflineCash", 0)
+	Server_Data:SetValue(player, "PendingOfflineSeconds", 0)
+	plotHandler:FireClient(player, "OfflineCashCollected", totalCash)
+	return true, totalCash
+end
+
 return PlotOfflineCash

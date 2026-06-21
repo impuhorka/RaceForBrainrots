@@ -1,3 +1,4 @@
+local Server_AntiCheat = require(script.Parent.Core.Server_AntiCheat)
 local Server_Data = require(script.Parent.Core.Server_Data)
 local Server_Leaderboards = require(script.Parent.Core.Server_Leaderboards)
 local Server_Settings = require(script.Parent.Core.Server_Settings)
@@ -12,6 +13,7 @@ local Bootstrap = {}
 
 function Bootstrap.start()
 	Server_Data:Init()
+	Server_AntiCheat.Init()
 	Server_Marketplace.Init()
 	Server_Tutorial.Init()
 	Server_Leaderboards.Init()
@@ -21,6 +23,8 @@ function Bootstrap.start()
 
 	local plotService = PlotService.new()
 	plotService:Init()
+	Server_Marketplace.SetPlotService(plotService)
+	GameProcessService.SetPlotService(plotService)
 	GameProcessCycle.SetPlotService(plotService)
 	Server_Admin:Init(plotService)
 end

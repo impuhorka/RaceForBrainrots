@@ -45,6 +45,8 @@ local policyLoaded = false
 local canPurchasePaidRandomItems = false
 local catalogReady = false
 local isReady = false
+local priceLoadGeneration = 0
+local PRICE_LOAD_YIELD_SECONDS = 0.03
 
 local catalogChangedCallbacks: { () -> () } = {}
 local policyChangedCallbacks: { () -> () } = {}
@@ -160,6 +162,38 @@ function Client_Marketplace.RefreshUserPrices()
 	notify(pricesChangedCallbacks)
 end
 
+local function startProgressiveUserPriceLoad()
+	priceLoadGeneration += 1
+	local generation = priceLoadGeneration
+
+	task.spawn(function()
+		for _, configKey in Shared_Marketplace.GetCatalogLoadOrder() do
+			if generation ~= priceLoadGeneration then
+				return
+			end
+
+			local record = serverCatalog[configKey]
+			if not record or record.ProductId <= 0 then
+				continue
+			end
+
+			loadUserPriceForRecord(record)
+			notify(pricesChangedCallbacks)
+			task.wait(PRICE_LOAD_YIELD_SECONDS)
+		end
+	end)
+end
+
+local function applyCatalogProductUpdate(configKey: string, record: ServerProductInfo)
+	if type(configKey) ~= "string" or type(record) ~= "table" then
+		return
+	end
+
+	serverCatalog[configKey] = record
+	loadUserPriceForRecord(record)
+	notify(pricesChangedCallbacks)
+end
+
 local function applyCatalog(catalog: { [string]: ServerProductInfo })
 	table.clear(serverCatalog)
 	for configKey, record in catalog do
@@ -169,7 +203,7 @@ local function applyCatalog(catalog: { [string]: ServerProductInfo })
 	end
 
 	catalogReady = true
-	Client_Marketplace.RefreshUserPrices()
+	startProgressiveUserPriceLoad()
 	notify(catalogChangedCallbacks)
 	setReady()
 end
@@ -190,6 +224,13 @@ local function onMarketplaceEvent(action: string, arg1: any, arg2: any, arg3: an
 	if action == "CatalogSync" then
 		if type(arg1) == "table" then
 			applyCatalog(arg1)
+		end
+		return
+	end
+
+	if action == "CatalogProductUpdate" then
+		if type(arg1) == "string" and type(arg2) == "table" then
+			applyCatalogProductUpdate(arg1, arg2)
 		end
 		return
 	end
@@ -258,6 +299,25 @@ function Client_Marketplace.GetUserPriceInRobux(configKey: string): number?
 	return priceInfo.PriceInRobux
 end
 
+function Client_Marketplace.GetRobuxDisplayPrice(configKey: string): number?
+	local userPrice = Client_Marketplace.GetUserPriceInRobux(configKey)
+	if userPrice and userPrice > 0 then
+		return userPrice
+	end
+
+	local record = serverCatalog[configKey]
+	if not record then
+		return nil
+	end
+
+	local catalogPrice = tonumber(record.PriceInRobux) or tonumber(record.UserBasePriceInRobux)
+	if catalogPrice and catalogPrice > 0 then
+		return catalogPrice
+	end
+
+	return nil
+end
+
 function Client_Marketplace.GetRobloxPlusDiscountPercent(): number?
 	for _, priceInfo in userPricesByKey do
 		local percent = priceInfo.PlusDiscountPercent
@@ -286,7 +346,7 @@ end
 
 function Client_Marketplace.RequestServerCanPurchase(configKey: string, timeoutSeconds: number?): boolean
 	local record = serverCatalog[configKey]
-	if not record or record.Loaded ~= true then
+	if not record or record.ProductId <= 0 then
 		return false
 	end
 
@@ -393,11 +453,14 @@ function Client_Marketplace.Init()
 		Client_Marketplace.RequestGamepassSync()
 
 		task.spawn(function()
-			for _ = 1, 30 do
+			for attempt = 1, 40 do
 				if Client_Marketplace.PlayerOwnsGamepass(configKey) then
 					break
 				end
-				task.wait(0.1)
+				if attempt == 1 or attempt % 4 == 0 then
+					Client_Marketplace.RequestGamepassSync()
+				end
+				task.wait(0.15)
 			end
 
 			notify(gamepassOwnershipCallbacks)
@@ -407,6 +470,12 @@ function Client_Marketplace.Init()
 
 	task.spawn(loadPolicyInfo)
 	getMarketplaceHandler():FireServer("RequestCatalog")
+
+	task.spawn(function()
+		local Client_Data = ClientLoader.require("Client_Data")
+		Client_Data.WaitUntilReady()
+		Client_Marketplace.RequestGamepassSync()
+	end)
 end
 
 return Client_Marketplace

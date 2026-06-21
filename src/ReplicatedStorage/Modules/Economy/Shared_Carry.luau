@@ -3,14 +3,14 @@ local Shared_SpeedStore = require(script.Parent.Shared_SpeedStore)
 local Shared_Carry = {}
 
 Shared_Carry.DefaultWalkSpeed = Shared_SpeedStore.DefaultSpeed
--- 10 kg per strength: Common 10kg at str 1, Superior 1000kg at str 100, max rolls scale with tier.
-Shared_Carry.CarryKgPerStrength = 10
-Shared_Carry.MaxSlowPercent = 0.72
-Shared_Carry.MinWalkSpeedMultiplier = 0.18
-Shared_Carry.SpeedReliefMin = 0.35
+-- 5 kg per strength: str 16 = 80 kg cap, epic zone min pickup str 30, max epic roll str 45 = 225 kg.
+Shared_Carry.CarryKgPerStrength = 5
+Shared_Carry.MaxSlowPercent = 0.9
+Shared_Carry.MinWalkSpeedMultiplier = 0.06
+Shared_Carry.SpeedReliefMin = 0.72
 Shared_Carry.SpeedReliefMax = 1
-Shared_Carry.MinCarryWalkSpeedWarning = 4
-Shared_Carry.LowCarrySpeedPickupMessage = "You need more strength to pick this up!"
+Shared_Carry.MinPickupCarryWalkSpeed = 2.5
+Shared_Carry.TooWeakPickupMessage = "You need more strength!"
 
 function Shared_Carry.GetMaxCarryWeight(strength: number): number
 	local safeStrength = math.max(1, tonumber(strength) or 1)
@@ -36,6 +36,20 @@ function Shared_Carry.CanCarryWeight(weightKg: number, strength: number): (boole
 	return false, `You need more strength! ({neededStrength} required)`
 end
 
+function Shared_Carry.CanPickupLuckyBlock(
+	weightKg: number,
+	strength: number,
+	speed: number
+): (boolean, string?)
+	local safeSpeed = math.max(Shared_Carry.DefaultWalkSpeed, tonumber(speed) or Shared_Carry.DefaultWalkSpeed)
+	local carrySpeed = Shared_Carry.GetCarryWalkSpeed(safeSpeed, weightKg, strength, safeSpeed)
+	if carrySpeed > Shared_Carry.MinPickupCarryWalkSpeed then
+		return true, nil
+	end
+
+	return false, Shared_Carry.TooWeakPickupMessage
+end
+
 function Shared_Carry.GetSpeedRelief(speed: number): number
 	local safeSpeed = math.max(Shared_Carry.DefaultWalkSpeed, tonumber(speed) or Shared_Carry.DefaultWalkSpeed)
 	local relief = Shared_Carry.DefaultWalkSpeed / safeSpeed
@@ -50,6 +64,9 @@ function Shared_Carry.GetCarryWalkSpeedMultiplier(weightKg: number, strength: nu
 
 	local relievedBurden = burden * Shared_Carry.GetSpeedRelief(speed)
 	local multiplier = 1 - relievedBurden * Shared_Carry.MaxSlowPercent
+	if burden > 1 then
+		multiplier /= burden
+	end
 	return math.clamp(multiplier, Shared_Carry.MinWalkSpeedMultiplier, 1)
 end
 
@@ -65,19 +82,6 @@ function Shared_Carry.GetCarryWalkSpeed(
 	end
 
 	return math.max(1, safeBase * Shared_Carry.GetCarryWalkSpeedMultiplier(weightKg, strength, speed))
-end
-
-function Shared_Carry.GetPickupSpeedWarning(
-	weightKg: number,
-	strength: number,
-	speed: number
-): string?
-	local safeSpeed = math.max(Shared_Carry.DefaultWalkSpeed, tonumber(speed) or Shared_Carry.DefaultWalkSpeed)
-	local carrySpeed = Shared_Carry.GetCarryWalkSpeed(safeSpeed, weightKg, strength, safeSpeed)
-	if carrySpeed < Shared_Carry.MinCarryWalkSpeedWarning then
-		return Shared_Carry.LowCarrySpeedPickupMessage
-	end
-	return nil
 end
 
 return Shared_Carry

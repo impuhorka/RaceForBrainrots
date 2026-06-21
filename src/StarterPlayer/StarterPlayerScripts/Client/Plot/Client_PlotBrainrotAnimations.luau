@@ -7,6 +7,7 @@ local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimations")
 local Client_Data = ClientLoader.require("Client_Data")
+local Client_LocalWorldState = ClientLoader.require("Client_LocalWorldState")
 
 local Client_PlotBrainrotAnimations = {}
 
@@ -33,8 +34,20 @@ local function resolveConfigName(brainrotModel: Model): string?
 	return nil
 end
 
-local function playPlacedBrainrot(brainrotModel: Model): boolean
+local function shouldPlayPlotAnimations(): boolean
 	if Client_Data:GetValue("Animations") == false then
+		return false
+	end
+
+	if Client_LocalWorldState.IsPlayerOnRoad() then
+		return false
+	end
+
+	return true
+end
+
+local function playPlacedBrainrot(brainrotModel: Model): boolean
+	if not shouldPlayPlotAnimations() then
 		return false
 	end
 
@@ -56,6 +69,10 @@ local function queuePlayRetry(brainrotModel: Model)
 			end
 
 			if not brainrotModel.Parent or not brainrotModel:IsDescendantOf(Workspace) then
+				return
+			end
+
+			if not shouldPlayPlotAnimations() then
 				return
 			end
 
@@ -201,7 +218,7 @@ local function stopAllAnimations()
 end
 
 local function refreshAllAnimations()
-	if Client_Data:GetValue("Animations") == false then
+	if not shouldPlayPlotAnimations() then
 		stopAllAnimations()
 		return
 	end
@@ -281,6 +298,9 @@ function Client_PlotBrainrotAnimations.Init()
 	end)
 
 	Client_Data:ListenToChange("Animations", refreshAllAnimations)
+	Client_LocalWorldState.OnRoadStateChanged(function()
+		refreshAllAnimations()
+	end)
 end
 
 return Client_PlotBrainrotAnimations

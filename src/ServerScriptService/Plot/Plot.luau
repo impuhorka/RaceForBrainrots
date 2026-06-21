@@ -480,6 +480,9 @@ function Plot:TeleportPlayer(player: Player)
 		return
 	end
 	self:TeleportCharacter(character)
+
+	local Server_AntiCheat = require(script.Parent.Parent.Core.Server_AntiCheat)
+	Server_AntiCheat.GrantTeleportGrace(player)
 end
 
 function Plot:GetSlot(slotId: number): Model?

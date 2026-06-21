@@ -63,7 +63,8 @@ Brainrots.Data = {
 	TigroligreFrutonni = { DispalayName = "Tigroligre Frutonni", Rarity = "Epic", PowerTier = 6 },
 	TimCheese = { DispalayName = "Tim Cheese", Rarity = "Epic", PowerTier = 7 },
 	TriplitoTralaleritos = { DispalayName = "Triplito Tralaleritos", Rarity = "Epic", PowerTier = 8 },
-	ZibraZubraZibralini = { DispalayName = "Zibra Zubra Zibralini", Rarity = "Epic", PowerTier = 10 },
+	ZibraZubraZibralini = { DispalayName = "Zibra Zubra Zibralini", Rarity = "Epic", PowerTier = 9 },
+	PepeFrogy = { DispalayName = "Pepe Frogy", Rarity = "Epic", PowerTier = 10, IsVIPExclusive = true },
 
 	-- Legendary
 	AgarriniLaPallini = { DispalayName = "Agarrini La Pallini", Rarity = "Legendary", PowerTier = 1 },
@@ -72,28 +73,42 @@ Brainrots.Data = {
 	FrigoCamelo = { DispalayName = "Frigo Camelo", Rarity = "Legendary", PowerTier = 6 },
 	LioneloCactuseli = { DispalayName = "Lionelo Cactuseli", Rarity = "Legendary", PowerTier = 6 },
 	Mateo = { DispalayName = "Mateo", Rarity = "Legendary", PowerTier = 8 },
-	PandacciniBananini = { DispalayName = "Pandaccini Bananini", Rarity = "Legendary", PowerTier = 10 },
+	PandacciniBananini = { DispalayName = "Pandaccini Bananini", Rarity = "Legendary", PowerTier = 9 },
+	BurbalolliLulilolli = {
+		DispalayName = "Burbalolli Lulilolli",
+		Rarity = "Legendary",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+	},
 
 	-- Mythical
 	["69"] = { DispalayName = "69", Rarity = "Mythical", PowerTier = 1 },
 	ChicleteiraBicicleteira = { DispalayName = "Chicleteira Bicicleteira", Rarity = "Mythical", PowerTier = 3 },
 	PotHotspot = { DispalayName = "Pot Hotspot", Rarity = "Mythical", PowerTier = 6 },
-	GirafaCelestre = { DispalayName = "Girafa Celestre", Rarity = "Mythical", PowerTier = 7 },
 	StrawberrelliFlamingelli = { DispalayName = "Strawberrelli Flamingelli", Rarity = "Mythical", PowerTier = 8 },
-	TralaleroTralala = { DispalayName = "Tralalero Tralala", Rarity = "Mythical", PowerTier = 10 },
+	TralaleroTralala = { DispalayName = "Tralalero Tralala", Rarity = "Mythical", PowerTier = 9 },
+	Ben = { DispalayName = "Ben", Rarity = "Mythical", PowerTier = 10, IsVIPExclusive = true },
 
 	-- Secret
 	ChicleteirinaBicicleteirina = { DispalayName = "Chicleteirina Bicicleteirina", Rarity = "Secret", PowerTier = 1 },
 	DragonCannelloni = { DispalayName = "Dragon Cannelloni", Rarity = "Secret", PowerTier = 6 },
 	PipiPotato = { DispalayName = "Pipi Potato", Rarity = "Secret", PowerTier = 8 },
-	TorrtuginniDragonfrutini = { DispalayName = "Torrtuginni Dragonfrutini", Rarity = "Secret", PowerTier = 10 },
+	TorrtuginniDragonfrutini = { DispalayName = "Torrtuginni Dragonfrutini", Rarity = "Secret", PowerTier = 9 },
+	NyanCat = { DispalayName = "Nyan Cat", Rarity = "Secret", PowerTier = 10, IsVIPExclusive = true },
 
 	-- Divine
 	Pakrahmatmamat = { DispalayName = "Pakrahmatmamat", Rarity = "Divine", PowerTier = 5 },
 	SixSeven = { DispalayName = "Six Seven", Rarity = "Divine", PowerTier = 9 },
+	GirafaCelestre = { DispalayName = "Girafa Celestre", Rarity = "Divine", PowerTier = 10, IsVIPExclusive = true },
 
 	-- Superior
-	TatatataSahur = { DispalayName = "Tatatata Sahur", Rarity = "Superior", PowerTier = 10 },
+	TatatataSahur = { DispalayName = "Tatatata Sahur", Rarity = "Superior", PowerTier = 9 },
+	LaVaccaSaturnoSaturnita = {
+		DispalayName = "La Vacca Saturno Saturnita",
+		Rarity = "Superior",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+	},
 }
 
 local function roundEconomy(value: number): number
@@ -158,10 +173,18 @@ function Brainrots.GetPowerTier(configName: string): number
 	return math.clamp(config.PowerTier or 5, 1, 10)
 end
 
-function Brainrots.GetConfigNamesForRarity(rarity: string): { string }
+function Brainrots.IsVIPExclusive(configName: string): boolean
+	local config = Brainrots.Data[configName]
+	return config ~= nil and config.IsVIPExclusive == true
+end
+
+function Brainrots.GetConfigNamesForRarity(rarity: string, includeVIPExclusive: boolean?): { string }
 	local configNames: { string } = {}
 	for configName, config in Brainrots.Data do
 		if config.Rarity == rarity then
+			if includeVIPExclusive ~= true and config.IsVIPExclusive == true then
+				continue
+			end
 			table.insert(configNames, configName)
 		end
 	end
@@ -178,7 +201,14 @@ function Brainrots.GetConfigNamesForRarity(rarity: string): { string }
 	return configNames
 end
 
-function Brainrots.GetDefaultBaseWeight(_configName: string?): number
+function Brainrots.GetDefaultBaseWeight(configName: string?): number
+	if type(configName) == "string" and configName ~= "" then
+		local config = Brainrots.Data[configName]
+		if config and type(config.Rarity) == "string" then
+			return Shared_Rarities.GetDefaultCarryBaseWeight(config.Rarity)
+		end
+	end
+
 	return Brainrots.DefaultBaseWeight or 15
 end
 

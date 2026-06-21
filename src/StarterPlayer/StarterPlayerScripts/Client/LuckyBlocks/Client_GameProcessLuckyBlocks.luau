@@ -1,16 +1,17 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
-
 local ClientLoader = require(script.Parent.Parent.Loader)
+
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Shared_LuckyBlockBillboard = SharedModules.require("Shared_LuckyBlockBillboard")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 local Client_VisualSettings = ClientLoader.require("Client_VisualSettings")
 local Client_WorldDropAnimation = ClientLoader.require("Client_WorldDropAnimation")
+
+local VIP_CONFIG_KEY = "VIP"
 
 local Client_GameProcessLuckyBlocks = {}
 
@@ -31,6 +32,52 @@ local descendantConnections: { [Model]: RBXScriptConnection } = {}
 local dropAnimPlayed: { [Model]: boolean } = {}
 local resyncScheduled: { [Model]: boolean } = {}
 local activeDropSpin: { [Model]: DropSpinState? } = {}
+local floorsFolderRef: Instance? = nil
+
+local function ownsVIP(): boolean
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	return Client_Marketplace.PlayerOwnsGamepass(VIP_CONFIG_KEY)
+end
+
+local function findPickupPrompt(model: Model): ProximityPrompt?
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("ProximityPrompt") then
+			return descendant
+		end
+	end
+	return nil
+end
+
+local function refreshVipPickupPrompt(model: Model)
+	if model:GetAttribute("IsWorldLuckyBlock") ~= true then
+		return
+	end
+
+	local prompt = findPickupPrompt(model)
+	if not prompt then
+		return
+	end
+
+	local requiresVIP = prompt:GetAttribute("RequiresVIP") == true
+		or Shared_GameProcess.IsVipLuckyBlockModel(model)
+	if not requiresVIP then
+		return
+	end
+
+	prompt.Enabled = ownsVIP()
+end
+
+local function refreshAllVipPickupPrompts()
+	if not floorsFolderRef then
+		return
+	end
+
+	for _, descendant in floorsFolderRef:GetDescendants() do
+		if descendant:IsA("Model") and descendant:GetAttribute("IsWorldLuckyBlock") == true then
+			refreshVipPickupPrompt(descendant)
+		end
+	end
+end
 
 local function easeOutQuart(t: number): number
 	local u = 1 - t
@@ -241,7 +288,7 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 	local floatSpeed = Shared_GameProcess.WorldLuckyBlockFloatSpeed
 
 	local floorRotation = baseRotation
-	local effectsPaused = not Client_VisualSettings.AreEffectsEnabled()
+	local effectsPaused = not Client_VisualSettings.AreEffectsEnabledNear(model:GetPivot().Position)
 	local frozenIdleSpinYaw: number? = nil
 
 	if effectsPaused then
@@ -262,7 +309,7 @@ function startAnimation(model: Model, dropSpin: DropSpinState?)
 			return
 		end
 
-		local effectsEnabled = Client_VisualSettings.AreEffectsEnabled()
+		local effectsEnabled = Client_VisualSettings.AreEffectsEnabledNear(model:GetPivot().Position)
 		if not effectsEnabled then
 			if not effectsPaused then
 				effectsPaused = true
@@ -423,6 +470,7 @@ local function tryHookModel(instance: Instance)
 			return
 		end
 
+		refreshVipPickupPrompt(instance)
 		startAnimation(instance)
 	end)
 end
@@ -431,6 +479,14 @@ local function watchModel(instance: Instance)
 	tryHookModel(instance)
 
 	if instance:IsA("Model") then
+		instance:GetAttributeChangedSignal("IsVIPZone"):Connect(function()
+			refreshVipPickupPrompt(instance)
+		end)
+		instance.DescendantAdded:Connect(function(descendant)
+			if descendant:IsA("ProximityPrompt") then
+				refreshVipPickupPrompt(instance)
+			end
+		end)
 		instance:GetAttributeChangedSignal("IsWorldLuckyBlock"):Connect(function()
 			tryHookModel(instance)
 		end)
@@ -492,6 +548,17 @@ function Client_GameProcessLuckyBlocks.Init()
 				snapLuckyBlockToFloor(descendant)
 			end
 		end
+	end)
+
+	task.spawn(function()
+		local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+		local Client_Data = ClientLoader.require("Client_Data")
+
+		Client_Marketplace.OnGamepassOwnershipChanged(refreshAllVipPickupPrompts)
+		Client_Data.WaitUntilReady()
+		Client_Data:ListenToChange("DataGamepasses", refreshAllVipPickupPrompts)
+		Client_Marketplace.WaitUntilReady()
+		refreshAllVipPickupPrompts()
 	end)
 end
 

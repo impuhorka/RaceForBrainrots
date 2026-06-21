@@ -6,6 +6,7 @@ local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
+local Shared_Marketplace = SharedModules.require("Shared_Marketplace")
 local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
 local Client_Data = ClientLoader.require("Client_Data")
 local Client_Messaging = ClientLoader.require("Client_Messaging")
@@ -38,6 +39,8 @@ local strBeforeLabel: TextLabel?
 local strAfterLabel: TextLabel?
 local costLabel: TextLabel?
 local buyButton: ImageButton?
+local robuxBuyButton: ImageButton?
+local robuxCostLabel: TextLabel?
 local characterConn: RBXScriptConnection? = nil
 local wasAffordRebirth = false
 
@@ -148,6 +151,37 @@ local function getValueLabel(root: Instance): TextLabel?
 	return nil
 end
 
+local function findTextLabel(root: Instance, name: string): TextLabel?
+	local direct = root:FindFirstChild(name)
+	if direct and direct:IsA("TextLabel") then
+		return direct
+	end
+
+	local nested = root:FindFirstChild(name, true)
+	if nested and nested:IsA("TextLabel") then
+		return nested
+	end
+
+	return nil
+end
+
+local function getRobuxDisplayPrice(configKey: string): number?
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	return Client_Marketplace.GetRobuxDisplayPrice(configKey)
+end
+
+local function updateRobuxCostLabel(rebirths: number)
+	if not robuxCostLabel then
+		return
+	end
+
+	local configKey = Shared_Rebirth.GetRobuxProductConfigKey(rebirths)
+	local robuxPrice = getRobuxDisplayPrice(configKey)
+	if robuxPrice then
+		robuxCostLabel.Text = Shared_Marketplace.FormatRobuxPrice(robuxPrice)
+	end
+end
+
 local function updateRebirthOpenButtons(rebirths: number)
 	local text = tostring(rebirths)
 
@@ -215,6 +249,16 @@ local function render()
 	if costLabel then
 		costLabel.Text = ("$%s"):format(Shared_Abbreviation:Number(Shared_Rebirth.GetCost(rebirths)))
 	end
+
+	updateRobuxCostLabel(rebirths)
+end
+
+local function findRobuxBuyRoot(holder: Instance): Instance?
+	return holder:FindFirstChild("RobuxBuy") or holder:FindFirstChild("RobuxButton")
+end
+
+local function renderRobuxPrice()
+	updateRobuxCostLabel(Shared_Rebirth.GetRebirthCount(Client_Data:GetValue("Rebirths")))
 end
 
 local function bindUi()
@@ -233,7 +277,7 @@ local function bindUi()
 
 	local buyRoot = holder:WaitForChild("Buy")
 	buyButton = buyRoot:WaitForChild("ImageButton") :: ImageButton
-	costLabel = buyRoot:FindFirstChild("Cost", true) :: TextLabel?
+	costLabel = findTextLabel(buyButton, "Cost") or findTextLabel(buyRoot, "Cost")
 	if costLabel and not costLabel:IsA("TextLabel") then
 		costLabel = nil
 	end
@@ -243,6 +287,31 @@ local function bindUi()
 			plotHandler:FireServer("Rebirth")
 		end
 	end)
+
+	local robuxBuyRoot = findRobuxBuyRoot(holder)
+	if robuxBuyRoot then
+		if robuxBuyRoot:IsA("GuiButton") then
+			robuxBuyButton = robuxBuyRoot :: ImageButton
+		else
+			robuxBuyButton = robuxBuyRoot:FindFirstChildWhichIsA("ImageButton", true)
+		end
+
+		if robuxBuyButton then
+			robuxCostLabel = findTextLabel(robuxBuyButton, "Cost") or findTextLabel(robuxBuyRoot, "Cost")
+		end
+		if robuxCostLabel and not robuxCostLabel:IsA("TextLabel") then
+			robuxCostLabel = nil
+		end
+
+		if robuxBuyButton then
+			robuxBuyButton.MouseButton1Click:Connect(function()
+				local rebirths = Shared_Rebirth.GetRebirthCount(Client_Data:GetValue("Rebirths"))
+				local configKey = Shared_Rebirth.GetRobuxProductConfigKey(rebirths)
+				local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+				Client_Marketplace.PromptProductPurchase(configKey)
+			end)
+		end
+	end
 
 	rebirthFrame:GetPropertyChangedSignal("Visible"):Connect(function()
 		if rebirthFrame.Visible then
@@ -257,6 +326,7 @@ end
 local function hookReplicaChanges()
 	Client_Data:ListenToChange("Rebirths", function()
 		render()
+		renderRobuxPrice()
 		wasAffordRebirth = false
 		refreshRebirthGuidance()
 	end)
@@ -305,6 +375,15 @@ function Client_Rebirth.Init()
 	hookReplicaChanges()
 	hookPurchaseResponses()
 	bindCharacterBeamRefresh()
+
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	Client_Marketplace.OnPricesChanged(renderRobuxPrice)
+	Client_Marketplace.OnCatalogChanged(renderRobuxPrice)
+
+	task.spawn(function()
+		Client_Marketplace.WaitUntilReady()
+		renderRobuxPrice()
+	end)
 
 	task.spawn(function()
 		local gameFolder = Workspace:WaitForChild("Game", 30)

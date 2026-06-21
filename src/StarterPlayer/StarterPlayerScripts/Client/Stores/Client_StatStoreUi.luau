@@ -28,6 +28,22 @@ type PurchaseUi = {
 	afterLabel: TextLabel?,
 }
 
+local ROBUX_PURCHASE_ROOT_NAMES = {
+	RobuxButton = true,
+	RobuxBuy = true,
+}
+
+local function isUnderRobuxPurchaseRoot(instance: Instance): boolean
+	local current = instance.Parent
+	while current do
+		if ROBUX_PURCHASE_ROOT_NAMES[current.Name] then
+			return true
+		end
+		current = current.Parent
+	end
+	return false
+end
+
 local function findTextLabel(root: Instance, name: string): TextLabel?
 	local direct = root:FindFirstChild(name)
 	if direct and direct:IsA("TextLabel") then
@@ -40,6 +56,50 @@ local function findTextLabel(root: Instance, name: string): TextLabel?
 	end
 
 	return nil
+end
+
+local function findCashButtonRoot(root: Instance): Instance?
+	local buttonRoot = root:FindFirstChild("Button")
+	if buttonRoot then
+		return buttonRoot
+	end
+	return root:FindFirstChild("Buy")
+end
+
+local function findCostLabelInGuiButton(button: GuiButton): TextLabel?
+	local direct = button:FindFirstChild("Cost")
+	if direct and direct:IsA("TextLabel") then
+		return direct
+	end
+
+	local nested = button:FindFirstChild("Cost", true)
+	if nested and nested:IsA("TextLabel") then
+		return nested
+	end
+
+	return nil
+end
+
+local function findCashPurchaseButton(root: Instance): (Instance?, GuiButton?)
+	local buttonRoot = findCashButtonRoot(root)
+	if buttonRoot then
+		if buttonRoot:IsA("GuiButton") and not isUnderRobuxPurchaseRoot(buttonRoot) then
+			return buttonRoot.Parent, buttonRoot
+		end
+
+		local button = buttonRoot:FindFirstChildWhichIsA("GuiButton", true)
+		if button and not isUnderRobuxPurchaseRoot(button) then
+			return buttonRoot, button
+		end
+	end
+
+	for _, descendant in root:GetDescendants() do
+		if descendant:IsA("GuiButton") and not isUnderRobuxPurchaseRoot(descendant) then
+			return descendant.Parent, descendant
+		end
+	end
+
+	return nil, nil
 end
 
 local function createStatStoreUi(config: StatStoreUiConfig)
@@ -67,45 +127,23 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 					return true
 				end
 			end
+			if isUnderRobuxPurchaseRoot(label) then
+				return true
+			end
 			return false
 		end
 
-		for _, searchRoot in { button, buttonRoot, root } do
-			if searchRoot then
-				local found = searchRoot:FindFirstChild("Cost", true)
-				if found and found:IsA("TextLabel") and not isExcluded(found) then
-					return found
-				end
+		if button then
+			local costInButton = findCostLabelInGuiButton(button)
+			if costInButton and not isExcluded(costInButton) then
+				return costInButton
 			end
 		end
 
 		if buttonRoot then
-			for _, descendant in buttonRoot:GetDescendants() do
-				if descendant:IsA("TextLabel") and not isExcluded(descendant) then
-					return descendant
-				end
-			end
-		end
-
-		for _, descendant in root:GetDescendants() do
-			if not descendant:IsA("TextLabel") or isExcluded(descendant) then
-				continue
-			end
-
-			local nameLower = string.lower(descendant.Name)
-			if nameLower == "cost" or nameLower == "price" then
-				return descendant
-			end
-		end
-
-		for _, descendant in root:GetDescendants() do
-			if not descendant:IsA("TextLabel") or isExcluded(descendant) then
-				continue
-			end
-
-			local text = string.upper(string.gsub(descendant.Text, "^%s*(.-)%s*$", "%1"))
-			if text == "FREE" or string.find(text, "$", 1, true) then
-				return descendant
+			local directCost = buttonRoot:FindFirstChild("Cost")
+			if directCost and directCost:IsA("TextLabel") and not isExcluded(directCost) then
+				return directCost
 			end
 		end
 
@@ -134,14 +172,13 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 		local cost = config.sharedStore.GetPurchaseCost(currentValue, option.amount, getPurchaseCostContext())
 		local highlight = shouldHighlightPurchase(option, cost)
 
-		if not option.costLabel or not option.costLabel.Parent then
-			option.costLabel = findCostLabel(
-				option.root,
-				option.root:FindFirstChild("Button"),
-				option.button,
-				{ option.beforeLabel, option.afterLabel }
-			)
-		end
+		local buttonRoot = findCashButtonRoot(option.root)
+		option.costLabel = findCostLabel(
+			option.root,
+			buttonRoot,
+			option.button,
+			{ option.beforeLabel, option.afterLabel }
+		)
 
 		if option.costLabel then
 			option.costLabel.Text = if cost <= 0 then "FREE" else ("$%s"):format(Shared_Abbreviation:Number(cost))
@@ -173,11 +210,7 @@ local function createStatStoreUi(config: StatStoreUiConfig)
 			return
 		end
 
-		local buttonRoot = root:FindFirstChild("Button")
-		local button = if buttonRoot then buttonRoot:FindFirstChildWhichIsA("GuiButton", true) else nil
-		if not button then
-			button = root:FindFirstChildWhichIsA("GuiButton", true)
-		end
+		local buttonRoot, button = findCashPurchaseButton(root)
 		if not button then
 			return
 		end

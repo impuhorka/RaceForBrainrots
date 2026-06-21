@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local Workspace = game:GetService("Workspace")
 local ClientLoader = require(script.Parent.Parent.Loader)
+local Client_PlotSignVisibility = require(script.Parent.Client_PlotSignVisibility)
 
 local Shared_PlotConfig = SharedModules.require("Shared_PlotConfig")
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
@@ -341,7 +342,32 @@ local function cleanupPlotSurface(plotModel: Model)
 	watchingSlotsFolders[plotModel] = nil
 end
 
+local function hideOtherPlotUpgradeSign(plotModel: Model)
+	cleanupPlotSurface(plotModel)
+
+	local upgradeSign = getUpgradeSign(plotModel)
+	Client_PlotSignVisibility.setPlotSignVisible(upgradeSign, false)
+
+	if not watchingPlots[plotModel] then
+		watchingPlots[plotModel] = true
+		plotModel.DescendantAdded:Connect(function()
+			if isOwnPlot(plotModel) then
+				return
+			end
+			Client_PlotSignVisibility.setPlotSignVisible(getUpgradeSign(plotModel), false)
+		end)
+		plotModel.Destroying:Connect(function()
+			watchingPlots[plotModel] = nil
+		end)
+	end
+end
+
 local function setupPlotSurface(plotModel: Model)
+	if not isOwnPlot(plotModel) then
+		hideOtherPlotUpgradeSign(plotModel)
+		return
+	end
+
 	if plotGuis[plotModel] then
 		updateUpgradeSignLabels(plotGuis[plotModel], plotModel)
 		setupUpgradeSignButton(plotGuis[plotModel], plotModel)
@@ -349,6 +375,7 @@ local function setupPlotSurface(plotModel: Model)
 	end
 
 	local upgradeSign = getUpgradeSign(plotModel)
+	Client_PlotSignVisibility.setPlotSignVisible(upgradeSign, true)
 	if not upgradeSign then
 		if not watchingPlots[plotModel] then
 			watchingPlots[plotModel] = true
@@ -401,11 +428,15 @@ end
 local function refreshPlot(plotModel: Model)
 	if not isPlotRegistered(plotModel) then
 		cleanupPlotSurface(plotModel)
+		local upgradeSign = getUpgradeSign(plotModel)
+		Client_PlotSignVisibility.setPlotSignVisible(upgradeSign, false)
 		return
 	end
 
 	setupPlotSurface(plotModel)
-	watchPlotSlotsFolder(plotModel)
+	if isOwnPlot(plotModel) then
+		watchPlotSlotsFolder(plotModel)
+	end
 end
 
 local function refreshAllPlots()

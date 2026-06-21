@@ -161,6 +161,7 @@ end
 function GameProcessFloors.EnsureMapGeometry(): boolean
 	local floorsFolder = MapProcessMapContent.getFloorsFolder()
 	if MapProcessMapContent.hasMapGeometry(floorsFolder) then
+		MapProcessMapContent.ensureJumpBarrier()
 		return true
 	end
 	return MapProcessMapContent.buildMapGeometry(floorsFolder)

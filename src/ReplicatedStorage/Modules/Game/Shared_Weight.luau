@@ -26,8 +26,8 @@ Shared_Weight.Balance = {
 	-- Brainrots only scale from the weight roll, not lucky-block base tier.
 	BrainrotSizeRatioSlope = 0.25,
 	BrainrotMaxSizeMultiplier = 1.35,
-	IncomeRatioSlope = 0.55,
-	MaxIncomeMultiplier = 5.5,
+	IncomeRatioSlope = 0.65,
+	MaxIncomeMultiplier = 8,
 }
 
 local function roundWeight(value: number): number
@@ -374,7 +374,8 @@ function Shared_Weight.ResolveLuckyBlockWeights(itemData: any?, defaultBaseWeigh
 end
 
 function Shared_Weight.ResolveBrainrotWeights(itemData: any?, configName: string): (number, number)
-	local defaultBase = 15
+	local Shared_Brainrots = require(script.Parent.Shared_Brainrots)
+	local defaultBase = Shared_Brainrots.GetDefaultBaseWeight(configName)
 	local baseWeight = defaultBase
 	local rolledWeight = defaultBase
 

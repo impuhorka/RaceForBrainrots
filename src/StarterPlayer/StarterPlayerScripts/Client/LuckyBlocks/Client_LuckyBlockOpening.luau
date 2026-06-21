@@ -25,6 +25,7 @@ local ClientLoader = require(script.Parent.Parent.Loader)
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimations")
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
 local Shared_Sounds = SharedModules.require("Shared_Sounds")
 local Client_Data = ClientLoader.require("Client_Data")
@@ -84,13 +85,7 @@ local function getLuckyBlockModel(configName: string): Model?
 end
 
 local function getBrainrotModel(configName: string, modifier: string?): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local folder = assets and assets:FindFirstChild("Brainrots")
-	local sub = folder and folder:FindFirstChild(configName)
-	if not sub then return nil end
-	local template = sub:FindFirstChild(modifier or "Normal") or sub:FindFirstChild("Normal") or sub:FindFirstChildWhichIsA("Model")
-	if not template or not template:IsA("Model") then return nil end
-	return template:Clone()
+	return Shared_BrainrotAssets.CloneModel(configName, modifier)
 end
 
 local function getRewardedLuckyBlockModel(configName: string): Model?

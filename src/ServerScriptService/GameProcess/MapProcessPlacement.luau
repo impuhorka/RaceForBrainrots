@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
@@ -81,6 +82,35 @@ function MapProcessPlacement.shuffleArray(array: { any })
 		local swapIndex = math.random(1, index)
 		array[index], array[swapIndex] = array[swapIndex], array[index]
 	end
+end
+
+function MapProcessPlacement.flattenLuckyBlockRotation(model: Model)
+	local position = model:GetPivot().Position
+	local yaw = Shared_GameProcess.GetFlatYaw(model:GetPivot())
+	model:PivotTo(CFrame.new(position) * Shared_GameProcess.YawRotation(yaw))
+end
+
+function MapProcessPlacement.isLuckyBlockWorldClear(model: Model, holeFloor: BasePart): boolean
+	local bboxCF, bboxSize = model:GetBoundingBox()
+	local checkSize = Vector3.new(
+		math.max(bboxSize.X - 0.75, bboxSize.X * 0.85),
+		math.max(bboxSize.Y - 0.75, bboxSize.Y * 0.85),
+		math.max(bboxSize.Z - 0.75, bboxSize.Z * 0.85)
+	)
+
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model, holeFloor }
+
+	for _, part in Workspace:GetPartBoundsInBox(bboxCF, checkSize, params) do
+		if part:IsA("BasePart") and part.CanCollide and part.Transparency < 1 then
+			if part ~= holeFloor and not part:IsDescendantOf(model) then
+				return false
+			end
+		end
+	end
+
+	return true
 end
 
 function MapProcessPlacement.isLuckyBlockSpotValid(
@@ -203,7 +233,16 @@ function MapProcessPlacement.tryPlaceLuckyBlockOnHoleFloor(
 
 	for _, position in tryPositions do
 		local spot = MapProcessPlacement.placeModelOnHoleFloorAt(holeFloor, model, position.X, position.Z)
-		if MapProcessPlacement.isLuckyBlockSpotValid(spot, decorationSpots, luckyBlockSpots) then
+		MapProcessPlacement.flattenLuckyBlockRotation(model)
+		MapProcessPlacement.snapModelBottomToY(
+			model,
+			holeFloor.Position.Y + holeFloor.Size.Y / 2
+		)
+		spot = MapProcessPlacement.getModelFloorSpot(model)
+		if
+			MapProcessPlacement.isLuckyBlockSpotValid(spot, decorationSpots, luckyBlockSpots)
+			and MapProcessPlacement.isLuckyBlockWorldClear(model, holeFloor)
+		then
 			table.insert(luckyBlockSpots, spot)
 			return true
 		end

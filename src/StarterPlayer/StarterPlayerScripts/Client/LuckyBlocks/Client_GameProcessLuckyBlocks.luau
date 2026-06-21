@@ -206,15 +206,7 @@ local function getIdleSpinDirection(model: Model, dropSpin: DropSpinState?): num
 end
 
 local function prepareRigidAssembly(model: Model)
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("WeldConstraint") then
-			descendant:Destroy()
-		elseif descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.Massless = true
-		end
-	end
+	Shared_Weight.PrepareLuckyBlockForWorld(model)
 end
 
 local function applyFloatPivot(
@@ -224,7 +216,7 @@ local function applyFloatPivot(
 	yOffset: number,
 	totalYaw: number
 )
-	local rotation = CFrame.Angles(0, totalYaw, 0) * baseRotation
+	local rotation = CFrame.Angles(0, totalYaw, 0) * Shared_GameProcess.GetFlatYawRotation(baseRotation)
 	model:PivotTo(CFrame.new(basePosition + Vector3.new(0, yOffset, 0)) * rotation)
 end
 

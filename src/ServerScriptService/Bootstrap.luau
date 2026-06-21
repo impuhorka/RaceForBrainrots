@@ -1,3 +1,7 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
+
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Server_AntiCheat = require(script.Parent.Core.Server_AntiCheat)
 local Server_Data = require(script.Parent.Core.Server_Data)
 local Server_Leaderboards = require(script.Parent.Core.Server_Leaderboards)
@@ -27,6 +31,16 @@ function Bootstrap.start()
 	GameProcessService.SetPlotService(plotService)
 	GameProcessCycle.SetPlotService(plotService)
 	Server_Admin:Init(plotService)
+
+	task.defer(function()
+		local missingVIPAssets = Shared_BrainrotAssets.ValidateVIPAssets()
+		if #missingVIPAssets > 0 then
+			warn(
+				"[Bootstrap] Missing VIP brainrot assets under ReplicatedStorage.Assets.Brainrots:",
+				table.concat(missingVIPAssets, ", ")
+			)
+		end
+	end)
 end
 
 return Bootstrap

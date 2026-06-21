@@ -2,7 +2,7 @@ local Shared_PlotConfig = require(script.Parent.Shared_PlotConfig)
 
 local Shared_Rebirth = {}
 
-Shared_Rebirth.SlotUnlockPerRebirth = { 5, 5, 3, 3 }
+Shared_Rebirth.SlotUnlockPerRebirth = { 4, 4, 3, 3, 3, 2, 2, 2, 2, 2 }
 Shared_Rebirth.SlotUnlockPerRebirthAfterFourth = 1
 
 Shared_Rebirth.CashMultiplierPerRebirth = 0.5
@@ -12,18 +12,17 @@ Shared_Rebirth.BaseSpeedCap = 80
 Shared_Rebirth.BaseStrengthCap = 100
 
 Shared_Rebirth.Economy = {
-	-- First rebirth stays at BaseCost; 2nd+ scales faster via Growth + SecondRebirthCostMultiplier.
 	BaseCost = 100_000,
-	GrowthPerRebirth = 4.35,
-	CostAcceleration = 0.12,
-	SecondRebirthCostMultiplier = 1.45,
-	RoundTo = 10_000,
+	GrowthPerRebirth = 5.25,
+	CostAcceleration = 0.16,
+	SecondRebirthCostMultiplier = 1.75,
+	RoundTo = 25_000,
 }
 
 -- Robux tiers: cheap early rebirths (T1), mid wall (T2), late grind (T3).
 Shared_Rebirth.RobuxTierByRebirthCount = {
 	EasyMaxRebirth = 2,
-	MidMaxRebirth = 5,
+	MidMaxRebirth = 8,
 }
 
 local function roundToStep(value: number, step: number): number

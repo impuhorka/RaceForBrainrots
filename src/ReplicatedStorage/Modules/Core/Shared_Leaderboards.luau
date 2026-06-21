@@ -1,3 +1,8 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SharedModules = require(ReplicatedStorage.Modules.Loader)
+
+local Shared_DataConfig = SharedModules.require("Shared_DataConfig")
+
 local Shared_Leaderboards = {}
 
 Shared_Leaderboards.EntryCount = 50
@@ -11,11 +16,11 @@ Shared_Leaderboards.BoardIds = {
 Shared_Leaderboards.BoardConfig = {
 	MaxSpeed = {
 		modelName = "MaxSpeed",
-		orderedStoreName = "RFB_MaxSpeed_v2",
+		orderedStoreName = Shared_DataConfig.LeaderboardStores.MaxSpeed,
 	},
 	TotalCash = {
 		modelName = "TotalCash",
-		orderedStoreName = "RFB_TotalCash_v2",
+		orderedStoreName = Shared_DataConfig.LeaderboardStores.TotalCash,
 	},
 }
 

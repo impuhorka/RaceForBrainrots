@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimations")
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
 local Shared_LuckyBlockBillboard = SharedModules.require("Shared_LuckyBlockBillboard")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
@@ -76,19 +77,7 @@ local function getHoldAnimation(): Animation
 end
 
 local function getBrainrotModel(configName: string, modifier: string): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local brainrots = assets and assets:FindFirstChild("Brainrots")
-	local folder = brainrots and brainrots:FindFirstChild(configName)
-	if not folder then
-		return nil
-	end
-
-	local template = folder:FindFirstChild(modifier) or folder:FindFirstChild("Normal")
-	if not template or not template:IsA("Model") then
-		return nil
-	end
-
-	return template:Clone()
+	return Shared_BrainrotAssets.CloneModel(configName, modifier)
 end
 
 local function getLuckyBlockModel(configName: string): Model?

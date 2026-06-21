@@ -1,16 +1,15 @@
 local Shared_Rarities = {}
 
 Shared_Rarities.Balance = {
-	-- Zones 1-3 (Common/Rare/Epic): ~10/s start, ~5K/s peak. Zone 4+ ramps hard to billions.
 	BaseIncome = {
-		Common = { Min = 10, Max = 50 },
-		Rare = { Min = 50, Max = 450 },
-		Epic = { Min = 450, Max = 5000 },
-		Legendary = { Min = 6000, Max = 85000 },
-		Mythical = { Min = 70000, Max = 650000 },
-		Secret = { Min = 550000, Max = 5500000 },
-		Divine = { Min = 4500000, Max = 45000000 },
-		Superior = { Min = 30000000, Max = 300000000 },
+		Common = { Min = 35, Max = 50 },
+		Rare = { Min = 350, Max = 500 },
+		Epic = { Min = 5000, Max = 15000 },
+		Legendary = { Min = 25000, Max = 50000 },
+		Mythical = { Min = 60000, Max = 100000 },
+		Secret = { Min = 100000, Max = 300000 },
+		Divine = { Min = 500000, Max = 1500000 },
+		Superior = { Min = 2500000, Max = 10000000 },
 	},
 	MaxRequiredStrength = {
 		Common = 9,

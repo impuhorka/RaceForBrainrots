@@ -260,13 +260,7 @@ function MapProcessAssets.getLuckyBlockTemplate(configName: string): Model?
 end
 
 function MapProcessAssets.prepareLuckyBlockModel(model: Model)
-	Shared_Weight.SyncLuckyBlockPivot(model)
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("WeldConstraint") then
-			descendant:Destroy()
-		end
-	end
-	MapProcessAssets.prepareAnchoredModel(model)
+	return Shared_Weight.PrepareLuckyBlockForWorld(model)
 end
 function MapProcessAssets.getSortedRarities(): { string }
 	local rarities: { { Name: string, LayoutOrder: number } } = {}

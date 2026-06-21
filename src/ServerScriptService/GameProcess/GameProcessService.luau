@@ -8,6 +8,7 @@ local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local PlotBrainrotVisuals = require(ServerScriptService.Plot.PlotBrainrotVisuals)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Shared_Carry = SharedModules.require("Shared_Carry")
 local Shared_GameProcess = SharedModules.require("Shared_GameProcess")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
@@ -216,19 +217,7 @@ local function raycastFloorTopY(worldX: number, worldZ: number, exclude: { Insta
 end
 
 local function getBrainrotTemplate(configName: string, modifier: string): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local brainrots = assets and assets:FindFirstChild("Brainrots")
-	local brainrotFolder = brainrots and brainrots:FindFirstChild(configName)
-	if not brainrotFolder then
-		return nil
-	end
-
-	local template = brainrotFolder:FindFirstChild(modifier) or brainrotFolder:FindFirstChild("Normal")
-	if not template or not template:IsA("Model") then
-		return nil
-	end
-
-	return template
+	return Shared_BrainrotAssets.GetTemplate(configName, modifier)
 end
 
 local function getFlatLookVectorFromCFrame(cframe: CFrame): Vector3
@@ -431,14 +420,6 @@ local function placeWorldModelAtDropPosition(
 
 	worldModel.Parent = worldParent
 
-	for _, descendant in worldModel:GetDescendants() do
-		if descendant:IsA("WeldConstraint") then
-			descendant:Destroy()
-		elseif descendant:IsA("BasePart") then
-			descendant.CanCollide = false
-		end
-	end
-
 	Shared_Weight.SyncLuckyBlockPivot(worldModel)
 	worldModel:PivotTo(CFrame.new(dropX, floorTopY, dropZ) * dropRotation)
 	snapModelBottomToY(worldModel, floorTopY)
@@ -447,11 +428,12 @@ local function placeWorldModelAtDropPosition(
 	local spawnLift = Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
 	worldModel:PivotTo(worldModel:GetPivot() + Vector3.new(0, spawnLift, 0))
 
-	for _, descendant in worldModel:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = true
-		end
-	end
+	local flatYaw = Shared_GameProcess.GetFlatYaw(worldModel:GetPivot())
+	worldModel:PivotTo(
+		CFrame.new(worldModel:GetPivot().Position) * Shared_GameProcess.YawRotation(flatYaw)
+	)
+	Shared_Weight.PrepareLuckyBlockForWorld(worldModel)
+	worldModel.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
 	return worldModel:GetPivot().Position
 end
@@ -993,6 +975,8 @@ end
 
 function GameProcessService.SetupWorldLuckyBlock(luckyBlock: Model)
 	luckyBlock:SetAttribute("IsWorldLuckyBlock", true)
+	Shared_Weight.PrepareLuckyBlockForWorld(luckyBlock)
+	luckyBlock.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
 	local primaryPart = luckyBlock.PrimaryPart
 	if not primaryPart then

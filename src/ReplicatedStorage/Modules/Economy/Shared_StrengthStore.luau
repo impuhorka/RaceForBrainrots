@@ -7,12 +7,9 @@ local Shared_StrengthStore = Shared_StatStore.create({
 	DefaultValue = 1,
 	PurchaseOptions = { 1, 5, 10 },
 	Economy = {
-		-- Scaled to match speed store / plot income (was base 22 — showed $50 in mid-game).
-		BaseCostPerPoint = 5000,
-		GrowthPerPoint = 1.046,
-		SoftCapStrength = 100,
-		GrowthPerPointAfterSoftCap = 1.004,
-		RoundTo = 100,
+		BaseCostPerPoint = 500,
+		GrowthPerPoint = 1.115,
+		RoundTo = 50,
 	},
 })
 
@@ -53,21 +50,8 @@ end
 
 local function getPaidSinglePointCost(currentValue: number): number
 	local economy = Shared_StrengthStore.Economy
-	local softCap = economy.SoftCapStrength or Shared_StrengthStore.DefaultValue
-	local safeValue = math.max(Shared_StrengthStore.DefaultValue, math.floor(currentValue))
-	local valueDelta = math.max(0, safeValue - Shared_StrengthStore.DefaultValue)
-	local softCapDelta = math.max(0, softCap - Shared_StrengthStore.DefaultValue)
-
-	local rawCost: number
-	if valueDelta <= softCapDelta then
-		rawCost = economy.BaseCostPerPoint * (economy.GrowthPerPoint ^ valueDelta)
-	else
-		local costAtSoftCap = economy.BaseCostPerPoint * (economy.GrowthPerPoint ^ softCapDelta)
-		local excessDelta = valueDelta - softCapDelta
-		local afterGrowth = economy.GrowthPerPointAfterSoftCap or economy.GrowthPerPoint
-		rawCost = costAtSoftCap * (afterGrowth ^ excessDelta)
-	end
-
+	local valueDelta = math.max(0, math.floor(currentValue) - Shared_StrengthStore.DefaultValue)
+	local rawCost = economy.BaseCostPerPoint * (economy.GrowthPerPoint ^ valueDelta)
 	return roundToStep(rawCost, economy.RoundTo)
 end
 

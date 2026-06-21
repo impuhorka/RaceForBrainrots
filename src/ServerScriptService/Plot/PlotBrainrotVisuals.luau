@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedModules = require(ReplicatedStorage.Modules.Loader)
 
 local Shared_BrainrotBillboard = SharedModules.require("Shared_BrainrotBillboard")
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Shared_Weight = SharedModules.require("Shared_Weight")
 local Shared_ProximityPrompt = SharedModules.require("Shared_ProximityPrompt")
 
@@ -12,19 +13,7 @@ local function getBillboardAttachmentYOffset(primaryPart: BasePart): number
 end
 
 local function getBrainrotTemplate(configName: string, modifier: string): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local brainrots = assets and assets:FindFirstChild("Brainrots")
-	local brainrotFolder = brainrots and brainrots:FindFirstChild(configName)
-	if not brainrotFolder then
-		return nil
-	end
-
-	local template = brainrotFolder:FindFirstChild(modifier) or brainrotFolder:FindFirstChild("Normal")
-	if not template or not template:IsA("Model") then
-		return nil
-	end
-
-	return template
+	return Shared_BrainrotAssets.GetTemplate(configName, modifier)
 end
 
 local function getStandingPivot(slotModel: Model, brainrotModel: Model): CFrame?

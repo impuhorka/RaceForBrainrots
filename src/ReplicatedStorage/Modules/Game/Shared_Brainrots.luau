@@ -64,7 +64,13 @@ Brainrots.Data = {
 	TimCheese = { DispalayName = "Tim Cheese", Rarity = "Epic", PowerTier = 7 },
 	TriplitoTralaleritos = { DispalayName = "Triplito Tralaleritos", Rarity = "Epic", PowerTier = 8 },
 	ZibraZubraZibralini = { DispalayName = "Zibra Zubra Zibralini", Rarity = "Epic", PowerTier = 9 },
-	PepeFrogy = { DispalayName = "Pepe Frogy", Rarity = "Epic", PowerTier = 10, IsVIPExclusive = true },
+	PepeFrogy = {
+		DispalayName = "Pepe Frogy",
+		Rarity = "Epic",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+		AssetName = "Pepe",
+	},
 
 	-- Legendary
 	AgarriniLaPallini = { DispalayName = "Agarrini La Pallini", Rarity = "Legendary", PowerTier = 1 },
@@ -79,6 +85,7 @@ Brainrots.Data = {
 		Rarity = "Legendary",
 		PowerTier = 10,
 		IsVIPExclusive = true,
+		AssetName = "BurbaloniLoliloli",
 	},
 
 	-- Mythical
@@ -87,19 +94,36 @@ Brainrots.Data = {
 	PotHotspot = { DispalayName = "Pot Hotspot", Rarity = "Mythical", PowerTier = 6 },
 	StrawberrelliFlamingelli = { DispalayName = "Strawberrelli Flamingelli", Rarity = "Mythical", PowerTier = 8 },
 	TralaleroTralala = { DispalayName = "Tralalero Tralala", Rarity = "Mythical", PowerTier = 9 },
-	Ben = { DispalayName = "Ben", Rarity = "Mythical", PowerTier = 10, IsVIPExclusive = true },
+	Ben = {
+		DispalayName = "Ben",
+		Rarity = "Mythical",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+		AssetName = "Ben",
+	},
 
 	-- Secret
 	ChicleteirinaBicicleteirina = { DispalayName = "Chicleteirina Bicicleteirina", Rarity = "Secret", PowerTier = 1 },
 	DragonCannelloni = { DispalayName = "Dragon Cannelloni", Rarity = "Secret", PowerTier = 6 },
 	PipiPotato = { DispalayName = "Pipi Potato", Rarity = "Secret", PowerTier = 8 },
 	TorrtuginniDragonfrutini = { DispalayName = "Torrtuginni Dragonfrutini", Rarity = "Secret", PowerTier = 9 },
-	NyanCat = { DispalayName = "Nyan Cat", Rarity = "Secret", PowerTier = 10, IsVIPExclusive = true },
+	NyanCat = {
+		DispalayName = "Nyan Cat",
+		Rarity = "Secret",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+		AssetName = "NyanCat",
+	},
 
 	-- Divine
 	Pakrahmatmamat = { DispalayName = "Pakrahmatmamat", Rarity = "Divine", PowerTier = 5 },
-	SixSeven = { DispalayName = "Six Seven", Rarity = "Divine", PowerTier = 9 },
-	GirafaCelestre = { DispalayName = "Girafa Celestre", Rarity = "Divine", PowerTier = 10, IsVIPExclusive = true },
+	GirafaCelestre = {
+		DispalayName = "Girafa Celestre",
+		Rarity = "Divine",
+		PowerTier = 10,
+		IsVIPExclusive = true,
+		AssetName = "GirafaCelestre",
+	},
 
 	-- Superior
 	TatatataSahur = { DispalayName = "Tatatata Sahur", Rarity = "Superior", PowerTier = 9 },
@@ -108,6 +132,7 @@ Brainrots.Data = {
 		Rarity = "Superior",
 		PowerTier = 10,
 		IsVIPExclusive = true,
+		AssetName = "LaVaccaSaturnoSaturnita",
 	},
 }
 

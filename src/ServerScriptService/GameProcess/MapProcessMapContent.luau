@@ -385,7 +385,7 @@ local function placeLuckyBlockOnHoleFloor(
 	luckyBlockSpots: { PlacedSpot },
 	candidatePositions: { { X: number, Z: number } },
 	parent: Instance
-)
+): boolean
 	local luckyBlock = template:Clone()
 	luckyBlock.Name = `{rarityName}{holeSide}LuckyBlock{index}`
 	prepareLuckyBlockModel(luckyBlock)
@@ -396,7 +396,7 @@ local function placeLuckyBlockOnHoleFloor(
 		else nil
 	local rolledWeight = Shared_Weight.RollLuckyBlockWeight(baseWeight, rarityName, weightLuckMultiplier)
 	Shared_Weight.ApplyLuckyBlockScale(luckyBlock, baseWeight, rolledWeight)
-	Shared_Weight.SyncLuckyBlockPivot(luckyBlock)
+	Shared_Weight.PrepareLuckyBlockForWorld(luckyBlock)
 
 	if not tryPlaceLuckyBlockOnHoleFloor(
 		holeFloor,
@@ -406,15 +406,20 @@ local function placeLuckyBlockOnHoleFloor(
 		candidatePositions
 	) then
 		luckyBlock:Destroy()
-		return
+		return false
 	end
+
+	local flatYaw = Shared_GameProcess.GetFlatYaw(luckyBlock:GetPivot())
+	luckyBlock:PivotTo(
+		CFrame.new(luckyBlock:GetPivot().Position) * Shared_GameProcess.YawRotation(flatYaw)
+	)
 
 	local _, bboxSize = luckyBlock:GetBoundingBox()
 	local floatHeight = Shared_GameProcess.GetWorldLuckyBlockFloatHeight(bboxSize.Y)
 	local spawnLift = Shared_GameProcess.GetWorldLuckyBlockSpawnLift(bboxSize.Y)
 	luckyBlock:PivotTo(luckyBlock:GetPivot() + Vector3.new(0, spawnLift, 0))
 	luckyBlock:SetAttribute("WorldFloatBasePosition", luckyBlock:GetPivot().Position)
-	luckyBlock:SetAttribute("WorldBaseYaw", Shared_GameProcess.GetFlatYaw(luckyBlock:GetPivot()))
+	luckyBlock:SetAttribute("WorldBaseYaw", flatYaw)
 	luckyBlock:SetAttribute("FloatHeight", floatHeight)
 	luckyBlock:SetAttribute("FloatSpinDirection", if math.random() < 0.5 then -1 else 1)
 
@@ -427,9 +432,11 @@ local function placeLuckyBlockOnHoleFloor(
 	if holeFloor:GetAttribute("IsVIPHoleFloor") == true then
 		luckyBlock:SetAttribute("IsVIPZone", true)
 	end
+	luckyBlock.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	Shared_LuckyBlockBillboard.Setup(luckyBlock, configName, baseWeight, rolledWeight)
 	GameProcessService.SetupWorldLuckyBlock(luckyBlock)
 	luckyBlock.Parent = parent
+	return true
 end
 
 local function placeDecorationsForHoleFloor(
@@ -867,6 +874,35 @@ local function placeMushroomsForHoleFloor(
 	end
 end
 
+local function collectExistingLuckyBlockSpots(
+	holeFloor: BasePart,
+	parent: Instance,
+	rarityName: string,
+	holeSide: string
+): ({ PlacedSpot }, number)
+	local spots: { PlacedSpot } = {}
+	local count = 0
+	local halfX = holeFloor.Size.X / 2
+	local halfZ = holeFloor.Size.Z / 2
+
+	for _, child in parent:GetChildren() do
+		if child:IsA("Model") and child:GetAttribute("IsWorldLuckyBlock") == true then
+			if child:GetAttribute("Rarity") == rarityName and child:GetAttribute("HoleSide") == holeSide then
+				local pivot = child:GetPivot().Position
+				if
+					math.abs(pivot.X - holeFloor.Position.X) <= halfX
+					and math.abs(pivot.Z - holeFloor.Position.Z) <= halfZ
+				then
+					table.insert(spots, getModelFloorSpot(child))
+					count += 1
+				end
+			end
+		end
+	end
+
+	return spots, count
+end
+
 local function spawnLuckyBlocksForHoleFloor(
 	holeFloor: BasePart,
 	luckyBlockTemplate: Model,
@@ -876,12 +912,15 @@ local function spawnLuckyBlocksForHoleFloor(
 	decorationSpots: { PlacedSpot },
 	parent: Instance,
 	luckyBlockCount: number?,
-	pace: (() -> boolean)?
+	pace: (() -> boolean)?,
+	startIndex: number?
 )
 	local luckyBlockCountRange = Shared_GameProcess.LuckyBlocksPerHole
 	local count = luckyBlockCount
 		or math.random(luckyBlockCountRange.Min, luckyBlockCountRange.Max)
-	local luckyBlockSpots: { PlacedSpot } = {}
+	local existingSpots, existingCount = collectExistingLuckyBlockSpots(holeFloor, parent, rarityName, holeSide)
+	local luckyBlockSpots: { PlacedSpot } = table.clone(existingSpots)
+	local firstIndex = startIndex or (existingCount + 1)
 
 	local previewBlock = luckyBlockTemplate:Clone()
 	prepareLuckyBlockModel(previewBlock)
@@ -898,29 +937,44 @@ local function spawnLuckyBlocksForHoleFloor(
 		previewSize.Z / 2
 	)
 
-	for index = 1, count do
-		if pace and not pace() then
-			return
+	local activePace = pace
+
+	for offset = 0, count - 1 do
+		local index = firstIndex + offset
+		if activePace and not activePace() then
+			activePace = nil
 		end
 
 		local blockCandidates: { { X: number, Z: number } } = {}
-		local preferredPosition = candidatePositions[index]
+		local preferredPosition = candidatePositions[offset + 1]
 		if preferredPosition then
 			table.insert(blockCandidates, preferredPosition)
 		end
 
-		placeLuckyBlockOnHoleFloor(
-			holeFloor,
-			luckyBlockTemplate,
-			configName,
-			rarityName,
-			holeSide,
-			index,
-			decorationSpots,
-			luckyBlockSpots,
-			blockCandidates,
-			parent
-		)
+		local placed = false
+		for _ = 1, 3 do
+			if
+				placeLuckyBlockOnHoleFloor(
+					holeFloor,
+					luckyBlockTemplate,
+					configName,
+					rarityName,
+					holeSide,
+					index,
+					decorationSpots,
+					luckyBlockSpots,
+					blockCandidates,
+					parent
+				)
+			then
+				placed = true
+				break
+			end
+		end
+
+		if not placed then
+			warn(`[MapProcess] Failed to place {rarityName} {holeSide} lucky block {index}`)
+		end
 	end
 end
 
@@ -2370,7 +2424,37 @@ local function buildLuckyZoneSpawnPlans(
 		end
 	end
 
+	table.sort(plans, function(a, b)
+		return a.holeFloor.Position.Z < b.holeFloor.Position.Z
+	end)
+
 	return plans, totalSlots
+end
+
+function MapProcessMapContent.flushMissingLuckyBlockSpawns(spawnPlans: { LuckyZoneSpawnPlan })
+	for _, plan in spawnPlans do
+		local _, existingCount = collectExistingLuckyBlockSpots(
+			plan.holeFloor,
+			plan.parent,
+			plan.rarityName,
+			plan.holeSide
+		)
+		local missing = plan.luckyBlockCount - existingCount
+		if missing > 0 then
+			spawnLuckyBlocksForHoleFloor(
+				plan.holeFloor,
+				plan.luckyBlockTemplate,
+				plan.configName,
+				plan.rarityName,
+				plan.holeSide,
+				plan.decorationSpots,
+				plan.parent,
+				missing,
+				nil,
+				existingCount + 1
+			)
+		end
+	end
 end
 
 local function ensureJumpBarrier()

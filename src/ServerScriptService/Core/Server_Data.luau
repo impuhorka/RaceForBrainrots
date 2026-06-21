@@ -10,8 +10,10 @@ require(script.Parent.ReplicaServiceListeners)
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
 local Shared_Carry = SharedModules.require("Shared_Carry")
+local Shared_DataConfig = SharedModules.require("Shared_DataConfig")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 local Shared_Marketplace = SharedModules.require("Shared_Marketplace")
+local Shared_Modifiers = SharedModules.require("Shared_Modifiers")
 local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
 local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
 local Shared_Rebirth = SharedModules.require("Shared_Rebirth")
@@ -164,7 +166,6 @@ local DataTemplate = {
 	PendingOfflineSeconds = 0,
 }
 
-local USE_TEST_INVENTORY = false
 local USE_MOCK_DATASTORE_IN_STUDIO = false
 local INVENTORY_MAX_SLOTS = 60
 local SLOW_MODE_SPEED_CAP = 50
@@ -217,7 +218,7 @@ local function applyWalkSpeed(player: Player, maxSpeed: any, slowMode: any)
 	applyWalkSpeedToCharacter(character, player, maxSpeed, slowMode)
 end
 
-local PlayerStore = ProfileStore.New("RunForBrainrots_v2", DataTemplate)
+local PlayerStore = ProfileStore.New(Shared_DataConfig.PlayerStoreName, DataTemplate)
 local ReplicaClassToken = ReplicaService.NewClassToken("PlayerData")
 
 local function getStore()
@@ -517,6 +518,143 @@ local function migrateInventoryWeights(profile)
 	end
 end
 
+local function isValidInventoryItem(item: any): boolean
+	if type(item) ~= "table" or type(item.ConfigName) ~= "string" or item.ConfigName == "" then
+		return false
+	end
+
+	if item.ItemType == "Brainrot" then
+		return Shared_Brainrots.Data[item.ConfigName] ~= nil
+	end
+
+	if item.ItemType == "LuckyBlock" then
+		return Shared_LuckyBlocks.Data[item.ConfigName] ~= nil
+	end
+
+	return false
+end
+
+local function sanitizeInventory(data: { [string]: any })
+	if type(data.Inventory) ~= "table" then
+		data.Inventory = {}
+		return
+	end
+
+	local cleaned: { any } = {}
+	for _, item in data.Inventory do
+		if isValidInventoryItem(item) then
+			table.insert(cleaned, item)
+		end
+	end
+
+	data.Inventory = cleaned
+end
+
+local function sanitizePlot(data: { [string]: any })
+	if type(data.Plot) ~= "table" then
+		data.Plot = {}
+		return
+	end
+
+	for slotId, slotData in data.Plot do
+		if
+			type(slotData) ~= "table"
+			or type(slotData.ConfigName) ~= "string"
+			or not Shared_Brainrots.Data[slotData.ConfigName]
+		then
+			data.Plot[slotId] = nil
+			continue
+		end
+
+		slotData.CashToCollect = math.max(0, math.floor(tonumber(slotData.CashToCollect) or 0))
+		slotData.Level = math.max(1, math.floor(tonumber(slotData.Level) or 1))
+
+		local modifier = slotData.Modifier
+		if type(modifier) ~= "string" or not Shared_Modifiers.Data[modifier] then
+			slotData.Modifier = "Normal"
+		end
+	end
+end
+
+local function sanitizeIndex(data: { [string]: any })
+	if type(data.Index) ~= "table" then
+		data.Index = {}
+		return
+	end
+
+	for modifier, entries in data.Index do
+		if type(modifier) ~= "string" or not Shared_Modifiers.Data[modifier] then
+			data.Index[modifier] = nil
+			continue
+		end
+
+		if type(entries) ~= "table" then
+			data.Index[modifier] = {}
+			continue
+		end
+
+		local cleaned: { string } = {}
+		local seen: { [string]: boolean } = {}
+		for _, configName in entries do
+			if type(configName) == "string" and Shared_Brainrots.Data[configName] and not seen[configName] then
+				seen[configName] = true
+				table.insert(cleaned, configName)
+			end
+		end
+
+		data.Index[modifier] = cleaned
+	end
+end
+
+local function sanitizeScalars(data: { [string]: any })
+	data.Cash = math.max(0, math.floor(tonumber(data.Cash) or 0))
+	data.Speed = resolveMaxSpeed(data.Speed)
+	data.Strength = math.max(Shared_StrengthStore.DefaultValue, math.floor(tonumber(data.Strength) or 1))
+	data.Rebirths = math.max(0, math.floor(tonumber(data.Rebirths) or 0))
+	data.TotalPlotSlots = math.max(1, math.floor(tonumber(data.TotalPlotSlots) or DataTemplate.TotalPlotSlots))
+	data.PendingOfflineCash = math.max(0, math.floor(tonumber(data.PendingOfflineCash) or 0))
+	data.PendingOfflineSeconds = math.max(0, math.floor(tonumber(data.PendingOfflineSeconds) or 0))
+	data.LastLeaveTime = math.max(0, math.floor(tonumber(data.LastLeaveTime) or 0))
+	data.Music = math.clamp(tonumber(data.Music) or 1, 0, 1)
+	data.SFX = math.clamp(tonumber(data.SFX) or 1, 0, 1)
+	data.Animations = data.Animations ~= false
+	data.VisualEffects = data.VisualEffects ~= false
+	data.PopUps = data.PopUps ~= false
+	data.SlowMode = data.SlowMode == true
+	data.TutorialCompleted = data.TutorialCompleted == true
+
+	if type(data.ActivePlotSkin) ~= "string" or data.ActivePlotSkin == "" then
+		data.ActivePlotSkin = DataTemplate.ActivePlotSkin
+	end
+
+	if type(data.PurchasesLogs) ~= "table" then
+		data.PurchasesLogs = {}
+	end
+
+	if type(data.DataGamepasses) ~= "table" then
+		data.DataGamepasses = {}
+	end
+end
+
+local function removeStaleDataKeys(data: { [string]: any })
+	for key in data do
+		if DataTemplate[key] == nil then
+			data[key] = nil
+		end
+	end
+end
+
+local function sanitizePlayerData(data: { [string]: any })
+	removeStaleDataKeys(data)
+	sanitizeScalars(data)
+	sanitizeInventory(data)
+	sanitizePlot(data)
+	sanitizeIndex(data)
+	migrateInventoryWeights({ Data = data })
+	reconcileLeaderboardStats(data)
+	reconcileFreeStrength(data)
+end
+
 local function getPlayerWeightLuckMultiplier(player: Player): number
 	local data = Module:GetData(player)
 	if not data then
@@ -582,6 +720,7 @@ function Module:ResetPlayerData(player: Player): boolean
 		data[key] = deepCopy(templateValue)
 		oldKeys[key] = nil
 	end
+	sanitizePlayerData(data)
 
 	local replica = self:GetReplica(player)
 	if replica then
@@ -677,28 +816,7 @@ local function onPlayerAdded(player)
 
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
-	migrateInventoryWeights(profile)
-	reconcileLeaderboardStats(profile.Data)
-	reconcileFreeStrength(profile.Data)
-
-	if USE_TEST_INVENTORY then
-		local plot = profile.Data.Plot or {}
-		local inventory = profile.Data.Inventory or {}
-		if next(plot) == nil and #inventory == 0 then
-			profile.Data.Inventory = {
-				{
-					ItemType = "Brainrot",
-					ConfigName = "FluriFlura",
-					Data = { Level = 1, Modifier = "Normal" },
-				},
-				{
-					ItemType = "Brainrot",
-					ConfigName = "ChillinChili",
-					Data = { Level = 1, Modifier = "Normal" },
-				},
-			}
-		end
-	end
+	sanitizePlayerData(profile.Data)
 
 	profile.OnSessionEnd:Connect(function()
 		Module.Profiles[player] = nil

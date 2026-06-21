@@ -2,7 +2,7 @@ local Shared_PlotConfig = {}
 
 Shared_PlotConfig.SlotsPerFloor = 10
 Shared_PlotConfig.DefaultPlotSlots = 10
-Shared_PlotConfig.MaxPlotSlots = 35
+Shared_PlotConfig.MaxPlotSlots = 50
 
 local function roundToCoolThousands(value: number): number
 	return math.max(1000, math.floor(value / 1000 + 0.5) * 1000)

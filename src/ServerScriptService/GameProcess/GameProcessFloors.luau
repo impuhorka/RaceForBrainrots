@@ -156,6 +156,8 @@ function GameProcessFloors.ExecuteNewMapLuckyBlockSpawn()
 			stepper.pace
 		)
 	end
+
+	MapProcessMapContent.flushMissingLuckyBlockSpawns(spawnPlans)
 end
 
 function GameProcessFloors.EnsureMapGeometry(): boolean

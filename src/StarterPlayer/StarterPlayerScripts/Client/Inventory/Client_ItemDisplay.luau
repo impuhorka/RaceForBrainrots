@@ -3,6 +3,7 @@ local SharedModules = require(ReplicatedStorage.Modules.Loader)
 local ClientLoader = require(script.Parent.Parent.Loader)
 
 local Shared_BrainrotAnimations = SharedModules.require("Shared_BrainrotAnimations")
+local Shared_BrainrotAssets = SharedModules.require("Shared_BrainrotAssets")
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
 local Shared_LuckyBlocks = SharedModules.require("Shared_LuckyBlocks")
 local Shared_Modifiers = SharedModules.require("Shared_Modifiers")
@@ -36,33 +37,7 @@ function Client_ItemDisplay.getDisplayName(configName: string, itemType: string?
 end
 
 local function getBrainrotModel(configName: string, modifier: string?): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets") or ReplicatedStorage:WaitForChild("Assets", 2)
-	local brainrots = assets and (assets:FindFirstChild("Brainrots") or assets:WaitForChild("Brainrots", 2))
-	local brainrotFolder = brainrots and (brainrots:FindFirstChild(configName) or brainrots:WaitForChild(configName, 1))
-	if not brainrotFolder then
-		return nil
-	end
-
-	local template: Instance? = nil
-	if modifier and modifier ~= "" then
-		template = brainrotFolder:FindFirstChild(modifier)
-	end
-
-	if not template then
-		template = brainrotFolder:FindFirstChild("Normal")
-	end
-
-	if not template then
-		template = brainrotFolder:FindFirstChildWhichIsA("Model")
-	end
-
-	if not template or not template:IsA("Model") then
-		return nil
-	end
-
-	local model = template:Clone()
-	model.Name = configName
-	return model
+	return Shared_BrainrotAssets.CloneModel(configName, modifier)
 end
 
 function Client_ItemDisplay.getViewportFrame(root: Instance): ViewportFrame?

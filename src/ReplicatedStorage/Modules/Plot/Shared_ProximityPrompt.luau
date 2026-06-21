@@ -58,7 +58,7 @@ local PRESETS: { [PresetName]: { [string]: any } } = {
 	},
 	Steal = {
 		Name = "StealBrainrotPrompt",
-		ActionText = "Steal Brainrot!",
+		ActionText = "Steal!",
 		RequiresLineOfSight = false,
 		HoldDuration = 0.5,
 		MaxActivationDistance = 10,

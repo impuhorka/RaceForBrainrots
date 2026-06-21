@@ -66,6 +66,7 @@ local function runPostDataSystems()
 		{ "Client_Inventory" },
 		{ "Client_EquipHold" },
 		{ "Client_PlotSlotPlace" },
+		{ "Client_PlotBrainrotSteal" },
 		{ "Client_PlotBrainrotAnimations" },
 		{ "Client_PlotBrainrotVfx" },
 		{ "Client_PlotUpgradeVfx" },

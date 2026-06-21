@@ -10,6 +10,7 @@ local PlotCash = require(script.Parent.PlotCash)
 local Server_Marketplace = require(script.Parent.Parent.Core.Server_Marketplace)
 local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
+local PlotSteal = require(script.Parent.PlotSteal)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
 local GameProcessService = require(ServerScriptService.GameProcess.GameProcessService)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
@@ -606,6 +607,8 @@ end
 
 function PlotService:DetachPlayer(player: Player)
 	PlotOfflineCash.OnPlayerLeave(player)
+	PlotSteal.OnVictimLeft(player)
+	PlotSteal.ClearPlayer(player)
 	luckyBlockOpenLocks[player] = nil
 	PlotPlacement.ClearPlayerLocks(player)
 	PlotSlotPurchase.ClearPlayerLocks(player)

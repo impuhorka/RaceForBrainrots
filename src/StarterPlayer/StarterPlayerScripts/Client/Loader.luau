@@ -45,6 +45,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Client_PlotCashCollect = root.Plot.Client_PlotCashCollect,
 	Client_PlotCollectAllSign = root.Plot.Client_PlotCollectAllSign,
 	Client_PlotSlotPlace = root.Plot.Client_PlotSlotPlace,
+	Client_PlotBrainrotSteal = root.Plot.Client_PlotBrainrotSteal,
 	Client_PlotSlotSurfaces = root.Plot.Client_PlotSlotSurfaces,
 	Client_PlotSpawnAnimation = root.Plot.Client_PlotSpawnAnimation,
 	Client_PlotUpgradeSign = root.Plot.Client_PlotUpgradeSign,

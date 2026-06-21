@@ -29,6 +29,7 @@ Shared_Marketplace.GrantItemType = {
 	Rebirth = "Rebirth",
 	OfflineCash = "OfflineCash",
 	TeleportHome = "TeleportHome",
+	StealBrainrot = "StealBrainrot",
 }
 
 -- Loaded first so shop UI prices appear quickly; remaining products follow alphabetically.
@@ -372,6 +373,71 @@ Shared_Marketplace.Products = {
 		GrantConfigName = "Superior",
 	},
 
+	StealBrainrotCommon = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935271,
+		DisplayName = "Steal Common Brainrot",
+		Description = "Steal a Common brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Common",
+	},
+	StealBrainrotRare = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935305,
+		DisplayName = "Steal Rare Brainrot",
+		Description = "Steal a Rare brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Rare",
+	},
+	StealBrainrotEpic = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935331,
+		DisplayName = "Steal Epic Brainrot",
+		Description = "Steal an Epic brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Epic",
+	},
+	StealBrainrotLegendary = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935349,
+		DisplayName = "Steal Legendary Brainrot",
+		Description = "Steal a Legendary brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Legendary",
+	},
+	StealBrainrotMythical = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935387,
+		DisplayName = "Steal Mythical Brainrot",
+		Description = "Steal a Mythical brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Mythical",
+	},
+	StealBrainrotSecret = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935437,
+		DisplayName = "Steal Secret Brainrot",
+		Description = "Steal a Secret brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Secret",
+	},
+	StealBrainrotDivine = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935462,
+		DisplayName = "Steal Divine Brainrot",
+		Description = "Steal a Divine brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Divine",
+	},
+	StealBrainrotSuperior = {
+		ProductType = Shared_Marketplace.ProductType.DevProduct,
+		ProductId = 3605935515,
+		DisplayName = "Steal Superior Brainrot",
+		Description = "Steal a Superior brainrot from another player's plot",
+		GrantItemType = Shared_Marketplace.GrantItemType.StealBrainrot,
+		GrantConfigName = "Superior",
+	},
+
 	VIP = {
 		ProductType = Shared_Marketplace.ProductType.GamePass,
 		ProductId = 1880746286,
@@ -549,6 +615,28 @@ end
 
 function Shared_Marketplace.IsTeleportHomeProduct(configKey: string): boolean
 	return Shared_Marketplace.GetTeleportHomeRarity(configKey) ~= nil
+end
+
+function Shared_Marketplace.GetStealBrainrotProductKey(rarity: string): string?
+	if type(rarity) ~= "string" or rarity == "" then
+		return nil
+	end
+	return `StealBrainrot{rarity}`
+end
+
+function Shared_Marketplace.GetStealBrainrotRarity(configKey: string): string?
+	local config = Shared_Marketplace.GetProduct(configKey)
+	if not config or config.GrantItemType ~= Shared_Marketplace.GrantItemType.StealBrainrot then
+		return nil
+	end
+	if type(config.GrantConfigName) ~= "string" or config.GrantConfigName == "" then
+		return nil
+	end
+	return config.GrantConfigName
+end
+
+function Shared_Marketplace.IsStealBrainrotProduct(configKey: string): boolean
+	return Shared_Marketplace.GetStealBrainrotRarity(configKey) ~= nil
 end
 
 function Shared_Marketplace.IsCashProduct(configKey: string): boolean

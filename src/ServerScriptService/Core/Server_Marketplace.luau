@@ -10,6 +10,7 @@ local Shared_SpeedStore = SharedModules.require("Shared_SpeedStore")
 local Shared_StrengthStore = SharedModules.require("Shared_StrengthStore")
 local GameProcessService = require(script.Parent.Parent.GameProcess.GameProcessService)
 local PlotOfflineCash = require(script.Parent.Parent.Plot.PlotOfflineCash)
+local PlotSteal = require(script.Parent.Parent.Plot.PlotSteal)
 
 local Server_Marketplace = {}
 
@@ -251,6 +252,10 @@ local function canPurchaseProduct(player: Player, configKey: string): (boolean, 
 		return true, nil
 	end
 
+	if record.GrantItemType == Shared_Marketplace.GrantItemType.StealBrainrot then
+		return PlotSteal.CanGrantSteal(player, configKey)
+	end
+
 	if record.GrantItemType == "LuckyBlock" then
 		local grantAmount = math.max(1, math.floor(tonumber(record.GrantAmount) or 1))
 		if getInventoryFreeSlots(player) < grantAmount then
@@ -325,6 +330,10 @@ local function grantTeleportHome(player: Player, record: ProductInfoRecord): (bo
 	end
 
 	return GameProcessService.GrantTeleportHome(player, expectedRarity)
+end
+
+local function grantStealBrainrot(player: Player, record: ProductInfoRecord): (boolean, string?)
+	return PlotSteal.GrantSteal(player, record.ConfigKey)
 end
 
 local function appendPurchaseLog(player: Player, configKey: string, productId: number, purchaseId: string?)
@@ -413,6 +422,10 @@ local function tryGrantProduct(player: Player, configKey: string, receiptInfo: a
 
 	if record.GrantItemType == Shared_Marketplace.GrantItemType.TeleportHome then
 		return grantTeleportHome(player, record)
+	end
+
+	if record.GrantItemType == Shared_Marketplace.GrantItemType.StealBrainrot then
+		return grantStealBrainrot(player, record)
 	end
 
 	return grantInventoryItem(player, record)
@@ -576,7 +589,7 @@ local function onPlayerAdded(player: Player)
 	end)
 end
 
-local function onMarketplaceClientEvent(player: Player, action: string, arg1: any)
+local function onMarketplaceClientEvent(player: Player, action: string, arg1: any, arg2: any)
 	if action == "RequestCatalog" then
 		Server_Marketplace.SyncPlayerCatalog(player)
 		return
@@ -590,6 +603,24 @@ local function onMarketplaceClientEvent(player: Player, action: string, arg1: an
 
 		local allowed, reason = canPurchaseProduct(player, configKey)
 		getMarketplaceHandler():FireClient(player, "CanPurchaseResult", configKey, allowed, reason)
+		return
+	end
+
+	if action == "BeginStealBrainrot" then
+		local victimUserId = math.floor(tonumber(arg1) or 0)
+		local slotId = math.floor(tonumber(arg2) or 0)
+		if victimUserId <= 0 or slotId <= 0 then
+			getMarketplaceHandler():FireClient(player, "StealBrainrotBeginResult", false, nil, "Invalid steal target")
+			return
+		end
+
+		local allowed, reason, productConfigKey = PlotSteal.BeginSteal(player, victimUserId, slotId)
+		getMarketplaceHandler():FireClient(player, "StealBrainrotBeginResult", allowed, productConfigKey, reason)
+		return
+	end
+
+	if action == "CancelStealBrainrot" then
+		PlotSteal.CancelSteal(player)
 		return
 	end
 
@@ -667,6 +698,17 @@ local function registerDefaultGrantHandlers()
 					return false, "Unknown product"
 				end
 				return grantTeleportHome(player, record)
+			end
+			continue
+		end
+
+		if config.GrantItemType == Shared_Marketplace.GrantItemType.StealBrainrot then
+			grantHandlers[configKey] = function(player: Player)
+				local record = productInfoByKey[configKey]
+				if not record then
+					return false, "Unknown product"
+				end
+				return grantStealBrainrot(player, record)
 			end
 			continue
 		end
@@ -757,6 +799,7 @@ end
 
 function Server_Marketplace.SetPlotService(service: any)
 	plotServiceRef = service
+	PlotSteal.SetPlotService(service)
 end
 
 function Server_Marketplace.SyncPlayerGamepasses(player: Player)

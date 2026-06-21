@@ -153,6 +153,21 @@ local function attachCarriedLuckyBlockToCharacter(player: Player, luckyBlock: Mo
 	return true
 end
 
+local function detachCarriedLuckyBlockFromCharacter(luckyBlock: Model, worldParent: Instance)
+	for _, descendant in luckyBlock:GetDescendants() do
+		if descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			local part = descendant
+			part.Anchored = true
+			part.CanCollide = false
+			part.Massless = true
+		end
+	end
+
+	luckyBlock.Parent = worldParent
+end
+
 local function removePickupPrompt(luckyBlock: Model)
 	if not luckyBlock.PrimaryPart then
 		luckyBlock.PrimaryPart = luckyBlock:FindFirstChildWhichIsA("BasePart", true)
@@ -346,7 +361,11 @@ local function findWorldDropTarget(
 	end
 
 	local floorTopY = raycastFloorTopY(origin.X, origin.Z, exclude)
-	return origin.X, origin.Z, floorTopY or (origin.Y - 3)
+	if floorTopY then
+		return origin.X, origin.Z, floorTopY
+	end
+
+	return nil, nil, nil
 end
 
 local function getDropFacingRotation(
@@ -688,6 +707,7 @@ function GameProcessService.DropCarriedLuckyBlock(player: Player, clientRootCFra
 
 	local validatedRootCFrame = validateClientDropRootCFrame(player, clientRootCFrame)
 	local worldParent = getLuckyBlockWorldParent() or Workspace
+	detachCarriedLuckyBlockFromCharacter(luckyBlock, worldParent)
 	local launchOrigin = getDropLaunchOrigin(character, validatedRootCFrame)
 	local _, bboxSize = luckyBlock:GetBoundingBox()
 	local dropRadiusScale = Shared_GameProcess.GetWorldDropRadiusScale(bboxSize.Y)
@@ -699,6 +719,9 @@ function GameProcessService.DropCarriedLuckyBlock(player: Player, clientRootCFra
 		validatedRootCFrame
 	)
 	if not dropPosition then
+		if luckyBlock.Parent and not luckyBlock:IsDescendantOf(character) then
+			attachCarriedLuckyBlockToCharacter(player, luckyBlock)
+		end
 		collecting[luckyBlock] = nil
 		return
 	end

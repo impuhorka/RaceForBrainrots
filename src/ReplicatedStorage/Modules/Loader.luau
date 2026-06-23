@@ -17,6 +17,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Shared_LuckyBlockBillboard = root.Game.Shared_LuckyBlockBillboard,
 	Shared_LuckyBlocks = root.Game.Shared_LuckyBlocks,
 	Shared_Modifiers = root.Game.Shared_Modifiers,
+	Shared_SixSevenReward = root.Game.Shared_SixSevenReward,
 	Shared_Rarities = root.Game.Shared_Rarities,
 	Shared_Weight = root.Game.Shared_Weight,
 
@@ -46,6 +47,7 @@ local PATHS: { [string]: ModuleScript } = {
 	Shared_TableUtil = root.Core.Shared_TableUtil,
 	Shared_AntiCheat = root.Core.Shared_AntiCheat,
 	Shared_Tutorial = root.Core.Shared_Tutorial,
+	Shared_FavoritePrompt = root.Core.Shared_FavoritePrompt,
 
 	-- Vendor
 	ReplicaController = root.Vendor.ReplicaController,

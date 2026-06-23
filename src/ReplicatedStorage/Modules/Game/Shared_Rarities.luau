@@ -2,14 +2,14 @@ local Shared_Rarities = {}
 
 Shared_Rarities.Balance = {
 	BaseIncome = {
-		Common = { Min = 35, Max = 50 },
-		Rare = { Min = 350, Max = 500 },
-		Epic = { Min = 5000, Max = 15000 },
-		Legendary = { Min = 25000, Max = 50000 },
-		Mythical = { Min = 60000, Max = 100000 },
-		Secret = { Min = 100000, Max = 300000 },
-		Divine = { Min = 500000, Max = 1500000 },
-		Superior = { Min = 2500000, Max = 10000000 },
+		Common = { Min = 30, Max = 44 },
+		Rare = { Min = 290, Max = 410 },
+		Epic = { Min = 4200, Max = 12500 },
+		Legendary = { Min = 21000, Max = 42000 },
+		Mythical = { Min = 50000, Max = 82000 },
+		Secret = { Min = 82000, Max = 245000 },
+		Divine = { Min = 410000, Max = 1230000 },
+		Superior = { Min = 2050000, Max = 8200000 },
 	},
 	MaxRequiredStrength = {
 		Common = 9,
@@ -44,14 +44,14 @@ Shared_Rarities.Balance = {
 		Superior = 1000,
 	},
 	PaybackMultiplier = {
-		Common = 0.9,
-		Rare = 1.05,
-		Epic = 1.2,
-		Legendary = 1.4,
-		Mythical = 1.65,
-		Secret = 2.0,
-		Divine = 2.8,
-		Superior = 3.5,
+		Common = 1.1,
+		Rare = 1.28,
+		Epic = 1.5,
+		Legendary = 1.75,
+		Mythical = 2.1,
+		Secret = 2.55,
+		Divine = 3.5,
+		Superior = 4.35,
 	},
 }
 

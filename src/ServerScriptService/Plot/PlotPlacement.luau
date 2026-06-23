@@ -180,7 +180,11 @@ function PlotPlacement.PlaceBrainrot(player: Player, plot, slotId: number, inven
 	local slotData = {
 		CashToCollect = 0,
 		ConfigName = item.ConfigName,
-		Level = item.Data and item.Data.Level or 1,
+		Level = math.clamp(
+			math.max(1, math.floor(tonumber(item.Data and item.Data.Level) or 1)),
+			1,
+			Shared_Brainrots.MaxLevel or 150
+		),
 		Modifier = item.Data and item.Data.Modifier or "Normal",
 		BaseWeight = baseWeight,
 		Weight = rolledWeight,

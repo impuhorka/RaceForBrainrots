@@ -7,8 +7,8 @@ local Shared_StrengthStore = Shared_StatStore.create({
 	DefaultValue = 1,
 	PurchaseOptions = { 1, 5, 10 },
 	Economy = {
-		BaseCostPerPoint = 500,
-		GrowthPerPoint = 1.115,
+		BaseCostPerPoint = 900,
+		GrowthPerPoint = 1.128,
 		RoundTo = 50,
 	},
 })

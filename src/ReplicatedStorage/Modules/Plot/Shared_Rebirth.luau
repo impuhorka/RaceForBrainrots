@@ -12,10 +12,10 @@ Shared_Rebirth.BaseSpeedCap = 80
 Shared_Rebirth.BaseStrengthCap = 100
 
 Shared_Rebirth.Economy = {
-	BaseCost = 100_000,
-	GrowthPerRebirth = 5.25,
-	CostAcceleration = 0.16,
-	SecondRebirthCostMultiplier = 1.75,
+	BaseCost = 250_000,
+	GrowthPerRebirth = 5.75,
+	CostAcceleration = 0.2,
+	SecondRebirthCostMultiplier = 2.0,
 	RoundTo = 25_000,
 }
 

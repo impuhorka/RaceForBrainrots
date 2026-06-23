@@ -10,12 +10,12 @@ end
 
 function Shared_PlotConfig.getNextSlotCost(currentSlotCount: number): number
 	if currentSlotCount < 10 then
-		local rawCost = 1000 * (currentSlotCount + 1) ^ 1.25
+		local rawCost = 1500 * (currentSlotCount + 1) ^ 1.32
 		return roundToCoolThousands(rawCost)
 	end
 
 	local extraSlots = currentSlotCount - 9
-	local rawCost = 50000 * extraSlots ^ 2.8
+	local rawCost = 90000 * extraSlots ^ 2.9
 	return roundToCoolThousands(rawCost)
 end
 

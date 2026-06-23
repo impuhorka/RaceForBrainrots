@@ -41,7 +41,7 @@ Modifiers.Data = {
 		DisplayName = "Galaxy",
 		LayoutOrder = 4,
 		IncomeMultiplier = 2.8,
-		UpgradeCostMultiplier = 1.06,
+		UpgradeCostMultiplier = 1.07,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 150, 255)),
@@ -53,7 +53,7 @@ Modifiers.Data = {
 		DisplayName = "Lava",
 		LayoutOrder = 5,
 		IncomeMultiplier = 3.5,
-		UpgradeCostMultiplier = 1.08,
+		UpgradeCostMultiplier = 1.1,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 140, 0)),
@@ -65,7 +65,7 @@ Modifiers.Data = {
 		DisplayName = "Rainbow",
 		LayoutOrder = 6,
 		IncomeMultiplier = 4.5,
-		UpgradeCostMultiplier = 1.1,
+		UpgradeCostMultiplier = 1.12,
 
 		ColorGradient = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
@@ -90,7 +90,7 @@ function Modifiers.GetUpgradeCostMultiplier(modifier: string): number
 end
 
 -- Only part of modifier income bonus affects upgrade cost (income still uses full multiplier).
-local UPGRADE_COST_INCOME_INFLUENCE = 0.35
+local UPGRADE_COST_INCOME_INFLUENCE = 0.38
 
 function Modifiers.GetUpgradeIncomeInfluence(modifier: string): number
 	local incomeMultiplier = Modifiers.GetIncomeMultiplier(modifier)

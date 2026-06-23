@@ -1,8 +1,10 @@
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
 local SharedModules = require(game:GetService("ReplicatedStorage").Modules.Loader)
 
 local ClientLoader = require(script.Parent.Parent.Loader)
+local FrameController = require(script.Parent.Parent.Parent.UI.FrameController)
 local Shared_Marketplace = SharedModules.require("Shared_Marketplace")
 local Shared_Abbreviation = SharedModules.require("Shared_Abbreviation")
 
@@ -13,6 +15,7 @@ local localPlayer = Players.LocalPlayer
 local UNIT_CONFIG_KEY = Shared_Marketplace.GetVIPLuckyBlockProductKey(1)
 
 local luckyBlockSection: GuiObject?
+local robuxStoreScrollingFrame: ScrollingFrame?
 local bannerBack1: TextLabel?
 local bannerUp1: TextLabel?
 local luckyBlockCostLabels: { [number]: TextLabel? } = {}
@@ -342,6 +345,45 @@ local function bindCashFrame(tier: number, frame: Instance)
 	end)
 end
 
+local function scrollToLuckyBlockSection()
+	if not luckyBlockSection or not robuxStoreScrollingFrame then
+		return
+	end
+
+	local scrollingFrame = robuxStoreScrollingFrame
+	local target = luckyBlockSection
+
+	task.defer(function()
+		RunService.Heartbeat:Wait()
+
+		if not scrollingFrame.Parent or not target.Parent then
+			return
+		end
+
+		local y = target.AbsolutePosition.Y - scrollingFrame.AbsolutePosition.Y + scrollingFrame.CanvasPosition.Y
+		local maxY = math.max(0, scrollingFrame.AbsoluteCanvasSize.Y - scrollingFrame.AbsoluteSize.Y)
+		scrollingFrame.CanvasPosition = Vector2.new(0, math.clamp(y, 0, maxY))
+	end)
+end
+
+function Client_RobuxStore.OpenToVIPLuckyBlock()
+	local Client_Marketplace = ClientLoader.require("Client_Marketplace")
+	local Client_Messaging = ClientLoader.require("Client_Messaging")
+
+	if not Client_Marketplace.CanPurchasePaidRandomItems() then
+		Client_Messaging.Show("Paid random items are not available in your region.", "red")
+		return
+	end
+
+	local robuxStore = FrameController.getFrame("RobuxStore")
+	if not robuxStore then
+		return
+	end
+
+	FrameController.open(robuxStore)
+	scrollToLuckyBlockSection()
+end
+
 local function setupRobuxStoreUi()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
 	local main = playerGui:WaitForChild("Main")
@@ -351,7 +393,8 @@ local function setupRobuxStoreUi()
 	bannerBack1 = findTextLabel(banner, "Back1")
 	bannerUp1 = findTextLabel(banner, "Up1")
 
-	local scrollingFrame = robuxStore:WaitForChild("ScrollingFrame")
+	local scrollingFrame = robuxStore:WaitForChild("ScrollingFrame") :: ScrollingFrame
+	robuxStoreScrollingFrame = scrollingFrame
 	luckyBlockSection = scrollingFrame:WaitForChild("LuckyBlock") :: GuiObject
 
 	local luckyButtonsFrame = luckyBlockSection:WaitForChild("Frame"):WaitForChild("Buttons")

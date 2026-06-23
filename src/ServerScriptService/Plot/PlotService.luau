@@ -12,6 +12,7 @@ local PlotOfflineCash = require(script.Parent.PlotOfflineCash)
 local PlotPlacement = require(script.Parent.PlotPlacement)
 local PlotSteal = require(script.Parent.PlotSteal)
 local PlotSlotPurchase = require(script.Parent.PlotSlotPurchase)
+local Server_SixSevenReward = require(script.Parent.Parent.Core.Server_SixSevenReward)
 local GameProcessService = require(ServerScriptService.GameProcess.GameProcessService)
 local Server_Data = require(ServerScriptService.Core.Server_Data)
 local Shared_Brainrots = SharedModules.require("Shared_Brainrots")
@@ -107,7 +108,7 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 	if rewardBrainrots then
 		local candidates = {}
 		for _, configName in rewardBrainrots do
-			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
+			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsRewardExclusive(configName) then
 				table.insert(candidates, configName)
 			end
 		end
@@ -122,7 +123,7 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 		local rarity = rewardRarities[math.random(1, #rewardRarities)]
 		local candidates = {}
 		for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
-			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
+			if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsRewardExclusive(configName) then
 				table.insert(candidates, configName)
 			end
 		end
@@ -139,7 +140,7 @@ local function rollLuckyBlockRewardConfigName(luckyBlockConfigName: string): str
 
 	local candidates = {}
 	for _, configName in Shared_Brainrots.GetConfigNamesForRarity(rarity) do
-		if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsVIPExclusive(configName) then
+		if not blacklistSet[normalizeName(configName)] and not Shared_Brainrots.IsRewardExclusive(configName) then
 			table.insert(candidates, configName)
 		end
 	end
@@ -779,6 +780,17 @@ function PlotService:Init()
 			else
 				plotHandler:FireClient(player, "RebirthFailed", reason, cost)
 			end
+			return
+		end
+
+		if action == "ClaimSixSevenGroupReward" then
+			local claimed, reason = Server_SixSevenReward.TryClaim(player)
+			if claimed then
+				plotHandler:FireClient(player, "SixSevenGroupRewardSuccess")
+			else
+				plotHandler:FireClient(player, "SixSevenGroupRewardFailed", reason)
+			end
+			return
 		end
 	end)
 
@@ -796,6 +808,7 @@ function PlotService:Init()
 
 	Players.PlayerRemoving:Connect(function(player)
 		collectAllCooldowns[player] = nil
+		Server_SixSevenReward.ClearPlayer(player)
 		self:DetachPlayer(player)
 	end)
 end

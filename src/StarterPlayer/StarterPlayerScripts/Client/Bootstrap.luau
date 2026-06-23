@@ -79,6 +79,7 @@ local function runPostDataSystems()
 		{ "Client_VIPButton" },
 		{ "Client_PlotCollectAllSign" },
 		{ "Client_InteractStorePrompts" },
+		{ "Client_VIPLuckyBlockInteract" },
 		{ "Client_SpeedStore" },
 		{ "Client_StrengthStore" },
 		{ "Client_RobuxStore" },
@@ -99,6 +100,7 @@ local function runPostDataSystems()
 		{ "Client_OfflineCash" },
 		{ "Client_Rebirth" },
 		{ "Client_Settings" },
+		{ "Client_FavoritePrompt" },
 	}
 
 	require(script.Parent.Parent.UI)

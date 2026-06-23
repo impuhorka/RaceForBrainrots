@@ -178,6 +178,29 @@ LuckyBlocks.Data = {
 		},
 		Blacklist = {},
 	},
+	SixSevenLuckyBlock = {
+		DisplayName = "67 Lucky Block",
+		Image = "rbxassetid://127431029768961",
+		Rarity = "Epic",
+		BaseWeight = 67,
+		BillboardYOffsetAdd = 2,
+		BillboardTextScale = 1.45,
+		IsDonate = true,
+		DisplayStyle = {
+			Label = "67",
+			Color = Color3.fromRGB(255, 90, 90),
+			ColorGradient = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 50, 50)),
+			}),
+			GradientRotation = 90,
+		},
+		RewardBrainrots = {
+			{ ConfigName = "SixSeven", Weight = 1 },
+		},
+		Blacklist = {},
+	},
 }
 
 function LuckyBlocks.GetBillboardTextScale(configName: string): number?

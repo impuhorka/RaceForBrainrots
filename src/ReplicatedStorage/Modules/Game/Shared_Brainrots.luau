@@ -5,23 +5,24 @@ local Shared_Weight = require(script.Parent.Shared_Weight)
 local Brainrots = {}
 
 Brainrots.MaxLevel = 150
-Brainrots.UpgradesEnabled = false
+Brainrots.UpgradesEnabled = true
 
 Brainrots.DefaultBaseWeight = 15
 
 Brainrots.Balance = {
-	IncomeLevelMultiplier = 1.25,
+	-- +20% income per level; upgrade cost = income gain * payback time (rarity + modifier scaled).
+	IncomeLevelMultiplier = 1.2,
 	MinPlotScale = 0.5,
 	MaxPlotScale = 2,
 	UpgradePayback = {
-		BaseSeconds = 36,
+		BaseSeconds = 38,
 		PerLevelMultiplier = 1.05,
 		StepLevels = 5,
-		StepMultiplierPhase1 = 1.28,
-		StepMultiplierPhase2 = 1.55,
-		Phase1StepCount = 20,
+		StepMultiplierPhase1 = 1.26,
+		StepMultiplierPhase2 = 1.82,
+		Phase1StepCount = 18,
 	},
-	SellWorthSeconds = 30,
+	SellWorthSeconds = 20,
 }
 
 -- PowerTier (1-10) sets base $/s inside each rarity band from Shared_Rarities.BaseIncome.
@@ -64,6 +65,12 @@ Brainrots.Data = {
 	TimCheese = { DispalayName = "Tim Cheese", Rarity = "Epic", PowerTier = 7 },
 	TriplitoTralaleritos = { DispalayName = "Triplito Tralaleritos", Rarity = "Epic", PowerTier = 8 },
 	ZibraZubraZibralini = { DispalayName = "Zibra Zubra Zibralini", Rarity = "Epic", PowerTier = 9 },
+	SixSeven = {
+		DispalayName = "67",
+		Rarity = "Epic",
+		PowerTier = 10,
+		Is67Exclusive = true,
+	},
 	PepeFrogy = {
 		DispalayName = "Pepe Frogy",
 		Rarity = "Epic",
@@ -203,11 +210,20 @@ function Brainrots.IsVIPExclusive(configName: string): boolean
 	return config ~= nil and config.IsVIPExclusive == true
 end
 
-function Brainrots.GetConfigNamesForRarity(rarity: string, includeVIPExclusive: boolean?): { string }
+function Brainrots.Is67Exclusive(configName: string): boolean
+	local config = Brainrots.Data[configName]
+	return config ~= nil and config.Is67Exclusive == true
+end
+
+function Brainrots.IsRewardExclusive(configName: string): boolean
+	return Brainrots.IsVIPExclusive(configName) or Brainrots.Is67Exclusive(configName)
+end
+
+function Brainrots.GetConfigNamesForRarity(rarity: string, includeRewardExclusive: boolean?): { string }
 	local configNames: { string } = {}
 	for configName, config in Brainrots.Data do
 		if config.Rarity == rarity then
-			if includeVIPExclusive ~= true and config.IsVIPExclusive == true then
+			if includeRewardExclusive ~= true and Brainrots.IsRewardExclusive(configName) then
 				continue
 			end
 			table.insert(configNames, configName)

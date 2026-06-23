@@ -160,6 +160,8 @@ local DataTemplate = {
 	DataGamepasses = {},
 
 	TutorialCompleted = false,
+	SixSevenGroupRewardClaimed = false,
+	FavoritePromptShown = false,
 
 	LastLeaveTime = 0,
 	PendingOfflineCash = 0,
@@ -504,6 +506,14 @@ local function normalizeInventoryItem(item: any, weightLuckMultiplier: number?)
 		end
 		item.Data.BaseWeight = baseWeight
 		item.Data.Weight = rolledWeight
+		item.Data.Level = math.clamp(
+			math.max(1, math.floor(tonumber(item.Data.Level) or 1)),
+			1,
+			Shared_Brainrots.MaxLevel or 150
+		)
+		if type(item.Data.Modifier) ~= "string" or not Shared_Modifiers.Data[item.Data.Modifier] then
+			item.Data.Modifier = "Normal"
+		end
 	end
 end
 
@@ -567,12 +577,20 @@ local function sanitizePlot(data: { [string]: any })
 		end
 
 		slotData.CashToCollect = math.max(0, math.floor(tonumber(slotData.CashToCollect) or 0))
-		slotData.Level = math.max(1, math.floor(tonumber(slotData.Level) or 1))
+		slotData.Level = math.clamp(
+			math.max(1, math.floor(tonumber(slotData.Level) or 1)),
+			1,
+			Shared_Brainrots.MaxLevel or 150
+		)
 
 		local modifier = slotData.Modifier
 		if type(modifier) ~= "string" or not Shared_Modifiers.Data[modifier] then
 			slotData.Modifier = "Normal"
 		end
+
+		local baseWeight, rolledWeight = Shared_Weight.ResolveBrainrotWeights(slotData, slotData.ConfigName)
+		slotData.BaseWeight = baseWeight
+		slotData.Weight = rolledWeight
 	end
 end
 
@@ -622,6 +640,8 @@ local function sanitizeScalars(data: { [string]: any })
 	data.PopUps = data.PopUps ~= false
 	data.SlowMode = data.SlowMode == true
 	data.TutorialCompleted = data.TutorialCompleted == true
+	data.SixSevenGroupRewardClaimed = data.SixSevenGroupRewardClaimed == true
+	data.FavoritePromptShown = data.FavoritePromptShown == true
 
 	if type(data.ActivePlotSkin) ~= "string" or data.ActivePlotSkin == "" then
 		data.ActivePlotSkin = DataTemplate.ActivePlotSkin
